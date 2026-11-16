@@ -80,13 +80,15 @@
     });
     let changed = false;
     series.forEach(latest => {
-      let due = latest.dueOn;
+      let due = latest.dueOn, person = latest.person;
       while (due < horizon) {
         due = nextDue(latest, due);
         if (!due || due > horizon) break;
         const exists = state.householdTasks.some(task => task.seriesId === latest.seriesId && task.dueOn === due);
+        // Putzplan: bei „abwechselnd“ ist jede neue Runde die andere Person dran.
+        if (latest.alternate) person = person === 'person1' ? 'person2' : 'person1';
         if (!exists) {
-          state.householdTasks.push({ ...latest, id: `${latest.seriesId}:${due}`, dueOn: due, due, done: false, completedAt: null, createdAt: new Date().toISOString() });
+          state.householdTasks.push({ ...latest, person, id: `${latest.seriesId}:${due}`, dueOn: due, due, done: false, completedAt: null, createdAt: new Date().toISOString() });
           changed = true;
         }
       }
@@ -110,7 +112,7 @@
 
   function taskRow(task, history = false) {
     const overdue = !task.done && task.dueOn < todayIso();
-    return `<label class="check-row feature-task ${task.done ? 'done' : ''} ${overdue ? 'overdue' : ''}"><input type="checkbox" data-task-id="${escapeHtml(task.id)}" ${task.done ? 'checked' : ''}><span class="check-dot"></span><span><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(displayPerson(task.person))} · ${escapeHtml(formatDue(task))}${task.recurrence !== 'none' ? ' · ↻' : ''}</small>${task.description ? `<em>${escapeHtml(task.description)}</em>` : ''}</span>${history ? '<button type="button" class="row-delete" data-delete-task aria-label="Aufgabe löschen">×</button>' : ''}</label>`;
+    return `<label class="check-row feature-task ${task.done ? 'done' : ''} ${overdue ? 'overdue' : ''}"><input type="checkbox" data-task-id="${escapeHtml(task.id)}" ${task.done ? 'checked' : ''}><span class="check-dot"></span><span><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(displayPerson(task.person))} · ${escapeHtml(formatDue(task))}${task.recurrence !== 'none' ? (task.alternate ? ' · ⇄ abwechselnd' : ' · ↻') : ''}</small>${task.description ? `<em>${escapeHtml(task.description)}</em>` : ''}</span>${history ? '<button type="button" class="row-delete" data-delete-task aria-label="Aufgabe löschen">×</button>' : ''}</label>`;
   }
 
   function renderTasksEnhanced() {

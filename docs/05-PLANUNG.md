@@ -19,6 +19,7 @@ Stand: 16. November 2026. Ergänzt `02-UMSETZUNGSSTAND.md`. Noah hat freigegeben
 | 20 | Lou-Bereich (`lou.js`, Seite über Haushalt und Mehr): nächster Tierarzttermin aus dem Kalender (Titel mit „Tierarzt“, „Lou“ oder 🐾), regelmäßige Pflege mit „Erledigt“ und automatisch berechneter nächster Fälligkeit, Vorschläge (Wurmkur, Floh-/Zeckenschutz, Impfung, Futter, Krallen), Steckbrief mit Tierarzt-Telefon, Futter auf die Einkaufsliste, Lous Dokumente. Fällige Pflege erscheint unter „Demnächst wichtig“ und in der Morgen-Nachricht. Daten in `state.lou`. |
 | 21 | Einkaufsliste: Eingabefeld direkt über der Liste, „Oft gekauft“ zum Antippen (Verlauf in `state.shoppingHistory`), ✎ zum Ändern von Artikel/Menge/Bereich (auf Wunsch dauerhaft gemerkt über `customCategories.shopping`), keine Doppelten, „Eingekaufte entfernen“, Abgleich alle 5 Sekunden solange die Haushaltsseite offen ist. |
 | 22 | Montage ↔ Kalender: Aufträge erscheinen als ganztägige Einträge in Noahs Kalender (🔧, abgeschlossen ✓; nur lesen, „Auftrag öffnen“ springt in den Auftrag). Neues Feld Adresse mit „Route öffnen“ (Apple Karten) im Auftrag und im Kalender. Montage des Tages in Noahs Morgen-Nachricht. |
+| 23 | Putzplan: Bei wiederkehrenden Aufgaben gibt es „Abwechselnd Noah und Charleen“ (`task.alternate`); jede neue Runde ist die andere Person dran, Anzeige „⇄ abwechselnd“. |
 
 ## Offen / in Klärung
 
@@ -40,8 +41,7 @@ Claude hat über einen Supabase-Zugangsschlüssel von Noah (Access Token „Clau
 
 ## Geplant (Reihenfolge nach Nutzen)
 
-1. **Putzplan mit Wechsel** zwischen Noah und Charleen.
-2. Charleens Bereich erst nach Rücksprache mit ihr ausbauen.
+1. Charleens Bereich erst nach Rücksprache mit ihr ausbauen.
 
 ## Bewusst verworfen
 
