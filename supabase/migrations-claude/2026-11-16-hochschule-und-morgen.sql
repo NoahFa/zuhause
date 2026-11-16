@@ -15,6 +15,7 @@ select cron.schedule('zuhause-hochschule', '40 4,10,16 * * *', $$
   select net.http_post(url := 'https://mvdnatelwrakkkvdwcaa.supabase.co/functions/v1/sync-family-content?jobs=study', headers := jsonb_build_object('Content-Type','application/json','Authorization','Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'zuhause_cron_secret' limit 1)), body := '{}'::jsonb);
 $$);
 select cron.unschedule('zuhause-morgen') where exists (select 1 from cron.job where jobname = 'zuhause-morgen');
-select cron.schedule('zuhause-morgen', '2 5,6 * * *', $$
+-- Geändert am 16.11.2026 auf 5 Uhr Berlin: '2 3,4 * * *' (vorher '2 5,6 * * *' für 7 Uhr)
+select cron.schedule('zuhause-morgen', '2 3,4 * * *', $$
   select net.http_post(url := 'https://mvdnatelwrakkkvdwcaa.supabase.co/functions/v1/send-morning-summary', headers := jsonb_build_object('Content-Type','application/json','Authorization','Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'zuhause_cron_secret' limit 1)), body := '{}'::jsonb);
 $$);

@@ -1,8 +1,8 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import webpush from 'npm:web-push@3.6.7'
 
-// Morgen-Nachricht um 7 Uhr (Berlin): Termine, Hochschule, Müll, Fußball, Geburtstage, Montageaufträge (Noah), Prüfungen und Caritas-To-dos (Charleen), Lous fällige Pflege und offene Aufgaben des Tages.
-// Wird per Cron um 05:02 und 06:02 UTC aufgerufen; gesendet wird nur, wenn es in Berlin 7 Uhr ist (Sommer-/Winterzeit).
+// Morgen-Nachricht um 5 Uhr (Berlin): Termine, Hochschule, Müll, Fußball, Geburtstage, Montageaufträge (Noah), Prüfungen und Caritas-To-dos (Charleen), Lous fällige Pflege und offene Aufgaben des Tages.
+// Wird per Cron um 03:02 und 04:02 UTC aufgerufen; gesendet wird nur, wenn es in Berlin 5 Uhr ist (Sommer-/Winterzeit).
 // ?force=1 sendet unabhängig von der Uhrzeit, ?dry=1 zeigt nur den Text, ohne zu senden (mit &date=JJJJ-MM-TT für einen anderen Tag).
 
 function sameSecret(left: string, right: string) {
@@ -58,7 +58,7 @@ Deno.serve(async request => {
   const params = new URL(request.url).searchParams, force = params.get('force') === '1', dry = params.get('dry') === '1'
   const now = new Date(), local = berlinParts(now), requestedDate = params.get('date')
   const today = dry && requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? requestedDate : `${local.year}-${local.month}-${local.day}`
-  if (!force && !dry && Number(local.hour) !== 7) return Response.json({ skipped: true, reason: 'Außerhalb von 7 Uhr (Berlin)' })
+  if (!force && !dry && Number(local.hour) !== 5) return Response.json({ skipped: true, reason: 'Außerhalb von 5 Uhr (Berlin)' })
 
   const [members, subscriptions, events, recurrences, exceptions, participants, calendars, external, states] = await Promise.all([
     supabase.from('household_members').select('household_id,user_id,display_name,role'),
