@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#eef0e7">
+  <meta name="description" content="Euer gemeinsamer Alltag: Termine, Aufgaben, Haushalt, Finanzen und Steuern an einem Ort.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Zuhause">
+  <title>Zuhause · Euer Familien-Dashboard</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <button class="brand" data-page="today"><span class="brand-mark">Z</span><span><strong>Zuhause</strong><small>euer gemeinsamer Alltag</small></span></button>
+      <nav class="nav-list">
+        <button class="nav-item active" data-page="today"><span>⌂</span>Heute</button>
+        <button class="nav-item" data-page="calendar"><span>▦</span>Kalender</button>
+        <button class="nav-item" data-page="finances"><span>€</span>Finanzen</button>
+        <button class="nav-item" data-page="household"><span>✓</span>Haushalt</button>
+        <button class="nav-item" data-page="more"><span>•••</span>Mehr</button>
+      </nav>
+      <button class="tax-shortcut" data-page="tax"><span class="tax-mark">S</span><span><strong>Steuern</strong><small>SteuerKompass</small></span><em>→</em></button>
+      <div class="sidebar-note"><span>i</span><p><strong>Einfach erklärt</strong>Fachwörter werden vermieden oder direkt übersetzt.</p></div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button class="mobile-brand" data-page="today"><span class="brand-mark">Z</span><strong>Zuhause</strong></button>
+        <div class="today-label"><small>Heute</small><strong id="topDate">Sonntag, 8. November</strong></div>
+        <button class="sync-pill" data-detail="storage"><i></i><span>Auf diesem Gerät</span></button>
+        <button class="avatar" data-page="people"><span>N</span><span>F</span></button>
+      </header>
+
+      <section class="page active" id="today">
+        <div class="home-hero">
+          <div><p class="eyebrow" id="greeting">Guten Morgen, ihr zwei</p><h1 id="dayMessage">Ein ruhiger Start in euren Sonntag.</h1><p id="timeMessage">Hier seht ihr nur, was heute wirklich wichtig ist.</p></div>
+          <div class="weather-orb"><span>☀</span><strong>11°</strong><small>trocken</small></div>
+        </div>
+        <div class="quick-actions">
+          <button data-open="appointment"><span class="action-icon sage">＋</span><strong>Termin</strong><small>gemeinsam oder privat</small></button>
+          <button data-open="task"><span class="action-icon clay">✓</span><strong>Aufgabe</strong><small>für euch beide</small></button>
+          <button data-open="shopping"><span class="action-icon gold">⌑</span><strong>Einkauf</strong><small>zur Liste hinzufügen</small></button>
+          <button data-open="expense"><span class="action-icon blue">€</span><strong>Ausgabe</strong><small>privat oder Steuer</small></button>
+        </div>
+        <div class="home-grid">
+          <article class="card day-card"><div class="card-head"><div><span class="kicker">Euer Tag</span><h2>Was heute ansteht</h2></div><button class="text-button" data-page="calendar">Kalender →</button></div><div class="timeline" id="todayTimeline"></div></article>
+          <article class="card task-card"><div class="card-head"><div><span class="kicker">Gemeinsam</span><h2>Offene Aufgaben</h2></div><button class="round-add" data-open="task">＋</button></div><div class="home-task-list" id="homeTaskList"></div><button class="card-footer" data-page="household">Alle Aufgaben <span>→</span></button></article>
+          <article class="card shopping-card"><div class="card-head"><div><span class="kicker">Einkauf</span><h2>Für den nächsten Einkauf</h2></div><button class="round-add" data-open="shopping">＋</button></div><div class="shopping-list" id="shoppingPreview"></div><button class="card-footer" data-page="household">Liste öffnen <span>→</span></button></article>
+          <article class="card lou-card" data-detail="lou"><div class="lou-illustration">🐾</div><div><span class="kicker">Lou</span><h2>Alles im Blick</h2><p>Nächster Termin: Tierarzt am 18. November</p></div><button class="text-button" data-detail="lou">Öffnen →</button></article>
+        </div>
+        <div class="overview-grid">
+          <button class="card overview-card" data-page="finances"><span class="overview-icon">€</span><span><small>Diesen Monat</small><strong>Gemeinsame Ausgaben</strong><b id="homeExpenseTotal">428,70 €</b><em>Zur Übersicht →</em></span></button>
+          <button class="card overview-card tax-overview" data-page="tax"><span class="overview-icon">S</span><span><small>Steuer 2026</small><strong>Gut unterwegs</strong><b id="taxProgressText">25 % erledigt</b><em id="taxOpenText">Noch 3 kleine Aufgaben →</em></span></button>
+          <article class="card evening-card"><span>☾</span><div><small>Heute Abend</small><strong>Morgen kurz vorbereiten</strong><p>Arbeitsort prüfen und Müll rausstellen.</p></div></article>
+        </div>
+      </section>
+
+      <section class="page" id="calendar">
+        <div class="page-title"><div><p class="eyebrow">Gemeinsamer Kalender</p><h1>Eure Woche auf einen Blick.</h1><p>Privates, Arbeit und Hochschule bleiben klar gekennzeichnet.</p></div><button class="primary" data-open="appointment">＋ Termin eintragen</button></div>
+        <div class="filter-row"><button class="chip active">Alle</button><button class="chip">Noah</button><button class="chip">Freundin</button><button class="chip">Gemeinsam</button><span class="spacer"></span><button class="month-select">‹</button><strong>November 2026</strong><button class="month-select">›</button></div>
+        <div class="calendar-layout"><article class="calendar-card card"><div class="calendar-grid" id="calendarGrid"></div></article><aside class="card upcoming-card"><span class="kicker">Als Nächstes</span><h2>Anstehende Termine</h2><div id="upcomingList"></div></aside></div>
+        <div class="plain-tip"><strong>Arbeitstage für die Steuer</strong><span>Büro, Zuhause und Hochschule könnt ihr weiterhin direkt festhalten.</span><button data-open="day">Arbeitstag eintragen →</button></div>
+      </section>
+
+      <section class="page" id="finances">
+        <div class="page-title"><div><p class="eyebrow">Euer Geld im Alltag</p><h1>Einfach sehen, wohin das Geld geht.</h1><p>Nur eure eigene Übersicht – keine Verbindung zu einem Bankkonto.</p></div><button class="primary" data-open="expense">＋ Ausgabe eintragen</button></div>
+        <div class="money-summary"><article class="balance-card"><span>Diesen Monat ausgegeben</span><strong id="financeTotal">0,00 €</strong><small>gemeinsam und persönlich erfasst</small></article><article class="mini-money"><span>Gemeinsamer Haushalt</span><strong>1.284,00 €</strong><small>Miete, Einkäufe und Verträge</small></article><article class="mini-money"><span>Noch einzuplanen</span><strong>186,00 €</strong><small>bis Monatsende</small></article></div>
+        <div class="finance-grid">
+          <article class="card category-card"><span class="kicker">Aufteilung</span><h2>Wofür wurde Geld ausgegeben?</h2><div class="category-bars"><div><span>Wohnen</span><i><b style="width:76%"></b></i><strong>1.020 €</strong></div><div><span>Einkaufen</span><i><b style="width:38%"></b></i><strong>214 €</strong></div><div><span>Mobilität</span><i><b style="width:27%"></b></i><strong>152 €</strong></div><div><span>Sonstiges</span><i><b style="width:16%"></b></i><strong>86 €</strong></div></div></article>
+          <article class="card split-card"><span class="kicker">Getrennt, aber übersichtlich</span><h2>Persönlich und gemeinsam</h2><button data-detail="financeTogether"><span class="person-avatar mint-bg">⌂</span><span><strong>Gemeinsam</strong><small>Miete, Haushalt, Verträge</small></span><em>→</em></button><button data-detail="financeNoah"><span class="person-avatar blue-bg">N</span><span><strong>Noah</strong><small>Persönliche Ausgaben</small></span><em>→</em></button><button data-detail="financePartner"><span class="person-avatar coral-bg">F</span><span><strong>Freundin</strong><small>Persönliche Ausgaben</small></span><em>→</em></button></article>
+        </div>
+        <article class="card table-card"><div class="card-head"><div><span class="kicker">Zuletzt eingetragen</span><h2>Ausgaben</h2></div><div class="search">⌕ <input id="expenseSearch" placeholder="Suchen …"></div></div><div class="expense-list" id="expenseList"></div></article>
+      </section>
+
+      <section class="page" id="household">
+        <div class="page-title"><div><p class="eyebrow">Euer Zuhause</p><h1>Aufgaben teilen, nichts vergessen.</h1><p>Einkauf, Putzen, Verträge und Lou – ohne Zettelwirtschaft.</p></div><button class="primary" data-open="task">＋ Aufgabe hinzufügen</button></div>
+        <div class="household-grid">
+          <article class="card household-tasks"><div class="card-head"><div><span class="kicker">Diese Woche</span><h2>Aufgaben</h2></div><button class="round-add" data-open="task">＋</button></div><div id="householdTaskList"></div></article>
+          <article class="card full-shopping"><div class="card-head"><div><span class="kicker">Gemeinsame Liste</span><h2>Einkaufen</h2></div><button class="round-add" data-open="shopping">＋</button></div><div id="shoppingFull"></div></article>
+          <button class="card household-module" data-detail="contracts"><span class="module-symbol">▤</span><span><small>Wohnung</small><strong>Verträge & Unterlagen</strong><p>Miete, Strom, Internet und Versicherungen.</p></span><em>→</em></button>
+          <button class="card household-module" data-detail="lou"><span class="module-symbol">🐾</span><span><small>Lou</small><strong>Termine & Erinnerungen</strong><p>Tierarzt, Futter und wichtige Unterlagen.</p></span><em>→</em></button>
+        </div>
+      </section>
+
+      <section class="page" id="more">
+        <div class="page-title"><div><p class="eyebrow">Alles Weitere</p><h1>Was ihr nicht jeden Tag braucht.</h1><p>Wichtige Bereiche bleiben erreichbar, ohne die Startseite zu überladen.</p></div></div>
+        <div class="more-grid">
+          <button class="more-feature tax-feature" data-page="tax"><span class="large-icon">S</span><span><small>SteuerKompass</small><strong>Steuern vorbereiten</strong><p>Belege, Arbeitstage, Nebengewerbe und später ELSTER.</p></span><em>→</em></button>
+          <button class="more-feature" data-page="people"><span class="large-icon people-icon">◎</span><span><small>Persönlich</small><strong>Ihr beide</strong><p>Getrennte Profile und gemeinsamer Haushalt.</p></span><em>→</em></button>
+          <button class="more-feature" data-page="documents"><span class="large-icon doc-icon">▤</span><span><small>Ablage</small><strong>Dokumente</strong><p>Lohn, Verträge und wichtige Nachweise.</p></span><em>→</em></button>
+          <button class="more-feature" data-detail="notifications"><span class="large-icon bell-icon">◌</span><span><small>Erinnerungen</small><strong>Mitteilungen</strong><p>Morgens, abends und vor wichtigen Terminen.</p></span><em>→</em></button>
+          <button class="more-feature" data-detail="install"><span class="large-icon phone-icon">▯</span><span><small>Auf beiden iPhones</small><strong>Als App installieren</strong><p>Zum Home-Bildschirm hinzufügen.</p></span><em>→</em></button>
+          <button class="more-feature" data-detail="settings"><span class="large-icon setting-icon">⚙</span><span><small>App</small><strong>Einstellungen</strong><p>Ansicht, Sicherung und Zugänge.</p></span><em>→</em></button>
+        </div>
+      </section>
+
+      <section class="page tax-page" id="tax">
+        <div class="tax-banner"><button class="back-link" data-page="more">← Mehr</button><div><p class="eyebrow">SteuerKompass in Zuhause</p><h1>Steuern – verständlich und Schritt für Schritt.</h1><p>Ihr sammelt Fakten. Die App behauptet nicht automatisch, dass etwas steuerlich zählt.</p></div><div class="tax-ring"><strong id="taxRingNumber">25%</strong><small>Monat erledigt</small></div></div>
+        <div class="tax-actions"><button data-open="expense"><span>＋</span><strong>Ausgabe</strong><small>mit Beleg</small></button><button data-open="day"><span>▦</span><strong>Arbeitstag</strong><small>Büro oder Zuhause</small></button><button data-open="income"><span>€</span><strong>Einnahme</strong><small>Nebengewerbe</small></button><button data-page="documents"><span>↑</span><strong>Dokument</strong><small>Lohn oder Nachweis</small></button></div>
+        <article class="card tax-check-card"><div class="card-head"><div><span class="kicker">Monats-Check · November</span><h2>Noch kurz erledigen</h2></div><span class="time-pill">8 Min.</span></div><div class="tax-task-list" id="taxTaskList"></div></article>
+        <div class="tax-module-grid">
+          <button class="card tax-module" data-page="calendar"><span class="module-symbol blue-soft">▦</span><span><strong>Arbeit & Fahrten</strong><p>Büro, Hochschule, Zuhause und Kundenfahrten.</p></span><em>→</em></button>
+          <button class="card tax-module" data-page="expenses"><span class="module-symbol clay-soft">＋</span><span><strong>Ausgaben & Belege</strong><p>Erst sammeln, später vorsichtig prüfen.</p></span><em>→</em></button>
+          <button class="card tax-module" data-page="business"><span class="module-symbol gold-soft">◇</span><span><strong>Nebengewerbe</strong><p>Rechnungen, Material, Werkzeug und Fahrten.</p></span><em>→</em></button>
+          <button class="card tax-module" data-page="documents"><span class="module-symbol sage-soft">▤</span><span><strong>Lohn & Dokumente</strong><p>Unterlagen getrennt für euch beide.</p></span><em>→</em></button>
+          <button class="card tax-module" data-page="insurance"><span class="module-symbol violet-soft">♢</span><span><strong>Versicherungen</strong><p>Verträge und Zahlungen festhalten.</p></span><em>→</em></button>
+          <button class="card tax-module" data-page="handover"><span class="module-symbol dark-soft">↗</span><span><strong>Direkt zu ELSTER</strong><p>Vorbereiten, prüfen und später sicher senden.</p></span><em>→</em></button>
+        </div>
+        <div class="plain-tip"><strong>Kein Steuerdeutsch</strong><span>Unvermeidbare Fachwörter werden direkt übersetzt.</span><button data-explain="safety">Warum wir vorsichtig sind →</button></div>
+      </section>
+
+      <section class="page" id="expenses">
+        <div class="section-back"><button data-page="tax">← Steuern</button></div>
+        <div class="page-title"><div><p class="eyebrow">Belege & berufliche Ausgaben</p><h1>Wofür habt ihr Geld ausgegeben?</h1><p>Erst sammeln, dann prüfen. Die App entscheidet nicht automatisch.</p></div><button class="primary" data-open="expense">＋ Ausgabe eintragen</button></div>
+        <div class="summary-cards"><div class="mini-card"><small>Insgesamt</small><strong id="expenseTotal">0,00 €</strong><span>2026</span></div><div class="mini-card"><small>Noch zu klären</small><strong id="reviewTotal">0</strong><span>Einträge</span></div><div class="mini-card"><small>Beleg vorhanden</small><strong id="receiptRate">0%</strong><span>der Einträge</span></div></div>
+        <article class="card table-card"><div class="card-head"><div><span class="kicker">Eure Einträge</span><h2>Steuer-Ausgaben</h2></div></div><div class="expense-list" id="taxExpenseList"></div></article>
+      </section>
+
+      <section class="page" id="business">
+        <div class="section-back"><button data-page="tax">← Steuern</button></div>
+        <div class="page-title"><div><p class="eyebrow">Geplantes Montage-Nebengewerbe</p><h1>Geld rein, Geld raus – sauber getrennt.</h1><p>„EÜR“ bedeutet hier nur: Einnahmen minus Ausgaben.</p></div><button class="primary" data-open="income">＋ Einnahme eintragen</button></div>
+        <div class="business-hero card"><div><small>Einnahmen</small><strong id="incomeTotal">1.240,00 €</strong></div><span>−</span><div><small>Ausgaben</small><strong>462,30 €</strong></div><span>=</span><div class="result"><small>Zwischenergebnis</small><strong id="profitTotal">777,70 €</strong><em>Noch keine Steuerzahl</em></div></div>
+        <div class="three-grid"><article class="card module-card"><span>▧</span><h3>Rechnungen</h3><p>Für wen wurde gearbeitet und wie viel berechnet?</p><button data-open="income">Einnahme eintragen →</button></article><article class="card module-card"><span>⌁</span><h3>Material & Werkzeug</h3><p>Einkäufe fürs Gewerbe getrennt festhalten.</p><button data-open="expense">Ausgabe eintragen →</button></article><article class="card module-card"><span>↗</span><h3>Fahrten</h3><p>Fahrten zu Kunden oder zum Baumarkt.</p><button data-open="day">Fahrt eintragen →</button></article></div>
+        <div class="plain-tip"><strong>Was heißt EÜR?</strong><span>Einnahmen minus passende betriebliche Ausgaben.</span><button data-explain="eur">Einfach erklärt →</button></div>
+      </section>
+
+      <section class="page" id="documents">
+        <div class="section-back"><button data-page="more">← Mehr</button></div>
+        <div class="page-title"><div><p class="eyebrow">Dokumente</p><h1>Alles an einem Ort wiederfinden.</h1><p>Lohn, Verträge und Nachweise getrennt für euch beide.</p></div><button class="primary" id="fakeUpload">↑ Dokument auswählen</button></div><input type="file" id="fileInput" hidden>
+        <div class="people-docs"><article class="card person-doc"><div class="person-head"><span class="person-avatar blue-bg">N</span><div><h2>Noah</h2><p>Persönliche Unterlagen</p></div></div><div class="doc-progress"><span><strong>10</strong> von 12 Lohnabrechnungen</span><div><i style="width:83%"></i></div></div><button data-detail="docsNoah">Ansehen →</button></article><article class="card person-doc"><div class="person-head"><span class="person-avatar coral-bg">F</span><div><h2>Freundin</h2><p>Persönliche Unterlagen</p></div></div><div class="doc-progress"><span><strong>10</strong> von 12 Lohnabrechnungen</span><div><i style="width:83%"></i></div></div><button data-detail="docsPartner">Ansehen →</button></article></div>
+        <article class="card checklist-card"><span class="kicker">Noch hilfreich</span><h2>Dokumenten-Check</h2><div class="simple-checks"><label><input type="checkbox" checked> Arbeitsverträge beider Personen</label><label><input type="checkbox" checked> Mietvertrag der gemeinsamen Wohnung</label><label><input type="checkbox"> Jahres-Lohnbescheinigungen 2026</label><label><input type="checkbox"> Unterlagen zu Hochschule und Studiengebühren</label><label><input type="checkbox"> Nachweis über den Minijob</label></div></article>
+      </section>
+
+      <section class="page" id="insurance">
+        <div class="section-back"><button data-page="tax">← Steuern</button></div>
+        <div class="page-title"><div><p class="eyebrow">Versicherungen</p><h1>Welche Verträge zahlt ihr?</h1><p>Wir sammeln Vertrag, Zahler und Jahresbetrag. Ob etwas steuerlich zählt, wird geprüft.</p></div><button class="primary" data-open="insurance">＋ Versicherung</button></div><div class="insurance-grid" id="insuranceGrid"></div>
+      </section>
+
+      <section class="page" id="people">
+        <div class="section-back"><button data-page="more">← Mehr</button></div>
+        <div class="page-title"><div><p class="eyebrow">Eure Bereiche</p><h1>Gemeinsam leben, Persönliches trennen.</h1><p>Alltag teilen, persönliche Finanz- und Steuerangaben richtig zuordnen.</p></div></div>
+        <div class="profile-grid"><article class="profile card"><span class="person-avatar big blue-bg">N</span><small>Person 1</small><h2>Noah</h2><p>Angestellter</p><ul><li>Eigene Termine und Unterlagen</li><li>Nebengewerbe geplant</li><li>Eigene Steuererklärung</li></ul><button data-detail="profileNoah">Profil öffnen →</button></article><article class="profile card"><span class="person-avatar big coral-bg">F</span><small>Person 2</small><h2>Freundin</h2><p>Angestellte im dualen Studium</p><ul><li>Hochschule und Arbeitsstelle</li><li>Zusätzlicher Minijob</li><li>Eigene Steuererklärung</li></ul><button data-detail="profilePartner">Profil öffnen →</button></article><article class="profile card"><span class="person-avatar big mint-bg">⌂</span><small>Gemeinsam</small><h2>Euer Zuhause</h2><p>Gemeinsame Mietwohnung</p><ul><li>Kalender und Aufgaben</li><li>Einkauf und Verträge</li><li>Gemeinsame Kosten</li></ul><button data-detail="householdProfile">Bereich öffnen →</button></article></div>
+      </section>
+
+      <section class="page" id="handover">
+        <div class="section-back"><button data-page="tax">← Steuern</button></div>
+        <div class="page-title"><div><p class="eyebrow">Kostenlos zum Finanzamt</p><h1>Von Zuhause direkt zu ELSTER.</h1><p>Zwei getrennte, verständlich vorbereitete Erklärungen – ohne weiteres Steuerprogramm.</p></div><a class="primary link-button" href="https://www.elster.de/eportal/registrierung-auswahl" target="_blank" rel="noopener">ELSTER-Konto</a></div>
+        <div class="elster-notice card"><span class="elster-star">✦</span><div><span class="kicker">Ehrlicher Stand</span><h2>Vorbereiten geht schon. Direkt senden folgt.</h2><p>Dafür muss die App offiziell angemeldet und mit ELSTERs kostenloser Übertragungstechnik verbunden werden.</p></div><button class="text-button" data-detail="elsterWhy">Warum? →</button></div>
+        <div class="elster-steps"><button class="elster-step done" data-detail="elsterData"><span>✓</span><div><small>Schritt 1</small><strong>Daten sammeln</strong><p>Kalender, Belege, Lohn</p></div><em>läuft</em></button><button class="elster-step active" data-detail="elsterCheck"><span>2</span><div><small>Schritt 2</small><strong>Einfach prüfen</strong><p>Fragen Person für Person</p></div><em>jetzt</em></button><button class="elster-step" data-detail="elsterAccount"><span>3</span><div><small>Schritt 3</small><strong>ELSTER verbinden</strong><p>Zugang sicher verknüpfen</p></div><em>später</em></button><button class="elster-step" data-detail="elsterSend"><span>4</span><div><small>Schritt 4</small><strong>Prüfen & senden</strong><p>Nur mit eurer Freigabe</p></div><em>später</em></button></div>
+        <div class="elster-grid"><article class="card elster-people"><span class="kicker">Zwei getrennte Erklärungen</span><h2>Euer Stand</h2><button data-detail="elsterNoah"><span class="person-avatar blue-bg">N</span><span><strong>Noah</strong><small>Einkommensteuer · Nebengewerbe</small></span><em>→</em></button><button data-detail="elsterPartner"><span class="person-avatar coral-bg">F</span><span><strong>Freundin</strong><small>Einkommensteuer · Studium · Minijob</small></span><em>→</em></button></article><article class="card readiness-card"><span class="kicker">Vorbereitung</span><div class="big-ring">25%</div><h2>Noch drei kleine Aufgaben</h2><button class="primary" id="exportData">Kontroll-Datei laden</button></article></div>
+        <div class="plain-tip"><strong>Ganz wichtig</strong><span>Ohne eure Bestätigung wird niemals etwas abgeschickt.</span><button data-explain="handover">Ablauf erklären →</button></div>
+      </section>
+    </main>
+
+    <nav class="mobile-nav"><button class="active" data-page="today"><span>⌂</span>Heute</button><button data-page="calendar"><span>▦</span>Kalender</button><button class="mobile-add" data-open="task"><span>＋</span></button><button data-page="finances"><span>€</span>Finanzen</button><button data-page="more"><span>•••</span>Mehr</button></nav>
+  </div>
+
+  <dialog id="entryDialog"><form method="dialog" id="entryForm"><div class="dialog-head"><div><span class="kicker" id="dialogKicker">Neuer Eintrag</span><h2 id="dialogTitle">Hinzufügen</h2></div><button class="close" value="cancel" formnovalidate>×</button></div><p class="dialog-help" id="dialogHelp"></p><div id="dynamicFields"></div><div class="dialog-actions"><button class="secondary" value="cancel" formnovalidate>Abbrechen</button><button class="primary" type="submit">Speichern</button></div></form></dialog>
+  <dialog id="detailDialog"><form method="dialog"><div class="dialog-head"><div><span class="kicker">Details</span><h2 id="detailTitle"></h2></div><button class="close" value="cancel">×</button></div><div id="detailBody"></div><div class="dialog-actions"><button class="primary" value="cancel">Verstanden</button></div></form></dialog>
+  <dialog id="explainDialog"><form method="dialog"><div class="dialog-head"><div><span class="kicker">Einfach erklärt</span><h2 id="explainTitle"></h2></div><button class="close" value="cancel">×</button></div><div id="explainBody"></div><div class="dialog-actions"><button class="primary" value="cancel">Verstanden</button></div></form></dialog>
+  <div class="toast" id="toast">Gespeichert</div>
+  <script src="app.js"></script>
+</body>
+</html>
