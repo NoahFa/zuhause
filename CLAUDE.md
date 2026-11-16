@@ -13,10 +13,12 @@ Familien-App für Noah, Charleen (genau so geschrieben) und Hündin Lou. Version
 - `docs/01-ALLE-FESTLEGUNGEN.md` – alle fachlichen Entscheidungen. Hat Vorrang vor dem Masterprompt.
 - `docs/02-UMSETZUNGSSTAND.md` – was fertig, teilweise oder nur geplant ist.
 - `docs/03-TECHNISCHE-UEBERGABE.md` – Technik, Datenhaltung, Backend.
+- `docs/05-PLANUNG.md` – was seit der Übergabe erledigt wurde und was als Nächstes geplant ist.
 
 ## Regeln
 - Bestehende App weiterentwickeln, nicht neu bauen. Design erhalten.
 - Bei Änderungen an JS/CSS die Versionsnummer `?v=` in index.html und sw.js (CACHE und ASSETS) gemeinsam hochzählen, sonst sehen die iPhones den alten Stand.
 - Das Repository ist öffentlich: keine Passwörter, privaten Schlüssel, E-Mail-Adressen oder die vollständige Wohnadresse einchecken.
 - Datenbank-Änderungen nur nach Rückfrage und mit Sicherung; schema.sql ist kein automatisch anwendbarer Patch.
+- Fertige, geprüfte Änderungen darf Claude direkt live stellen (Freigabe von Noah, 16.11.2026).
 - Noah ist kein Programmierer: Antworten auf Deutsch, kurz, ohne Fachchinesisch, Ergebnis vor Erklärung.
