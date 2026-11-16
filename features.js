@@ -318,6 +318,7 @@
     wasteEvents.filter(event => event.date > today && event.date <= limit).forEach(event => entries.push({ date: event.date, title: event.title, type: 'Müll' }));
     (automaticEvents || []).filter(event => event.kind !== 'waste' && event.date > today && event.date <= limit).forEach(event => entries.push({ date: event.date, title: event.title, type: 'Termin' }));
     (window.ZuhauseLou?.upcomingEntries?.(today, limit) || []).forEach(entry => entries.push(entry));
+    (window.ZuhauseCharleen?.upcomingEntries?.(today, limit) || []).forEach(entry => entries.push(entry));
     entries.sort((a, b) => a.date.localeCompare(b.date));
     target.innerHTML = entries.length ? entries.slice(0, 6).map(entry => `<div class="upcoming-row"><time>${displayDate(entry.date)}</time><span><strong>${escapeHtml(entry.title)}</strong><small>${entry.type}</small></span></div>`).join('') : '<p>In den nächsten 14 Tagen ist nichts Zusätzliches offen.</p>';
   }

@@ -14,7 +14,7 @@
   const DAY_MS = 86400000;
   const state = {
     client: null, household: null, user: null, members: [], normalized: false, connected: false,
-    calendars: { ...CALENDARS }, events: [], automatic: [], montage: [], recurrences: new Map(), participants: new Map(), reminders: new Map(), exceptions: new Map(),
+    calendars: { ...CALENDARS }, events: [], automatic: [], montage: [], extra: {}, recurrences: new Map(), participants: new Map(), reminders: new Map(), exceptions: new Map(),
     cursor: startOfMonth(new Date()), selectedDate: isoDate(new Date()), view: 'month', filters: new Set(['shared', 'person1', 'person2']), search: '',
     editing: null, realtime: null, refreshTimer: null, touchStartX: 0, callbacks: {}, initialized: false,
   };
@@ -120,7 +120,7 @@
 
   function occurrencesInRange(rangeStart, rangeEnd) {
     const output = [];
-    const allEvents = [...state.events, ...state.automatic, ...state.montage];
+    const allEvents = [...state.events, ...state.automatic, ...state.montage, ...Object.values(state.extra).flat()];
     for (const event of allEvents) {
       const first = maxDate(rangeStart, event.startDate);
       const last = minDate(rangeEnd, event.recurrence?.endsOn || rangeEnd);
@@ -285,7 +285,7 @@
     updateFormVisibility(); dialog.showModal(); form.elements.title.focus();
   }
   function openEdit(eventId, occurrenceDate) {
-    const event = [...state.events, ...state.automatic, ...state.montage].find(item => item.id === eventId); if (!event) return;
+    const event = [...state.events, ...state.automatic, ...state.montage, ...Object.values(state.extra).flat()].find(item => item.id === eventId); if (!event) return;
     if (event.readOnly) { showAutomaticDetail(event, occurrenceDate); return; }
     state.editing = { event, occurrenceDate: occurrenceDate || event.startDate }; const form = qs('#calendarEventForm'); form.reset();
     form.elements.title.value = event.title; form.elements.calendarKey.value = event.calendarKey; form.elements.labelColor.value = event.labelColor || 'calendar'; form.elements.allDay.checked = event.allDay;
@@ -546,6 +546,8 @@
     }));
     if (state.initialized) render();
   }
+  // Weitere nur lesbare Einträge aus anderen Bereichen, z. B. Charleens Prüfungsleistungen.
+  function setExtraEvents(group, items) { state.extra[group] = items || []; if (state.initialized) render(); }
   function setLegacyAppointments(items) { if (!state.normalized) { state.events = (items || []).map(legacyEvent); render(); } }
   // ---- Kalenderdatei (.ics) importieren, z. B. aus TimeTree ----
   function icsLines(text) { return String(text).replace(/\r\n?/g, '\n').replace(/\n[ \t]/g, '').split('\n'); }
@@ -742,5 +744,5 @@
     window.addEventListener('online', flushQueue); document.addEventListener('keydown', event => { if (!qs('#calendar')?.classList.contains('active') || event.target.matches('input,textarea,select')) return; if (event.key === 'ArrowLeft') navigate(-1); if (event.key === 'ArrowRight') navigate(1); });
   }
 
-  window.ZuhauseCalendar = { setMontageJobs, refresh, importIcs, openImport, openBirthday, bootstrap, connect, disconnect, render, setAutomaticEvents, setLegacyAppointments, openCreate, selectDate, renderHomeTimeline, occurrencesInRange };
+  window.ZuhauseCalendar = { setExtraEvents, setMontageJobs, refresh, importIcs, openImport, openBirthday, bootstrap, connect, disconnect, render, setAutomaticEvents, setLegacyAppointments, openCreate, selectDate, renderHomeTimeline, occurrencesInRange };
 })();

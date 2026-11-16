@@ -20,6 +20,7 @@ Stand: 16. November 2026. Ergänzt `02-UMSETZUNGSSTAND.md`. Noah hat freigegeben
 | 21 | Einkaufsliste: Eingabefeld direkt über der Liste, „Oft gekauft“ zum Antippen (Verlauf in `state.shoppingHistory`), ✎ zum Ändern von Artikel/Menge/Bereich (auf Wunsch dauerhaft gemerkt über `customCategories.shopping`), keine Doppelten, „Eingekaufte entfernen“, Abgleich alle 5 Sekunden solange die Haushaltsseite offen ist. |
 | 22 | Montage ↔ Kalender: Aufträge erscheinen als ganztägige Einträge in Noahs Kalender (🔧, abgeschlossen ✓; nur lesen, „Auftrag öffnen“ springt in den Auftrag). Neues Feld Adresse mit „Route öffnen“ (Apple Karten) im Auftrag und im Kalender. Montage des Tages in Noahs Morgen-Nachricht. |
 | 23 | Putzplan: Bei wiederkehrenden Aufgaben gibt es „Abwechselnd Noah und Charleen“ (`task.alternate`); jede neue Runde ist die andere Person dran, Anzeige „⇄ abwechselnd“. |
+| 24 | Charleens Bereich nach ihren Wünschen (`charleen.js`, Daten in `state.charleen`), Reiter: **Studium** (Module mit Prüfungsleistungen und Datum, Stand, Note; Module aus dem Hochschulkalender übernehmen; Prüfungen in Charleens Kalender, „Demnächst“ und Morgen-Nachricht am Tag selbst, am Vortag und eine Woche vorher), **Nebenjob** (Ein-/Ausstempeln, Schichten nachtragen, Pause, Stundenlohn, Trinkgeld, Tagessumme, Monats- und Jahresübersicht, Nachtschichten), **Caritas** (Horizont BeWo To-dos mit Datum), **Sparziele** (Ziel, Einzahlen/Entnehmen, Fortschritt, nötiger Betrag pro Monat), **Notizen** (bisherige Einträge). |
 
 ## Offen / in Klärung
 
@@ -41,7 +42,7 @@ Claude hat über einen Supabase-Zugangsschlüssel von Noah (Access Token „Clau
 
 ## Geplant (Reihenfolge nach Nutzen)
 
-1. Charleens Bereich erst nach Rücksprache mit ihr ausbauen.
+- Derzeit nichts offen. Neue Wünsche von Noah oder Charleen hier ergänzen.
 
 ## Bewusst verworfen
 

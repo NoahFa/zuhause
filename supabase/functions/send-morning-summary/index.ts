@@ -1,7 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import webpush from 'npm:web-push@3.6.7'
 
-// Morgen-Nachricht um 7 Uhr (Berlin): Termine, Hochschule, Müll, Fußball, Geburtstage, Montageaufträge (Noah), Lous fällige Pflege und offene Aufgaben des Tages.
+// Morgen-Nachricht um 7 Uhr (Berlin): Termine, Hochschule, Müll, Fußball, Geburtstage, Montageaufträge (Noah), Prüfungen und Caritas-To-dos (Charleen), Lous fällige Pflege und offene Aufgaben des Tages.
 // Wird per Cron um 05:02 und 06:02 UTC aufgerufen; gesendet wird nur, wenn es in Berlin 7 Uhr ist (Sommer-/Winterzeit).
 // ?force=1 sendet unabhängig von der Uhrzeit, ?dry=1 zeigt nur den Text, ohne zu senden (mit &date=JJJJ-MM-TT für einen anderen Tag).
 
@@ -114,6 +114,19 @@ Deno.serve(async request => {
     }
     if (personKey === 'person1') for (const job of stateByHousehold.get(member.household_id)?.montageJobs || []) {
       if (job?.date === today && job.status !== 'done') items.push({ sort: '00:04', text: `🔧 Montage: ${job.title}${job.status === 'ready' ? ' (vorbereitet)' : ''}` })
+    }
+    if (personKey === 'person2') {
+      const charleen = stateByHousehold.get(member.household_id)?.charleen || {}
+      const inDays = (n: number) => addDays(today, n)
+      for (const module of charleen.modules || []) for (const exam of module.exams || []) {
+        if (!exam?.date || (exam.status && exam.status !== 'open')) continue
+        const label = `${module.name} – ${exam.type}`
+        if (exam.date === today) items.push({ sort: '00:05', text: `📝 Heute: ${label}` })
+        else if (exam.date === inDays(1)) items.push({ sort: '00:06', text: `📝 Morgen: ${label}` })
+        else if (exam.date === inDays(7)) items.push({ sort: '00:07', text: `📝 In einer Woche: ${label}` })
+      }
+      const work = (charleen.work || []).filter((todo: any) => !todo.done && todo.dueOn && todo.dueOn <= today)
+      if (work.length) items.push({ sort: '99:97', text: work.length === 1 ? `🤝 Caritas: ${work[0].title}` : `🤝 Caritas: ${work.length} To-dos fällig` })
     }
     for (const care of stateByHousehold.get(member.household_id)?.lou?.care || []) {
       if (care?.nextDue && care.nextDue <= today) items.push({ sort: '99:98', text: `🐾 Lou: ${care.title}${care.nextDue < today ? ' (überfällig)' : ' ist heute dran'}` })
