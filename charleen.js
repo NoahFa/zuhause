@@ -94,7 +94,10 @@
   function shift(entry) { const minutes = Math.max(0, minutesBetween(entry.start, entry.end) - num(entry.pause)); const wage = minutes / 60 * num(entry.rate); return { minutes, wage, tip: num(entry.tip), total: wage + num(entry.tip) }; }
   // Überstundenkonto: Monatsgrenze (Standard 43 h). Mehr Stunden gehen aufs Konto, weniger Stunden werden am
   // Monatsende vom Konto aufgefüllt (soweit vorhanden). Auszahlungen/Korrekturen werden im jeweiligen Monat zuerst verbucht.
-  const monthLimit = (job, month) => num(job.limitOverrides?.[month] ?? job.monthLimit ?? 43) || 43;
+  // Grenze: entweder Verdienstgrenze in € (z. B. 603 € beim Minijob → Stunden = Grenze ÷ Stundenlohn) oder feste Stunden.
+  const monthLimit = (job, month) => num(job.limitOverrides?.[month]) || (num(job.monthCap) && num(job.rate) ? num(job.monthCap) / num(job.rate) : num(job.monthLimit) || 43);
+  // Buchung in Stunden; Auszahlungen nur mit Betrag werden über den Stundenlohn in Stunden umgerechnet.
+  const adjustHours = (job, a) => (a.hours !== null && a.hours !== undefined && a.hours !== '') ? num(a.hours) : (num(job.rate) ? -num(a.amount) / num(job.rate) : 0);
   function ledger(job) {
     const current = todayIso().slice(0, 7), worked = {};
     job.entries.forEach(e => { if (e.date) worked[e.date.slice(0, 7)] = (worked[e.date.slice(0, 7)] || 0) + shift(e).minutes / 60; });
@@ -103,35 +106,37 @@
     const rows = []; let balance = 0;
     for (let m = months[0]; m < current; m = iso(new Date(Number(m.slice(0, 4)), Number(m.slice(5, 7)), 15)).slice(0, 7)) {
       const hours = worked[m] || 0, limit = monthLimit(job, m), adjust = job.adjustments.filter(a => String(a.date).startsWith(m));
-      const adjustSum = adjust.reduce((sum, a) => sum + num(a.hours), 0); balance += adjustSum;
+      const adjustSum = adjust.reduce((sum, a) => sum + adjustHours(job, a), 0); balance += adjustSum;
       let change = 0;
       if (hours > limit) change = hours - limit; else change = -Math.min(Math.max(balance, 0), limit - hours);
       balance += change;
       rows.push({ month: m, hours, limit, change, adjust, adjustSum, balance });
     }
-    const currentAdjust = job.adjustments.filter(a => String(a.date).startsWith(current)).reduce((sum, a) => sum + num(a.hours), 0);
+    const currentAdjust = job.adjustments.filter(a => String(a.date).startsWith(current)).reduce((sum, a) => sum + adjustHours(job, a), 0);
     return { rows, balance: balance + currentAdjust, current: { month: current, hours: worked[current] || 0, limit: monthLimit(job, current), adjust: currentAdjust } };
   }
   const hDec = n => `${(Math.round(n * 100) / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} h`;
   const monthName = m => new Date(`${m}-15T12:00:00`).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
   function overtimeView(job) {
     const l = ledger(job), c = l.current, rest = c.limit - c.hours, lastRow = l.rows[l.rows.length - 1];
-    return `<article class="card ch-overtime"><div class="ch-module-head"><div><span class="kicker">Überstundenkonto · Grenze ${hDec(monthLimit(job, c.month)).replace(',00', '')} pro Monat</span><h2>${hDec(l.balance)}</h2><small>Stand ${lastRow ? `Ende ${h(monthName(lastRow.month))}` : 'jetzt'}${c.adjust ? ' inkl. Buchungen in diesem Monat' : ''}</small></div></div>
+    return `<article class="card ch-overtime"><div class="ch-module-head"><div><span class="kicker">Überstundenkonto · Grenze ${num(job.monthCap) ? `${euro(job.monthCap)} ≈ ${hDec(monthLimit(job, c.month))}` : hDec(monthLimit(job, c.month)).replace(',00', '')} pro Monat</span><h2>${hDec(l.balance)}</h2><small>Stand ${lastRow ? `Ende ${h(monthName(lastRow.month))}` : 'jetzt'}${c.adjust ? ' inkl. Buchungen in diesem Monat' : ''}</small></div></div>
       <p class="ch-overtime-now">${h(monthName(c.month))} bisher: <b>${hDec(c.hours)}</b> von ${hDec(c.limit)} · ${rest > 0 ? `noch ${hDec(rest)} bis zur Grenze${l.balance > 0 ? ` – fehlende Stunden werden am Monatsende vom Konto genommen` : ''}` : `<b>${hDec(-rest)} über der Grenze</b> – gehen am Monatsende aufs Konto`}</p>
       <div class="ch-clock-actions"><button class="secondary" data-ch-adjust-new>Auszahlung / Korrektur</button><button class="secondary" data-ch-limit>Monatsgrenze</button></div>
-      ${l.rows.length ? `<details class="ws-history"><summary>Verlauf nach Monaten</summary><div class="ch-ledger"><div class="head"><span>Monat</span><span>Gearbeitet</span><span>Konto ±</span><span>Stand</span></div>${l.rows.map(r => `<div><span>${h(monthName(r.month))}${r.limit !== 43 ? ` <small>(Grenze ${hDec(r.limit)})</small>` : ''}${r.adjust.map(a => `<small>${h(a.note || (num(a.hours) < 0 ? 'Auszahlung' : 'Korrektur'))}: ${num(a.hours) > 0 ? '+' : ''}${hDec(num(a.hours))} <button class="row-delete" data-ch-adjust-delete="${h(a.id)}" aria-label="Buchung löschen">×</button></small>`).join('')}</span><span>${hDec(r.hours)}</span><span class="${r.change < 0 ? 'neg' : 'pos'}">${r.change >= 0 ? '+' : ''}${hDec(r.change)}</span><b>${hDec(r.balance)}</b></div>`).join('')}</div></details>` : ''}
+      ${l.rows.length ? `<details class="ws-history"><summary>Verlauf nach Monaten</summary><div class="ch-ledger"><div class="head"><span>Monat</span><span>Gearbeitet</span><span>Konto ±</span><span>Stand</span></div>${l.rows.map(r => `<div><span>${h(monthName(r.month))}${Math.abs(r.limit - monthLimit(job, '0000-00')) > 0.001 ? ` <small>(Grenze ${hDec(r.limit)})</small>` : ''}${r.adjust.map(a => `<small>${h(a.note || (adjustHours(job, a) < 0 ? 'Auszahlung' : 'Korrektur'))}: ${adjustHours(job, a) > 0 ? '+' : ''}${hDec(adjustHours(job, a))} <button class="row-delete" data-ch-adjust-delete="${h(a.id)}" aria-label="Buchung löschen">×</button></small>`).join('')}</span><span>${hDec(r.hours)}</span><span class="${r.change < -0.004 ? 'neg' : 'pos'}">${r.change > 0.004 ? '+' : ''}${hDec(Math.abs(r.change) < 0.005 ? 0 : r.change)}</span><b>${hDec(r.balance)}</b></div>`).join('')}</div></details>` : ''}
     </article>`;
   }
   function editAdjustment() {
     const job = data().job;
-    dialog('Auszahlung oder Korrektur', `<label class="ws-field"><span>Art</span><select name="kind"><option value="payout">Überstunden ausgezahlt (wird abgezogen)</option><option value="plus">Korrektur: Stunden dazu</option><option value="minus">Korrektur: Stunden abziehen</option></select></label>${field('Stunden', 'hours', '', 'text', 'inputmode="decimal" required placeholder="z. B. 32 oder 16,25"')}${field('Datum', 'date', todayIso(), 'date', 'required')}${field('Betrag in € (optional)', 'amount', '', 'text', 'inputmode="decimal" placeholder="z. B. 450"')}${field('Notiz (optional)', 'note', '', 'text', 'maxlength="80"')}`,
-      f => { const hours = Math.abs(num(f.get('hours'))); if (!hours) return 'Bitte die Stunden eintragen.'; const kind = String(f.get('kind')), amount = num(f.get('amount'));
-        job.adjustments.push({ id: uid(), date: String(f.get('date')), hours: kind === 'plus' ? hours : -hours, amount: amount || null, note: String(f.get('note')).trim() || (kind === 'payout' ? `Auszahlung${amount ? ` ${euro(amount)}` : ''}` : 'Korrektur') }); save('Gebucht'); });
+    dialog('Auszahlung oder Korrektur', `<label class="ws-field"><span>Art</span><select name="kind"><option value="payout">Überstunden ausgezahlt (wird abgezogen)</option><option value="plus">Korrektur: Stunden dazu</option><option value="minus">Korrektur: Stunden abziehen</option></select></label>${field('Betrag in €', 'amount', '', 'text', 'inputmode="decimal" placeholder="z. B. 450"')}${field('oder Stunden', 'hours', '', 'text', 'inputmode="decimal" placeholder="z. B. 16,25"')}<p class="ws-help">Bei einer Auszahlung reicht der Betrag – die App rechnet ihn mit deinem Stundenlohn (${job.rate ? euro(job.rate) : 'noch nicht festgelegt'}) in Stunden um.</p>${field('Datum', 'date', todayIso(), 'date', 'required')}${field('Notiz (optional)', 'note', '', 'text', 'maxlength="80"')}`,
+      f => { const kind = String(f.get('kind')), amount = Math.abs(num(f.get('amount'))), hoursIn = Math.abs(num(f.get('hours')));
+        if (!amount && !hoursIn) return 'Bitte einen Betrag oder Stunden eintragen.'; if (!hoursIn && !num(job.rate)) return 'Bitte zuerst den Stundenlohn festlegen oder Stunden eintragen.';
+        const hours = hoursIn ? (kind === 'plus' ? hoursIn : -hoursIn) : (kind === 'plus' ? amount / num(job.rate) : null);
+        job.adjustments.push({ id: uid(), date: String(f.get('date')), hours, amount: amount || null, note: String(f.get('note')).trim() || (kind === 'payout' ? `Auszahlung${amount ? ` ${euro(amount)}` : ''}` : 'Korrektur') }); save('Gebucht'); });
   }
   function editLimit() {
     const job = data().job;
-    dialog('Monatsgrenze', `${field('Stunden pro Monat', 'limit', job.monthLimit ?? 43, 'text', 'inputmode="decimal" required')}<p class="ws-help">Alles darüber geht aufs Überstundenkonto. Arbeitest du in einem Monat weniger, wird am Monatsende vom Konto aufgefüllt.</p>`,
-      f => { const limit = num(f.get('limit')); if (limit <= 0) return 'Bitte eine Zahl eintragen.'; job.monthLimit = limit; save('Gespeichert'); });
+    dialog('Monatsgrenze', `${field('Verdienstgrenze in € pro Monat', 'cap', job.monthCap ?? '', 'text', 'inputmode="decimal" placeholder="z. B. 603"')}${field('oder feste Stunden pro Monat', 'limit', job.monthCap ? '' : (job.monthLimit ?? 43), 'text', 'inputmode="decimal"')}<p class="ws-help">Was über der Grenze liegt, wird nicht ausgezahlt und geht aufs Überstundenkonto. Arbeitest du in einem Monat weniger, wird am Monatsende vom Konto aufgefüllt.</p>`,
+      f => { const cap = num(f.get('cap')), limit = num(f.get('limit')); if (cap > 0) { job.monthCap = cap; } else if (limit > 0) { job.monthCap = null; job.monthLimit = limit; } else return 'Bitte eine Grenze eintragen.'; save('Gespeichert'); });
   }
   function jobView() {
     const job = data().job, entries = job.entries.filter(e => e.date?.startsWith(jobMonth)).sort((a, b) => `${b.date}${b.start}`.localeCompare(`${a.date}${a.start}`));
