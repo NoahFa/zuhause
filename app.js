@@ -1,199 +1,290 @@
-const seed={
-  appointments:[
-    {id:1,date:'2026-11-08',time:'10:30',title:'Wochenplanung',person:'Gemeinsam',kind:'private'},
-    {id:2,date:'2026-11-08',time:'17:00',title:'Spaziergang mit Lou',person:'Gemeinsam',kind:'private'},
-    {id:3,date:'2026-11-09',time:'07:00',title:'Arbeit',person:'Noah',kind:'work'},
-    {id:4,date:'2026-11-10',time:'15:30',title:'Hochschule',person:'Charlene',kind:'work'},
-    {id:5,date:'2026-11-18',time:'16:00',title:'Tierarzt mit Lou',person:'Gemeinsam',kind:'private'}
-  ],
-  householdTasks:[
-    {id:1,title:'Müll rausstellen',person:'Noah',due:'Heute Abend',done:false},
-    {id:2,title:'Wäsche zusammenlegen',person:'Gemeinsam',due:'Heute',done:false},
-    {id:3,title:'Stromzähler fotografieren',person:'Charlene',due:'Diese Woche',done:false},
-    {id:4,title:'Bad putzen',person:'Noah',due:'Erledigt',done:true}
-  ],
-  shopping:[
-    {id:1,title:'Hafermilch',done:false},{id:2,title:'Äpfel',done:false},{id:3,title:'Hundefutter für Lou',done:false},{id:4,title:'Spülmittel',done:true}
-  ],
-  expenses:[
-    {id:1,date:'06.11.2026',title:'Tanken',category:'Fahrt noch zuordnen',person:'Noah',amount:68.40,receipt:true,review:true,icon:'⛽'},
-    {id:2,date:'02.11.2026',title:'Fachbuch Elektrotechnik',category:'Beruf / Studium',person:'Charlene',amount:39.90,receipt:true,review:true,icon:'▤'},
-    {id:3,date:'29.10.2026',title:'Arbeitsschuhe',category:'Nebengewerbe',person:'Noah',amount:119.00,receipt:true,review:true,icon:'◇'},
-    {id:4,date:'15.10.2026',title:'Studiengebühr',category:'Hochschule',person:'Charlene',amount:201.40,receipt:false,review:true,icon:'▦'}
-  ],
-  incomes:[{id:1,title:'Montageauftrag Mustermann',amount:1240,date:'28.10.2026'}],
-  taxTasks:[
-    {id:'salary',title:'Lohnabrechnungen ablegen',note:'Beide für Oktober sind da.',done:true},
-    {id:'days',title:'Arbeitstage kurz prüfen',note:'Büro, Zuhause oder Hochschule?',done:false},
-    {id:'receipt',title:'Tankbeleg zuordnen',note:'Der Grund ist noch offen.',done:false},
-    {id:'business',title:'Nebengewerbe prüfen',note:'Einnahmen und Ausgaben ansehen.',done:false}
-  ],
-  insurances:[
-    {id:1,icon:'♢',title:'Privathaftpflicht',person:'Noah',amount:null,note:'Jahresbetrag noch ergänzen'},
-    {id:2,icon:'◉',title:'Berufsunfähigkeit',person:'Noah',amount:null,note:'Jahresbetrag noch ergänzen'},
-    {id:3,icon:'⌂',title:'Wohnungsversicherung',person:'Auf beide',amount:null,note:'Police läuft auf euch beide'}
-  ],
-  workdays:[]
-};
-const legacy=JSON.parse(localStorage.getItem('steuerkompass-v1')||'null');
-const saved=JSON.parse(localStorage.getItem('zuhause-v1')||'null');
-const state=saved||structuredClone(seed);
-if(legacy&&!saved){
-  if(Array.isArray(legacy.expenses))state.expenses=legacy.expenses;
-  if(Array.isArray(legacy.incomes))state.incomes=legacy.incomes;
-  if(legacy.tasks)state.taxTasks.forEach(t=>{if(t.id in legacy.tasks)t.done=!!legacy.tasks[t.id]});
-}
-if(!Array.isArray(state.insurances))state.insurances=structuredClone(seed.insurances);
-if(!Array.isArray(state.workdays))state.workdays=[];
-// Umbenennung: aus "Freundin" wird "Charlene" (auch in schon gespeicherten Einträgen)
-['appointments','householdTasks','expenses','workdays','insurances'].forEach(k=>(state[k]||[]).forEach(x=>{if(x.person==='Freundin')x.person='Charlene'}));
-// Heutiges Datum als JJJJ-MM-TT (lokale Zeit, nicht UTC)
-function todayISO(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+const seed={appointments:[],householdTasks:[],shopping:[],expenses:[],incomes:[],taxTasks:[],documentChecklist:{},fixedCosts:[],receiptDrafts:[],montageMachines:[],montageMaterials:[],montageTemplates:[],studyItems:[],customCategories:{shopping:{},documents:['Versicherungen','Verträge','Rechnungen','Steuerunterlagen','Sonstige Dokumente'],study:[]},budget:{monthlyAmount:0,savingsGoal:0,closedMonths:{}},settings:{wasteStreetId:'284318',wasteDistrict:'2a2',wasteStreetLabel:'Am Fürstenbrünnchen',weatherPlace:'Bergisch Gladbach'}};
+function readJson(key){try{return JSON.parse(localStorage.getItem(key)||'null')}catch{return null}}
+let state=structuredClone(seed);
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
 const money=n=>new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(n);
-function persist(){localStorage.setItem('zuhause-v1',JSON.stringify(state))}
+const SUPABASE_URL='https://mvdnatelwrakkkvdwcaa.supabase.co';
+const SUPABASE_KEY='sb_publishable_nn42O5RpDEbuSYHxB6a10w_29-b7lXP';
+const cloud=window.supabase?.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+let currentUser=null,currentHousehold=null,currentMemberName='',cloudReady=false,cloudSaveTimer=null,lastCloudUpdate='',cloudRevision=0,localDirty=false,saveInFlight=false,localChangeVersion=0;
+let lastSyncedState=structuredClone(seed);
+let householdMembers=[],automaticEvents=[];
+let personNames={person1:'Noah',person2:'Charleen'};
+const isoDate=date=>{const y=date.getFullYear(),m=String(date.getMonth()+1).padStart(2,'0'),d=String(date.getDate()).padStart(2,'0');return `${y}-${m}-${d}`};
+const todayIso=()=>isoDate(new Date());
+function scopedStorageKey(suffix='state'){return currentUser&&currentHousehold?`zuhause-v2:${currentUser.id}:${currentHousehold.id}:${suffix}`:''}
+function storeScopedState(){const key=scopedStorageKey();if(key){localStorage.setItem(key,JSON.stringify(state));localStorage.setItem(scopedStorageKey('base'),JSON.stringify(lastSyncedState))}}
+function setDirty(value){localDirty=value;const key=scopedStorageKey('dirty');if(key){if(value)localStorage.setItem(key,'1');else localStorage.removeItem(key)}}
+function mergeValue(remote,local,base){
+  const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+  if(same(local,base))return structuredClone(remote);
+  if(same(remote,base)||same(remote,local))return structuredClone(local);
+  if(Array.isArray(remote)&&Array.isArray(local)){
+    const prior=Array.isArray(base)?base:[];
+    if([...remote,...local,...prior].every(item=>item&&typeof item==='object'&&item.id!=null)){
+      const remoteMap=new Map(remote.map(item=>[String(item.id),item])),localMap=new Map(local.map(item=>[String(item.id),item])),baseMap=new Map(prior.map(item=>[String(item.id),item]));
+      const ids=new Set([...remoteMap.keys(),...localMap.keys()]);
+      return [...ids].filter(id=>!(baseMap.has(id)&&(!localMap.has(id)||!remoteMap.has(id)))).map(id=>mergeValue(remoteMap.get(id),localMap.get(id),baseMap.get(id)));
+    }
+    const removed=new Set(prior.filter(item=>!local.includes(item)||!remote.includes(item)));
+    return [...new Set([...remote,...local])].filter(item=>!removed.has(item));
+  }
+  if(remote&&local&&typeof remote==='object'&&typeof local==='object'){
+    const result={};for(const key of new Set([...Object.keys(remote),...Object.keys(local),...Object.keys(base||{})])){const value=mergeValue(remote[key],local[key],base?.[key]);if(value!==undefined)result[key]=value}return result;
+  }
+  return structuredClone(local===undefined?remote:local);
+}
+function mergeById(remote=[],local=[],base=[]){return mergeValue(remote||[],local||[],base||[])}
+function mergeStates(remote,local,base=lastSyncedState){return mergedState(mergeValue(remote||{},local||{},base||{}))}
+function setSyncStatus(text,mode=''){
+  const pill=$('#syncPill'),label=$('#syncText');if(label)label.textContent=text;
+  if(pill)pill.className='sync-pill '+mode;
+}
+function persist(){
+  localChangeVersion+=1;storeScopedState();setDirty(true);
+  if(cloudReady){clearTimeout(cloudSaveTimer);cloudSaveTimer=setTimeout(saveCloudState,500)}
+}
+async function saveCloudState(){
+  if(!cloudReady||!currentHousehold||!currentUser||saveInFlight||!localDirty)return;
+  if(!navigator.onLine){setSyncStatus('Nur auf diesem Gerät','error');return}
+  saveInFlight=true;const saveVersion=localChangeVersion;
+  setSyncStatus('Wird gespeichert …','syncing');
+  try{
+  const {appointments:legacyAppointments,...nonCalendarState}=state;
+  let stateToSave=structuredClone(nonCalendarState),result=await cloud.rpc('save_app_state_without_calendar',{next_data:stateToSave,expected_revision:cloudRevision});
+  if(result.error&&/Konflikt|revision/i.test(result.error.message||'')){
+    const latest=await cloud.from('app_state').select('data,updated_at,revision').eq('household_id',currentHousehold.id).single();
+    if(!latest.error&&latest.data){state=mergeStates(latest.data.data,state,lastSyncedState);lastSyncedState=mergedState(latest.data.data);cloudRevision=Number(latest.data.revision||0);storeScopedState();stateToSave=structuredClone(state);result=await cloud.rpc('save_app_state_without_calendar',{next_data:stateToSave,expected_revision:cloudRevision})}
+  }
+  saveInFlight=false;
+  if(result.error){setSyncStatus('Nur auf diesem Gerät','error');toast('Online-Speichern wartet – die Änderung bleibt auf diesem Gerät');return}
+  const savedRow=Array.isArray(result.data)?result.data[0]:result.data;
+  cloudRevision=Number(savedRow?.revision||cloudRevision+1);lastCloudUpdate=savedRow?.updated_at||new Date().toISOString();lastSyncedState=mergedState(stateToSave);storeScopedState();
+  if(localChangeVersion===saveVersion){setDirty(false);setSyncStatus('Sicher gespeichert','connected')}else{setDirty(true);setSyncStatus('Weitere Änderung wird gespeichert …','syncing');setTimeout(saveCloudState,0)}
+  }catch{setSyncStatus('Nur auf diesem Gerät','error')}finally{saveInFlight=false}
+}
+function showAuthPanel(id){
+  $$('.auth-panel').forEach(panel=>panel.hidden=panel.id!==id);
+  $('#authScreen').hidden=false;
+}
+function friendlyError(message=''){
+  if(/Invalid login credentials/i.test(message))return 'E-Mail-Adresse oder Passwort stimmen nicht.';
+  if(/Email not confirmed/i.test(message))return 'Bitte zuerst den Link in der Bestätigungs-E-Mail öffnen.';
+  if(/User already registered/i.test(message))return 'Für diese E-Mail-Adresse gibt es schon einen Zugang.';
+  if(/Password should be/i.test(message))return 'Das Passwort braucht mindestens 6 Zeichen.';
+  return 'Das hat gerade nicht geklappt. Bitte noch einmal versuchen.';
+}
+function mergedState(data){
+  const base=structuredClone(seed),incoming=data&&typeof data==='object'?data:{};
+  const result={...base,...incoming};
+  ['appointments','householdTasks','shopping','expenses','incomes','taxTasks','fixedCosts','receiptDrafts','montageMachines','montageMaterials','montageTemplates','studyItems'].forEach(list=>{if(!Array.isArray(result[list]))result[list]=[]});
+  if(!result.documentChecklist||typeof result.documentChecklist!=='object')result.documentChecklist={};
+  result.customCategories={...base.customCategories,...(result.customCategories||{})};result.budget={...base.budget,...(result.budget||{})};result.settings={...base.settings,...(result.settings||{})};
+  return result;
+}
+function updatePersonNames(members=[]){
+  const owner=members.find(member=>member.role==='owner'),second=members.find(member=>member.user_id!==owner?.user_id);
+  personNames={person1:owner?.display_name?.trim()||'Noah',person2:second?.display_name?.trim()||'Charleen'};
+  document.querySelectorAll('[data-person-name="person1"]').forEach(node=>node.textContent=personNames.person1);
+  document.querySelectorAll('[data-person-name="person2"]').forEach(node=>node.textContent=personNames.person2);
+  document.querySelectorAll('[data-person-initial="person1"]').forEach(node=>node.textContent=personNames.person1.slice(0,1).toUpperCase());
+  document.querySelectorAll('[data-person-initial="person2"]').forEach(node=>node.textContent=personNames.person2.slice(0,1).toUpperCase());
+}
+function updateStorageExplanation(){
+  if(!currentHousehold)return;
+  details.storage=['Sicher zwischen euren Geräten verbunden',`<p><strong>${escapeHtml(currentHousehold.name)}</strong> wird geschützt bei Supabase gespeichert.</p><p>Einladungscode für die zweite Person: <strong class="invite-code">${escapeHtml(currentHousehold.join_code)}</strong></p><p>Nur angemeldete Mitglieder dieses Zuhauses können die Daten und Belege öffnen.</p><div class="detail-actions"><button class="secondary" type="button" data-sign-out>Abmelden</button></div>`];
+}
+async function loadHousehold(){
+  showAuthPanel('authLoading');setSyncStatus('Verbindung wird geprüft','syncing');
+  const {data:member,error:memberError}=await cloud.from('household_members').select('household_id,display_name,role').eq('user_id',currentUser.id).maybeSingle();
+  if(memberError){showAuthPanel('authLogin');$('#loginMessage').textContent='Euer Zuhause konnte gerade nicht geladen werden.';return}
+  if(!member){cloudReady=false;showAuthPanel('householdSetup');return}
+  const {data:household,error:householdError}=await cloud.from('households').select('id,name,join_code').eq('id',member.household_id).single();
+  if(householdError){showAuthPanel('authLogin');$('#loginMessage').textContent='Euer Zuhause konnte gerade nicht geladen werden.';return}
+  currentHousehold=household;currentMemberName=member.display_name||'';
+  const {data:members}=await cloud.from('household_members').select('user_id,display_name,role').eq('household_id',household.id);
+  householdMembers=members||[];updatePersonNames(householdMembers);
+  const {data:row,error:stateError}=await cloud.from('app_state').select('data,updated_at,revision').eq('household_id',household.id).single();
+  if(stateError){showAuthPanel('authLogin');$('#loginMessage').textContent='Die gemeinsamen Daten konnten gerade nicht geladen werden.';return}
+  const scoped=readJson(scopedStorageKey()),dirty=localStorage.getItem(scopedStorageKey('dirty'))==='1',storedBase=readJson(scopedStorageKey('base'));
+  lastSyncedState=mergedState(row.data);state=dirty&&scoped?mergeStates(row.data,scoped,storedBase||lastSyncedState):structuredClone(lastSyncedState);localDirty=dirty;localChangeVersion=dirty?1:0;storeScopedState();lastCloudUpdate=row.updated_at;cloudRevision=Number(row.revision||0);
+  cloudReady=true;updateStorageExplanation();await loadAutomaticContent();
+  await window.ZuhauseCalendar?.connect({cloud,household,user:currentUser,members:members||[],legacyAppointments:state.appointments,automaticEvents,callbacks:{toast,go,detail:openDetail,remindersSelected:notificationHelp}});
+  renderAll();renderInsurance();await loadDocuments();
+  $('#authScreen').hidden=true;setSyncStatus('Sicher gespeichert','connected');
+  if(dirty||!row.data||!Object.keys(row.data).length){setDirty(true);await saveCloudState()}
+}
+async function refreshCloudState(){
+  if(!cloudReady||!currentHousehold||document.hidden||saveInFlight)return;
+  await Promise.allSettled([loadDocuments(),loadAutomaticContent()]);
+  window.ZuhauseFeatures?.refresh();
+  if(saveInFlight)return;
+  const {data,error}=await cloud.from('app_state').select('data,updated_at,revision').eq('household_id',currentHousehold.id).single();
+  if(error||!data||saveInFlight||Number(data.revision||0)<=cloudRevision)return;
+  const remoteState=mergedState(data.data);state=localDirty?mergeStates(data.data,state,lastSyncedState):remoteState;lastSyncedState=remoteState;lastCloudUpdate=data.updated_at;cloudRevision=Number(data.revision||0);storeScopedState();window.ZuhauseCalendar?.setLegacyAppointments(state.appointments);await loadAutomaticContent();renderAll();setSyncStatus(localDirty?'Änderungen werden abgeglichen':'Neuester Stand',localDirty?'syncing':'connected');if(localDirty)saveCloudState();
+}
+async function startCloud(){
+  if(!cloud){showAuthPanel('authLogin');$('#loginMessage').textContent='Die sichere Verbindung konnte nicht geladen werden. Bitte die Seite neu öffnen.';return}
+  const {data:{session}}=await cloud.auth.getSession();
+  if(session){currentUser=session.user;await loadHousehold()}else{showAuthPanel('authLogin');setSyncStatus('Bitte anmelden','')}
+  cloud.auth.onAuthStateChange((event,sessionNow)=>{
+    if(event==='SIGNED_OUT'){window.ZuhauseCalendar?.disconnect();const prefix=currentUser&&currentHousehold?`zuhause-v2:${currentUser.id}:${currentHousehold.id}:`:'';if(prefix)Object.keys(localStorage).filter(key=>key.startsWith(prefix)).forEach(key=>localStorage.removeItem(key));localStorage.removeItem('zuhause-v1');state=structuredClone(seed);currentUser=null;currentHousehold=null;householdMembers=[];cloudReady=false;localDirty=false;showAuthPanel('authLogin');setSyncStatus('Bitte anmelden','')}
+    if(sessionNow&&sessionNow.user.id!==currentUser?.id){currentUser=sessionNow.user;setTimeout(loadHousehold,0)}
+  });
+}
 function toast(message='Gespeichert'){const el=$('#toast');el.textContent=message;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2100)}
 function go(page){
   $$('.page').forEach(p=>p.classList.toggle('active',p.id===page));
-  $$('[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===page));
+  $$('[data-page]').forEach(b=>{const active=b.dataset.page===page;b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});
   window.scrollTo({top:0,behavior:'smooth'});
+  if(page==='calendar')window.ZuhauseCalendar?.render();
 }
 $$('[data-page]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();go(b.dataset.page)}));
 
+function normaliseExternal(row){
+  return {key:`${row.source}:${row.external_id}`,date:row.event_date,time:(row.start_time||'00:00').slice(0,5),title:row.title,person:row.person||'Gemeinsam',kind:row.kind||'private',source:row.source,status:row.status||'scheduled',note:row.note||row.metadata?.competition||'',url:row.source_url||''};
+}
+async function loadAutomaticContent(){
+  let events=[];
+  if(cloudReady&&currentHousehold){
+    const {data}=await cloud.from('external_events').select('source,external_id,event_date,start_time,title,person,kind,status,note,source_url,metadata').eq('household_id',currentHousehold.id).order('event_date');
+    if(Array.isArray(data)&&data.length)events=data.map(normaliseExternal);
+  }
+  automaticEvents=[...new Map(events.map(event=>[event.key,event])).values()];
+  window.ZuhauseCalendar?.setAutomaticEvents(automaticEvents);
+  await loadPositiveMessage();
+}
+async function loadPositiveMessage(){
+  const phrases=['Gemeinsam wird aus vielen kleinen Schritten etwas Großes.','Heute muss nicht alles perfekt sein – ein guter Schritt reicht.','Ihr seid ein Team. Das macht den Alltag leichter.','Was heute erledigt wird, schenkt euch morgen Ruhe.','Ein freundlicher Gedanke kann einen ganzen Tag verändern.','Nehmt euch heute auch Zeit für etwas Schönes.','Euer Zuhause wächst mit jedem kleinen gemeinsamen Moment.'];
+  const day=Math.floor((Date.now()-new Date(new Date().getFullYear(),0,0))/86400000);
+  let content=null;
+  if(cloudReady&&currentHousehold){const {data}=await cloud.from('daily_content').select('headline,published_on,source_name,source_url').eq('household_id',currentHousehold.id).order('published_on',{ascending:false}).limit(1).maybeSingle();content=data}
+  $('#positiveTitle').textContent=content?.headline||phrases[day%phrases.length];
+  $('#positiveSource').textContent=content?'Gute Nachricht · '+(content.source_name||'Good News'):'Euer Satz für heute';
+  $('#positiveDate').textContent=content?.published_on?new Date(content.published_on+'T12:00:00').toLocaleDateString('de-DE')+' · Quelle öffnen →':'Gute Nachrichten öffnen →';
+  $('#positiveCard').href=content?.source_url||'https://goodnews.eu/';
+}
 function setGreeting(){
   const h=new Date().getHours();
   const greeting=h<11?'Guten Morgen':h<18?'Hallo':h<22?'Guten Abend':'Hallo';
-  $('#greeting').textContent=greeting+', ihr zwei';
+  $('#greeting').textContent=greeting+', '+(currentMemberName||'ihr zwei');
   if(h<11){$('#dayMessage').textContent='Ein guter Start in euren Tag.';$('#timeMessage').textContent='Termine, Aufgaben und alles Wichtige für heute.'}
   else if(h<18){$('#dayMessage').textContent='So sieht euer Tag gerade aus.';$('#timeMessage').textContent='Was erledigt ist, verschwindet ganz einfach aus dem Weg.'}
   else{$('#dayMessage').textContent='Für heute fast geschafft.';$('#timeMessage').textContent='Ein kurzer Blick auf morgen, dann ist Feierabend.'}
   $('#topDate').textContent=new Intl.DateTimeFormat('de-DE',{weekday:'long',day:'numeric',month:'long'}).format(new Date());
 }
-function renderTimeline(){
-  const today=todayISO();
-  const items=state.appointments.filter(a=>a.date===today).sort((a,b)=>a.time.localeCompare(b.time));
-  $('#todayTimeline').innerHTML=items.length?items.map(a=>`<button class="timeline-item" data-appointment="${a.id}"><time>${a.time}</time><span class="timeline-line"></span><span><strong>${a.title}</strong><small>${a.person}</small></span></button>`).join(''):'<p>Heute steht noch nichts im Kalender.</p>';
+function displayPerson(value){return value==='person1'?personNames.person1:value==='person2'?personNames.person2:value||'Gemeinsam'}
+function parseStoredDate(value=''){
+  if(/^\d{4}-\d{2}-\d{2}$/.test(value))return new Date(`${value}T12:00:00`);
+  const match=String(value).match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);return match?new Date(`${match[3]}-${match[2].padStart(2,'0')}-${match[1].padStart(2,'0')}T12:00:00`):null;
 }
-function taskMarkup(t){return `<label class="check-row ${t.done?'done':''}"><input type="checkbox" data-task-id="${t.id}" ${t.done?'checked':''}><span class="check-dot"></span><span><strong>${t.title}</strong><small>${t.person} · ${t.due}</small></span></label>`}
+function displayDate(value){const date=parseStoredDate(value);return date?date.toLocaleDateString('de-DE'):value}
+function renderTimeline(){
+  window.ZuhauseCalendar?.renderHomeTimeline();
+}
+function taskMarkup(t){return `<label class="check-row ${t.done?'done':''}"><input type="checkbox" data-task-id="${escapeHtml(t.id)}" ${t.done?'checked':''}><span class="check-dot"></span><span><strong>${escapeHtml(t.title)}</strong><small>${escapeHtml(displayPerson(t.person))} · ${escapeHtml(t.due)}</small></span></label>`}
 function renderTasks(){
   const open=state.householdTasks.filter(t=>!t.done);
   $('#homeTaskList').innerHTML=(open.slice(0,3).map(taskMarkup).join('')||'<p>Alles erledigt – sehr schön.</p>');
   $('#householdTaskList').innerHTML=state.householdTasks.map(taskMarkup).join('');
   $$('[data-task-id]').forEach(i=>i.addEventListener('change',()=>{
-    const t=state.householdTasks.find(x=>x.id===Number(i.dataset.taskId));if(t)t.done=i.checked;
+    const t=state.householdTasks.find(x=>String(x.id)===i.dataset.taskId);if(t)t.done=i.checked;
     persist();renderTasks();toast(i.checked?'Aufgabe erledigt':'Aufgabe wieder geöffnet');
   }));
 }
-function shoppingMarkup(i){return `<label class="check-row ${i.done?'done':''}"><input type="checkbox" data-shopping-id="${i.id}" ${i.done?'checked':''}><span class="check-dot"></span><span><strong>${i.title}</strong><small>${i.done?'eingekauft':'noch auf der Liste'}</small></span></label>`}
+function shoppingMarkup(i){return `<label class="check-row ${i.done?'done':''}"><input type="checkbox" data-shopping-id="${escapeHtml(i.id)}" ${i.done?'checked':''}><span class="check-dot"></span><span><strong>${escapeHtml(i.title)}</strong><small>${i.done?'eingekauft':'noch auf der Liste'}</small></span></label>`}
 function renderShopping(){
   const open=state.shopping.filter(i=>!i.done);
   $('#shoppingPreview').innerHTML=open.slice(0,3).map(shoppingMarkup).join('')||'<p>Die Liste ist leer.</p>';
   $('#shoppingFull').innerHTML=state.shopping.map(shoppingMarkup).join('');
   $$('[data-shopping-id]').forEach(i=>i.addEventListener('change',()=>{
-    const item=state.shopping.find(x=>x.id===Number(i.dataset.shoppingId));if(item)item.done=i.checked;
+    const item=state.shopping.find(x=>String(x.id)===i.dataset.shoppingId);if(item)item.done=i.checked;
     persist();renderShopping();toast(i.checked?'Als eingekauft markiert':'Wieder auf der Liste');
   }));
 }
-// Kalender: angezeigter Monat und Personen-Filter
-const calNow=new Date();let calY=calNow.getFullYear(),calM=calNow.getMonth(),calPerson='Alle';
-function isoDate(y,m,d){return y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0')}
-// "Noah" zeigt Noahs und gemeinsame Termine, "Gemeinsam" nur gemeinsame
-function matchesPerson(a){return calPerson==='Alle'||a.person===calPerson||(calPerson!=='Gemeinsam'&&a.person==='Gemeinsam')}
 function renderCalendar(){
-  const labels=['Mo','Di','Mi','Do','Fr','Sa','So'].map(x=>`<div class="cal-label">${x}</div>`).join('');
-  const lead=(new Date(calY,calM,1).getDay()+6)%7,prevDays=new Date(calY,calM,0).getDate(),daysInMonth=new Date(calY,calM+1,0).getDate(),today=todayISO();
-  let days='';
-  for(let i=lead;i>0;i--)days+=`<div class="cal-day muted"><strong>${prevDays-i+1}</strong></div>`;
-  for(let i=1;i<=daysInMonth;i++){
-    const date=isoDate(calY,calM,i);
-    const events=state.appointments.filter(a=>a.date===date&&matchesPerson(a)).sort((a,b)=>a.time.localeCompare(b.time));
-    const more=events.length>2?`<span class="event more">+${events.length-2}</span>`:'';
-    days+=`<button class="cal-day${date===today?' today':''}" data-calendar-day="${date}"><strong>${i}</strong>${events.slice(0,2).map(e=>`<span class="event ${e.kind}">${e.title}</span>`).join('')}${more}</button>`;
-  }
-  const trail=(7-(lead+daysInMonth)%7)%7;
-  for(let i=1;i<=trail;i++)days+=`<div class="cal-day muted"><strong>${i}</strong></div>`;
-  $('#calendarGrid').innerHTML=labels+days;
-  $('#calMonthLabel').textContent=new Intl.DateTimeFormat('de-DE',{month:'long',year:'numeric'}).format(new Date(calY,calM,1));
-  const upcoming=state.appointments.filter(a=>a.date>=today&&matchesPerson(a)).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)).slice(0,5);
-  $('#upcomingList').innerHTML=upcoming.length?upcoming.map(a=>`<button class="upcoming-item" data-appointment="${a.id}"><b>${Number(a.date.slice(-2))}.${Number(a.date.slice(5,7))}.</b><span><strong>${a.title}</strong><small>${a.time} Uhr · ${a.person}</small></span></button>`).join(''):'<p>Keine anstehenden Termine.</p>';
+  window.ZuhauseCalendar?.render();
 }
-function expenseMarkup(e){return `<button class="expense-row" data-expense="${e.id}"><span class="expense-icon">${e.icon||'€'}</span><span><strong>${e.title}</strong><small>${e.date} · ${e.person} · ${e.category}</small></span><strong>${money(e.amount)}</strong><em class="tag">${e.review?'Bitte prüfen':'geordnet'}</em></button>`}
+function expenseMarkup(e){return `<button class="expense-row" data-expense="${escapeHtml(e.id)}"><span class="expense-icon">${escapeHtml(e.icon||'€')}</span><span><strong>${escapeHtml(e.title)}</strong><small>${escapeHtml(displayDate(e.date))} · ${escapeHtml(displayPerson(e.person))} · ${escapeHtml(e.category)}</small></span><strong>${money(Number(e.amount)||0)}</strong><em class="tag">${e.review?'Bitte prüfen':'geordnet'}</em></button>`}
 function renderExpenses(filter=''){
   const list=state.expenses.filter(e=>(e.title+' '+e.category+' '+e.person).toLowerCase().includes(filter.toLowerCase()));
   const html=list.map(expenseMarkup).join('')||'<p>Keine passenden Einträge.</p>';
-  $('#expenseList').innerHTML=html;$('#taxExpenseList').innerHTML=html;
-  const total=state.expenses.reduce((s,e)=>s+Number(e.amount),0),receipts=state.expenses.filter(e=>e.receipt).length;
-  $('#financeTotal').textContent=money(total);$('#homeExpenseTotal').textContent=money(total);
-  $('#expenseTotal').textContent=money(total);$('#reviewTotal').textContent=state.expenses.filter(e=>e.review).length;
-  $('#receiptRate').textContent=Math.round(receipts/Math.max(state.expenses.length,1)*100)+'%';
-  $$('[data-expense]').forEach(row=>row.addEventListener('click',()=>openExpense(Number(row.dataset.expense))));
+  if($('#expenseList'))$('#expenseList').innerHTML=html;
+  const now=new Date(),monthExpenses=state.expenses.filter(e=>{const date=parseStoredDate(e.date);return date&&date.getFullYear()===now.getFullYear()&&date.getMonth()===now.getMonth()}),yearExpenses=state.expenses.filter(e=>{const date=parseStoredDate(e.date);return date&&date.getFullYear()===now.getFullYear()});
+  const taxExpenses=yearExpenses.filter(e=>e.review),monthTotal=monthExpenses.reduce((sum,e)=>sum+(Number(e.amount)||0),0),yearTotal=taxExpenses.reduce((sum,e)=>sum+(Number(e.amount)||0),0),receipts=taxExpenses.filter(e=>e.receipt).length;
+  $('#taxExpenseList').innerHTML=taxExpenses.length?taxExpenses.map(expenseMarkup).join(''):'<p>Noch keine steuerlich zu prüfende Ausgabe.</p>';
+  const sharedTotal=monthExpenses.filter(e=>e.person==='Gemeinsam'||e.category==='Gemeinsamer Haushalt').reduce((sum,e)=>sum+(Number(e.amount)||0),0),reviewTotal=monthExpenses.filter(e=>e.review).reduce((sum,e)=>sum+(Number(e.amount)||0),0);
+  for(const [id,value] of [['financeTotal',monthTotal],['homeExpenseTotal',monthTotal],['financeSharedTotal',sharedTotal],['financeReviewAmount',reviewTotal]])if($('#'+id))$('#'+id).textContent=money(value);
+  $('#expenseTotal').textContent=money(yearTotal);$('#taxYearLabel').textContent=String(now.getFullYear());$('#reviewTotal').textContent=taxExpenses.length;
+  $('#taxYearOverview').textContent=String(now.getFullYear());
+  $('#receiptRate').textContent=Math.round(receipts/Math.max(taxExpenses.length,1)*100)+'%';
+  const grouped=new Map();monthExpenses.forEach(e=>grouped.set(e.category,(grouped.get(e.category)||0)+(Number(e.amount)||0)));const max=Math.max(...grouped.values(),1),bars=$('#financeCategoryBars');if(!bars)return;bars.replaceChildren();
+  if(!grouped.size)bars.append(Object.assign(document.createElement('p'),{textContent:'Für diesen Monat sind noch keine Ausgaben erfasst.'}));
+  [...grouped.entries()].sort((a,b)=>b[1]-a[1]).forEach(([category,amount])=>{const row=document.createElement('div'),label=document.createElement('span'),track=document.createElement('i'),bar=document.createElement('b'),value=document.createElement('strong');label.textContent=category;bar.style.width=`${Math.round(amount/max*100)}%`;track.append(bar);value.textContent=money(amount);row.append(label,track,value);bars.append(row)});
+  $$('[data-expense]').forEach(row=>row.addEventListener('click',()=>openExpense(row.dataset.expense)));
 }
 function renderTaxTasks(){
-  $('#taxTaskList').innerHTML=state.taxTasks.map(t=>`<label class="check-row ${t.done?'done':''}"><input type="checkbox" data-tax-task="${t.id}" ${t.done?'checked':''}><span class="check-dot"></span><span><strong>${t.title}</strong><small>${t.note}</small></span></label>`).join('');
-  const done=state.taxTasks.filter(t=>t.done).length,pct=Math.round(done/state.taxTasks.length*100),open=state.taxTasks.length-done;
-  $('#taxRingNumber').textContent=pct+'%';$('#taxProgressText').textContent=pct+' % erledigt';$('#taxOpenText').textContent=`Noch ${open} kleine ${open===1?'Aufgabe':'Aufgaben'} →`;
+  $('#taxTaskList').innerHTML=state.taxTasks.map(t=>`<label class="check-row ${t.done?'done':''}"><input type="checkbox" data-tax-task="${escapeHtml(t.id)}" ${t.done?'checked':''}><span class="check-dot"></span><span><strong>${escapeHtml(t.title)}</strong><small>${escapeHtml(t.note)}</small></span></label>`).join('');
+  const done=state.taxTasks.filter(t=>t.done).length,pct=state.taxTasks.length?Math.round(done/state.taxTasks.length*100):0,open=state.taxTasks.length-done;
+  $('#taxRingNumber').textContent=pct+'%';$('#taxProgressText').textContent=pct+' % erledigt';$('#taxOpenText').textContent=open?`Noch ${open} kleine ${open===1?'Aufgabe':'Aufgaben'} →`:'Keine offene Aufgabe';
   $$('[data-tax-task]').forEach(i=>i.addEventListener('change',()=>{const t=state.taxTasks.find(x=>x.id===i.dataset.taxTask);if(t)t.done=i.checked;persist();renderTaxTasks();toast(i.checked?'Steuer-Aufgabe erledigt':'Wieder geöffnet')}));
 }
 function renderInsurance(){
-  $('#insuranceGrid').innerHTML=state.insurances.map(i=>`<button class="insurance-item card" data-open="insurance"><span class="expense-icon">${i.icon||'♢'}</span><span><h3>${i.title}</h3><p>${i.person} · ${i.amount!=null?money(i.amount)+' pro Jahr':(i.note||'Jahresbetrag noch ergänzen')}</p></span><strong>Öffnen →</strong></button>`).join('');
+  $('#insuranceGrid').innerHTML='<article class="card module-card"><span>♢</span><h3>Noch keine Versicherung erfasst</h3><p>Verträge erscheinen hier erst nach dem Eintragen.</p><button data-open="insurance">Versicherung eintragen →</button></article>';
   bindOpenButtons();
 }
 function openExpense(id){
-  const e=state.expenses.find(x=>x.id===id);if(!e)return;
-  openDetail(e.title,`<p><strong>${money(e.amount)}</strong> · ${e.date}</p><ul class="detail-list"><li>Bezahlt von: ${e.person}</li><li>Grund: ${e.category}</li><li>Beleg: ${e.receipt?'vorhanden':'noch nicht vorhanden'}</li></ul><p>Noch keine Aussage, ob das Finanzamt die Ausgabe anerkennt.</p>`);
+  const e=state.expenses.find(x=>String(x.id)===String(id));if(!e)return;
+  openDetail(e.title,`<p><strong>${money(Number(e.amount)||0)}</strong> · ${escapeHtml(displayDate(e.date))}</p><ul class="detail-list"><li>Bezahlt von: ${escapeHtml(displayPerson(e.person))}</li><li>Grund: ${escapeHtml(e.category)}</li><li>Beleg: ${e.receipt?'vorhanden':'noch nicht vorhanden'}</li></ul><p>Noch keine Aussage, ob das Finanzamt die Ausgabe anerkennt.</p>`);
 }
 
 const fieldSets={
-  appointment:{kicker:'Kalender',title:'Termin eintragen',help:'Für euch beide, nur für dich oder nur für Noah.',fields:`<div class="field-grid"><div class="field full"><label>Was steht an?</label><input name="title" placeholder="z. B. Zahnarzt" required></div><div class="field"><label>Datum</label><input name="date" type="date" required></div><div class="field"><label>Uhrzeit</label><input name="time" type="time" value="12:00" required></div><div class="field full"><label>Für wen?</label><select name="person"><option>Gemeinsam</option><option>Noah</option><option>Charlene</option></select></div></div>`},
-  task:{kicker:'Haushalt',title:'Aufgabe hinzufügen',help:'Wer kümmert sich darum und bis wann?',fields:`<div class="field-grid"><div class="field full"><label>Was muss erledigt werden?</label><input name="title" placeholder="z. B. Paket abholen" required></div><div class="field"><label>Wer?</label><select name="person"><option>Gemeinsam</option><option>Noah</option><option>Charlene</option></select></div><div class="field"><label>Wann?</label><select name="due"><option>Heute</option><option>Heute Abend</option><option>Morgen</option><option>Diese Woche</option></select></div></div>`},
-  shopping:{kicker:'Einkauf',title:'Zur Liste hinzufügen',help:'Der Eintrag erscheint sofort bei euch auf der Startseite.',fields:`<div class="field-grid"><div class="field full"><label>Was brauchen wir?</label><input name="title" placeholder="z. B. Brot" required></div></div>`},
-  expense:{kicker:'Ausgabe',title:'Wofür habt ihr bezahlt?',help:'Privat sammeln oder für die spätere Steuerprüfung kennzeichnen.',fields:`<div class="field-grid"><div class="field"><label>Wer hat bezahlt?</label><select name="person"><option>Noah</option><option>Charlene</option><option>Gemeinsam</option></select></div><div class="field"><label>Wann?</label><input name="date" type="date" required></div><div class="field full"><label>Was wurde bezahlt?</label><input name="title" placeholder="z. B. Einkauf oder Werkzeug" required></div><div class="field"><label>Wie viel?</label><input name="amount" type="number" step="0.01" min="0" required></div><div class="field"><label>Bereich</label><select name="category"><option>Gemeinsamer Haushalt</option><option>Persönlich</option><option>Beruf / Arbeit</option><option>Hochschule / Studium</option><option>Nebengewerbe</option><option>Noch unklar</option></select></div><div class="field full"><label><input name="receipt" type="checkbox"> Beleg ist vorhanden</label></div></div>`},
-  day:{kicker:'Arbeit & Fahrten',title:'Wie sah der Tag aus?',help:'Wählt den Ort. Eine mögliche Steuerwirkung wird später geprüft.',fields:`<div class="field-grid"><div class="field"><label>Für wen?</label><select name="person"><option>Noah</option><option>Charlene</option></select></div><div class="field"><label>Datum</label><input name="date" type="date" required></div><div class="field full"><label>Was war?</label><select name="kind"><option>Im Büro / Betrieb gearbeitet</option><option>Zu Hause gearbeitet</option><option>In der Hochschule</option><option>Fahrt fürs Nebengewerbe</option><option>Urlaub</option><option>Krank</option><option>Frei</option></select></div></div>`},
-  income:{kicker:'Nebengewerbe',title:'Geld vom Auftrag eintragen',help:'Rechnungsbetrag und Status festhalten.',fields:`<div class="field-grid"><div class="field full"><label>Wofür?</label><input name="title" placeholder="z. B. Montageauftrag Müller" required></div><div class="field"><label>Betrag</label><input name="amount" type="number" step="0.01" min="0" required></div><div class="field"><label>Datum</label><input name="date" type="date" required></div></div>`},
-  insurance:{kicker:'Versicherung',title:'Vertrag ergänzen',help:'Wir speichern Fakten, versprechen aber keine steuerliche Wirkung.',fields:`<div class="field-grid"><div class="field full"><label>Welche Versicherung?</label><input name="title" required></div><div class="field"><label>Auf wen?</label><select name="person"><option>Noah</option><option>Charlene</option><option>Auf beide</option></select></div><div class="field"><label>Betrag pro Jahr</label><input name="amount" type="number" step="0.01"></div></div>`}
+  task:{kicker:'Haushalt',title:'Aufgabe hinzufügen',help:'Offene und überfällige Aufgaben bleiben sichtbar. Wiederholungen erzeugen unabhängige Termine.',fields:`<div class="field-grid"><label class="field full"><span>Was muss erledigt werden?</span><input name="title" placeholder="z. B. Paket abholen" maxlength="160" required></label><label class="field full"><span>Beschreibung (optional)</span><textarea name="description" rows="3" maxlength="1000"></textarea></label><label class="field"><span>Wer?</span><select name="person"><option value="Gemeinsam">Beide</option><option value="person1" data-person-name="person1">Person 1</option><option value="person2" data-person-name="person2">Person 2</option></select></label><label class="field"><span>Fällig am</span><input name="dueOn" type="date" required></label><label class="calendar-all-day full"><input name="repeats" type="checkbox" data-repeat-toggle><span>Wiederholt sich</span></label><label class="field full" data-repeat-field hidden><span>Intervall</span><select name="recurrence"><option value="daily">Täglich</option><option value="weekly">Wöchentlich</option><option value="biweekly">Alle zwei Wochen</option><option value="monthly">Monatlich</option><option value="custom">Benutzerdefiniert</option></select></label><div class="field-grid full" data-custom-repeat hidden><label class="field"><span>Alle</span><input name="recurrenceInterval" type="number" min="1" max="365" value="1"></label><label class="field"><span>Einheit</span><select name="recurrenceUnit"><option value="days">Tage</option><option value="weeks">Wochen</option><option value="months">Monate</option></select></label></div></div>`},
+  shopping:{kicker:'Einkauf',title:'Zur Liste hinzufügen',help:'Menge und Bereich werden automatisch erkannt und können später bearbeitet werden.',fields:`<div class="field-grid"><label class="field full"><span>Was brauchen wir?</span><input name="title" placeholder="z. B. 2 × Milch" maxlength="160" required></label><button class="secondary full" type="button" data-shopping-voice>◉ Spracheingabe</button></div>`},
+  expense:{kicker:'Ausgabe',title:'Wofür habt ihr bezahlt?',help:'Privat sammeln oder für die spätere Steuerprüfung kennzeichnen.',fields:`<div class="field-grid"><label class="field"><span>Wer hat bezahlt?</span><select name="person"><option value="person1" data-person-name="person1">Person 1</option><option value="person2" data-person-name="person2">Person 2</option><option value="Gemeinsam">Gemeinsam</option></select></label><label class="field"><span>Wann?</span><input name="date" type="date" required></label><label class="field full"><span>Was wurde bezahlt?</span><input name="title" placeholder="z. B. Einkauf oder Werkzeug" maxlength="160" required></label><label class="field"><span>Wie viel?</span><input name="amount" type="number" step="0.01" min="0.01" required></label><label class="field"><span>Bereich</span><select name="category"><option>Gemeinsamer Haushalt</option><option>Persönlich</option><option>Beruf / Arbeit</option><option>Hochschule / Studium</option><option>Nebengewerbe</option><option>Noch unklar</option></select></label><label class="calendar-all-day full"><input name="receipt" type="checkbox"><span>Beleg ist vorhanden</span></label></div>`},
+  day:{kicker:'Arbeit & Fahrten',title:'Wie sah der Tag aus?',help:'Wählt den Ort. Eine mögliche Steuerwirkung wird später geprüft.',fields:`<div class="field-grid"><label class="field"><span>Für wen?</span><select name="person"><option value="person1" data-person-name="person1">Person 1</option><option value="person2" data-person-name="person2">Person 2</option></select></label><label class="field"><span>Datum</span><input name="date" type="date" required></label><label class="field full"><span>Was war?</span><select name="kind"><option>Im Büro / Betrieb gearbeitet</option><option>Zu Hause gearbeitet</option><option>In der Hochschule</option><option>Fahrt fürs Nebengewerbe</option><option>Urlaub</option><option>Krank</option><option>Frei</option></select></label></div>`},
+  income:{kicker:'Nebengewerbe',title:'Einnahme eintragen',help:'Rechnungsbetrag und Datum festhalten.',fields:`<div class="field-grid"><label class="field full"><span>Wofür?</span><input name="title" placeholder="z. B. Auftrag" maxlength="160" required></label><label class="field"><span>Betrag</span><input name="amount" type="number" step="0.01" min="0.01" required></label><label class="field"><span>Datum</span><input name="date" type="date" required></label></div>`},
+  insurance:{kicker:'Versicherung',title:'Vertrag ergänzen',help:'Wir speichern Fakten, versprechen aber keine steuerliche Wirkung.',fields:`<div class="field-grid"><label class="field full"><span>Welche Versicherung?</span><input name="title" maxlength="160" required></label><label class="field"><span>Auf wen?</span><select name="person"><option value="person1" data-person-name="person1">Person 1</option><option value="person2" data-person-name="person2">Person 2</option><option value="Gemeinsam">Auf beide</option></select></label><label class="field"><span>Betrag pro Jahr</span><input name="amount" type="number" step="0.01" min="0"></label></div>`}
 };
 let activeEntry='task';
 function bindOpenButtons(){$$('[data-open]').forEach(b=>{if(b.dataset.bound)return;b.dataset.bound='1';b.addEventListener('click',e=>{e.stopPropagation();openEntry(b.dataset.open)})})}
-function openEntry(type){activeEntry=type;const f=fieldSets[type];if(!f)return;$('#dialogKicker').textContent=f.kicker;$('#dialogTitle').textContent=f.title;$('#dialogHelp').textContent=f.help;$('#dynamicFields').innerHTML=f.fields;$$('#dynamicFields input[type=date]').forEach(i=>i.value=todayISO());$('#entryDialog').showModal()}
+function openEntry(type){activeEntry=type;const f=fieldSets[type];if(!f)return;$('#dialogKicker').textContent=f.kicker;$('#dialogTitle').textContent=f.title;$('#dialogHelp').textContent=f.help;$('#dynamicFields').innerHTML=f.fields;updatePersonNames(householdMembers);$('#dynamicFields').querySelectorAll('input[type="date"]').forEach(input=>input.value=todayIso());const repeat=$('[data-repeat-toggle]'),repeatField=$('[data-repeat-field]'),custom=$('[data-custom-repeat]');if(repeat){repeat.addEventListener('change',()=>{repeatField.hidden=!repeat.checked;custom.hidden=!repeat.checked||$('#dynamicFields select[name="recurrence"]').value!=='custom'});$('#dynamicFields select[name="recurrence"]').addEventListener('change',event=>custom.hidden=!repeat.checked||event.target.value!=='custom')}document.querySelector('[data-shopping-voice]')?.addEventListener('click',()=>window.ZuhauseFeatures?.startShoppingVoice?.());$('#entryDialog').showModal()}
 $('#entryForm').addEventListener('submit',e=>{
-  e.preventDefault();
-  if(e.submitter&&e.submitter.value==='cancel'){$('#entryDialog').close();e.target.reset();return}
-  const data=Object.fromEntries(new FormData(e.target));
-  if(activeEntry==='appointment')state.appointments.push({id:Date.now(),title:data.title,date:data.date,time:data.time,person:data.person,kind:'private'});
-  if(activeEntry==='task')state.householdTasks.unshift({id:Date.now(),title:data.title,person:data.person,due:data.due,done:false});
-  if(activeEntry==='shopping')state.shopping.unshift({id:Date.now(),title:data.title,done:false});
-  if(activeEntry==='expense'){const d=new Date(data.date+'T12:00:00');state.expenses.unshift({id:Date.now(),date:d.toLocaleDateString('de-DE'),title:data.title,category:data.category,person:data.person,amount:Number(data.amount),receipt:data.receipt==='on',review:['Beruf / Arbeit','Hochschule / Studium','Nebengewerbe','Noch unklar'].includes(data.category),icon:'€'})}
-  if(activeEntry==='income')state.incomes.push({id:Date.now(),title:data.title,amount:Number(data.amount),date:data.date});
-  if(activeEntry==='day')state.workdays.push({id:Date.now(),date:data.date,person:data.person,kind:data.kind});
-  if(activeEntry==='insurance')state.insurances.push({id:Date.now(),icon:'♢',title:data.title,person:data.person,amount:data.amount===''?null:Number(data.amount)});
-  persist();renderAll();renderInsurance();$('#entryDialog').close();e.target.reset();toast('Eintrag gespeichert');
+  e.preventDefault();const data=Object.fromEntries(new FormData(e.target));
+  if(activeEntry==='expense'&&state.budget.closedMonths?.[String(data.date).slice(0,7)]){toast('Dieser Monat ist bereits abgeschlossen. Bitte ein offenes Buchungsdatum wählen.');return}
+  if(activeEntry==='task')state.householdTasks.unshift({id:crypto.randomUUID(),seriesId:data.repeats==='on'?crypto.randomUUID():null,title:data.title,description:data.description||'',person:data.person,dueOn:data.dueOn,due:data.dueOn,recurrenceAnchor:data.dueOn,done:false,completedAt:null,recurrence:data.repeats==='on'?(data.recurrence||'weekly'):'none',recurrenceInterval:Number(data.recurrenceInterval)||1,recurrenceUnit:data.recurrenceUnit||'weeks',createdAt:new Date().toISOString()});
+  if(activeEntry==='shopping'){const parsed=window.ZuhauseFeatures?.parseShoppingItem?.(data.title)||{title:data.title,quantity:'',category:'Sonstiges'};state.shopping.unshift({id:crypto.randomUUID(),raw:data.title,title:parsed.title,quantity:parsed.quantity,category:parsed.category,done:false,createdAt:new Date().toISOString()})}
+  if(activeEntry==='expense')state.expenses.unshift({id:crypto.randomUUID(),date:data.date,title:data.title,category:data.category,person:data.person,amount:Number(data.amount),receipt:data.receipt==='on',review:['Beruf / Arbeit','Hochschule / Studium','Nebengewerbe','Noch unklar'].includes(data.category),icon:'€'});
+  if(activeEntry==='income')state.incomes.push({id:crypto.randomUUID(),title:data.title,amount:Number(data.amount),date:data.date});
+  persist();renderAll();$('#entryDialog').close();e.target.reset();toast('Eintrag gespeichert');
 });
+$$('[data-entry-cancel]').forEach(button=>button.addEventListener('click',()=>$('#entryDialog').close()));
 
 const details={
   storage:['Noch nicht zwischen Geräten verbunden','<p>Diese erste Fassung speichert Eingaben nur in diesem Browser. Sobald Supabase verbunden ist, bekommen eure beiden iPhones und der Computer denselben Stand.</p><p>Bis dahin bitte keine echten Steuerunterlagen hochladen.</p>'],
-  lou:['Lou','<p>Hier sammeln wir später Tierarzttermine, Impfungen, Futter-Erinnerungen und wichtige Unterlagen.</p><ul class="detail-list"><li>Tierarzt: 18. November, 16:00 Uhr</li><li>Hundefutter steht auf der Einkaufsliste</li></ul>'],
+  pet:['Haustier','<p>Hier können später Tierarzttermine, Impfungen, Futter-Erinnerungen und wichtige Unterlagen gesammelt werden.</p>'],
   contracts:['Wohnung & Verträge','<p>Geplant sind Miete, Strom, Internet und gemeinsame Versicherungen – jeweils mit Laufzeit, Zahlender Person und Erinnerung.</p>'],
-  notifications:['Mitteilungen','<p>Die App soll morgens eure Tagesübersicht und abends die wichtigsten Punkte für morgen zeigen.</p><p>Auf dem iPhone funktionieren solche Mitteilungen später, wenn die App zum Home-Bildschirm hinzugefügt wurde und ihr sie erlaubt.</p>'],
-  install:['Als App auf dem iPhone','<ol class="plain-steps"><li>Die Seite in Safari öffnen.</li><li>Unten auf „Teilen“ tippen.</li><li>„Zum Home-Bildschirm“ wählen.</li><li>Mit „Hinzufügen“ bestätigen.</li></ol>'],
+  notifications:['Müll-Mitteilungen','<p>Die App erinnert euch am Vortag um 15:00 Uhr. Fallen mehrere Tonnen zusammen, kommt nur eine gemeinsame Mitteilung.</p><p>Auf jedem iPhone muss die App auf dem Home-Bildschirm liegen und die Mitteilung einmal erlaubt werden.</p>'],
+  install:['Zuhause auf dem iPhone','<ol class="plain-steps"><li>Diese Seite in Safari öffnen.</li><li>Unten auf „Teilen“ tippen.</li><li>„Zum Home-Bildschirm“ und dann „Hinzufügen“ wählen.</li></ol><p>Push-Mitteilungen funktionieren auf iPhones ab iOS 16.4 nur aus der installierten Home-Bildschirm-App.</p>'],
   settings:['Einstellungen','<p>Hier kommen später eure Zugänge, Datensicherung, persönliche Ansicht und die Auswahl der Erinnerungen hinein.</p>'],
   financeTogether:['Gemeinsame Finanzen','<p>Miete, Haushaltskosten und gemeinsame Verträge. Bei Steuerthemen wird zusätzlich gespeichert, wer tatsächlich bezahlt hat.</p>'],
-  financeNoah:['Noahs Bereich','<p>Persönliche Ausgaben und Einnahmen bleiben Noah zugeordnet.</p>'],
-  financePartner:['Charlenes Bereich','<p>Persönliche Ausgaben, Studium und Minijob bleiben der richtigen Person zugeordnet.</p>'],
-  docsNoah:['Noahs Dokumente','<p>Lohnabrechnungen, Jahresbescheinigungen und Unterlagen zum Nebengewerbe.</p>'],
-  docsPartner:['Charlenes Dokumente','<p>Lohn, duales Studium, Hochschule und Minijob.</p>'],
-  profileNoah:['Profil Noah','<p>Angestellter mit geplantem Montage-Nebengewerbe und eigener Steuererklärung.</p>'],
-  profilePartner:['Profil Charlene','<p>Angestellte im dualen Studium mit Minijob und eigener Steuererklärung.</p>'],
+  financePerson1:['Persönlicher Bereich','<p>Persönliche Ausgaben und Einnahmen bleiben der ausgewählten Person zugeordnet.</p>'],
+  financePerson2:['Persönlicher Bereich','<p>Persönliche Ausgaben und Einnahmen bleiben der ausgewählten Person zugeordnet.</p>'],
+  docsPrivate:['Meine Dokumente','<p>Private Dokumente können nur von der Person geöffnet werden, die sie hochgeladen hat.</p>'],
+  docsShared:['Gemeinsame Dokumente','<p>Gemeinsame Dokumente sind für beide Haushaltsmitglieder sichtbar.</p>'],
+  profilePerson1:['Persönliches Profil','<p>Eigene Termine, Unterlagen und Steuerangaben.</p>'],
+  profilePerson2:['Persönliches Profil','<p>Eigene Termine, Unterlagen und Steuerangaben.</p>'],
   householdProfile:['Euer gemeinsamer Bereich','<p>Kalender, Aufgaben, Einkauf, Wohnung und gemeinsame Kosten.</p>'],
   elsterWhy:['Warum noch nicht direkt senden?','<p>ELSTER muss echte Steuerdaten sicher prüfen und verschlüsseln. Dafür brauchen wir eine offizielle Entwicklerfreigabe und die ELSTER-Komponente ERiC.</p>'],
   elsterData:['Schritt 1: Daten sammeln','<p>Kalender, Ausgaben, Versicherungen, Lohnunterlagen und Nebengewerbe werden getrennt gesammelt.</p>'],
   elsterCheck:['Schritt 2: Einfach prüfen','<p>Alltagsfragen werden später in die passenden ELSTER-Felder übersetzt.</p>'],
   elsterAccount:['Schritt 3: ELSTER verbinden','<p>Ihr erhaltet jeweils einen eigenen kostenlosen ELSTER-Zugang. Zertifikate bleiben bei euch.</p>'],
   elsterSend:['Schritt 4: Prüfen und senden','<p>Vorher seht ihr jede Angabe. Gesendet wird nur nach eurer ausdrücklichen Bestätigung.</p>'],
-  elsterNoah:['ELSTER für Noah','<p>Eigene Einkommensteuererklärung und später die Angaben zum Nebengewerbe.</p>'],
-  elsterPartner:['ELSTER für Charlene','<p>Eigene Einkommensteuererklärung mit Studium und Minijob.</p>']
+  elsterPerson1:['Eigene ELSTER-Erklärung','<p>Jede Person bereitet ihre Einkommensteuererklärung getrennt vor.</p>'],
+  elsterPerson2:['Eigene ELSTER-Erklärung','<p>Jede Person bereitet ihre Einkommensteuererklärung getrennt vor.</p>']
 };
-function openDetail(title,body){$('#detailTitle').textContent=title;$('#detailBody').innerHTML=body;$('#detailDialog').showModal()}
+function openDetail(title,body){$('#detailTitle').textContent=title;const target=$('#detailBody');target.replaceChildren();if(body instanceof Node)target.append(body);else target.innerHTML=body;$('#detailDialog').showModal()}
 $$('[data-detail]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();const d=details[b.dataset.detail];if(d)openDetail(d[0],d[1])}));
 const explanations={
   safety:['Warum wir vorsichtig sind','<p>Steuern hängen von vielen Einzelheiten ab. Eine Ausgabe kann beruflich wirken und trotzdem ganz oder teilweise nicht zählen.</p><ol class="plain-steps"><li>Ihr sammelt den echten Vorgang.</li><li>Die App zeigt offene Fragen.</li><li>Vor der Abgabe wird alles geprüft.</li></ol>'],
@@ -201,18 +292,118 @@ const explanations={
   handover:['So soll ELSTER funktionieren','<ol class="plain-steps"><li>Je Person eine eigene Erklärung.</li><li>Alle Angaben noch einmal in normaler Sprache.</li><li>Technische Prüfung durch ELSTER.</li><li>Versand nur nach eurer Bestätigung.</li><li>Offizielles Sendeprotokoll speichern.</li></ol>']
 };
 $$('[data-explain]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();const d=explanations[b.dataset.explain];if(!d)return;$('#explainTitle').textContent=d[0];$('#explainBody').innerHTML=d[1];$('#explainDialog').showModal()}));
-document.addEventListener('click',e=>{
-  const a=e.target.closest('[data-appointment]');if(a){const item=state.appointments.find(x=>x.id===Number(a.dataset.appointment));if(item)openDetail(item.title,`<p><strong>${item.time} Uhr</strong> · ${item.date.split('-').reverse().join('.')}</p><p>Für: ${item.person}</p>`)}
-  const day=e.target.closest('[data-calendar-day]');if(day){const entries=state.appointments.filter(x=>x.date===day.dataset.calendarDay),work=state.workdays.filter(x=>x.date===day.dataset.calendarDay);openDetail(day.dataset.calendarDay.split('-').reverse().join('.'),(entries.length?entries.map(x=>`<p><strong>${x.time} Uhr</strong> · ${x.title} · ${x.person}</p>`).join(''):'<p>Noch kein Termin eingetragen.</p>')+(work.length?'<ul class="detail-list">'+work.map(w=>`<li>${w.person}: ${w.kind}</li>`).join('')+'</ul>':''))}
-});
 $('#expenseSearch').addEventListener('input',e=>renderExpenses(e.target.value));
-$$('.chip').forEach(c=>c.addEventListener('click',()=>{$$('.chip').forEach(x=>x.classList.remove('active'));c.classList.add('active');calPerson=c.textContent.trim();renderCalendar()}));
-$$('.month-select').forEach((b,i)=>b.addEventListener('click',()=>{calM+=i===0?-1:1;if(calM<0){calM=11;calY--}if(calM>11){calM=0;calY++}renderCalendar()}));
-// Tippen auf den Monatsnamen springt zurück zu heute
-$('#calMonthLabel').addEventListener('click',()=>{const n=new Date();calY=n.getFullYear();calM=n.getMonth();renderCalendar()});
+const VAPID_PUBLIC_KEY='BBdsUcOhWD0t-zaxgt7JrMuGKa2kf2-KaIZ0bY6ZmMBKXlF3h-NFNogjIefewWbPxFQDvfrqhhz8g4bLcto7FRs';
+function urlBase64ToUint8Array(value){const padding='='.repeat((4-value.length%4)%4),base64=(value+padding).replace(/-/g,'+').replace(/_/g,'/'),raw=atob(base64);return Uint8Array.from([...raw].map(char=>char.charCodeAt(0)))}
+function notificationHelp(){
+  const installed=window.matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
+  const supported='serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window;
+  const status=!supported?'Dieses Gerät unterstützt App-Mitteilungen leider nicht.':Notification.permission==='granted'?'Mitteilungen sind auf diesem Gerät erlaubt.':installed?'Mitteilungen können jetzt eingeschaltet werden.':'Bitte fügt Zuhause zuerst zum Home-Bildschirm hinzu.';
+  openDetail('App-Mitteilungen',`<p>Zuhause kann euch persönlich an Kalendertermine und gemeinsam an die Müllabholung erinnern.</p><div class="notification-box"><span class="notification-status">${status}</span>${supported&&installed?'<button class="primary" type="button" data-enable-notifications>Mitteilungen einschalten</button>':'<button class="secondary" type="button" data-detail-install>Installationshilfe öffnen</button>'}</div><p>Diese Einstellung wird auf jedem iPhone einmal vorgenommen.</p>`);
+}
+async function enableNotifications(){
+  if(!cloudReady||!currentHousehold||!currentUser){toast('Bitte zuerst anmelden');return false}
+  if(VAPID_PUBLIC_KEY.startsWith('VAPID_')){toast('Der Mitteilungsdienst wird noch verbunden');return}
+  try{
+    const permission=await Notification.requestPermission();if(permission!=='granted'){toast('Mitteilungen wurden nicht erlaubt');return}
+    const registration=await navigator.serviceWorker.ready;
+    let subscription=await registration.pushManager.getSubscription();
+    if(!subscription)subscription=await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC_KEY)});
+    const data=subscription.toJSON();
+    const {error}=await cloud.from('push_subscriptions').upsert({household_id:currentHousehold.id,user_id:currentUser.id,endpoint:data.endpoint,p256dh:data.keys?.p256dh,auth_key:data.keys?.auth,enabled:true,user_agent:navigator.userAgent,updated_at:new Date().toISOString()},{onConflict:'endpoint'});
+    if(error)throw error;toast('App-Mitteilungen sind eingeschaltet');$('#detailDialog').close();
+  }catch{toast('Mitteilungen konnten noch nicht eingeschaltet werden')}
+}
+async function disableCurrentPush(){
+  if(!('serviceWorker' in navigator))return;
+  try{const registration=await navigator.serviceWorker.ready,subscription=await registration.pushManager.getSubscription();if(!subscription)return;if(cloud&&currentUser)await cloud.from('push_subscriptions').update({enabled:false,updated_at:new Date().toISOString()}).eq('endpoint',subscription.endpoint).eq('user_id',currentUser.id);await subscription.unsubscribe()}catch{}
+}
+$$('[data-notification-settings]').forEach(button=>button.addEventListener('click',notificationHelp));
+document.addEventListener('click',event=>{if(event.target.closest('[data-enable-notifications]'))enableNotifications();if(event.target.closest('[data-detail-install]')){const d=details.install;openDetail(d[0],d[1])}});
 $('#fakeUpload').addEventListener('click',()=>$('#fileInput').click());
-$('#fileInput').addEventListener('change',()=>toast('Dokument ausgewählt – sicherer Upload folgt'));
-$('#exportData').addEventListener('click',()=>{const data={hinweis:'Kontrolldatei. Noch keine ELSTER-Datei.',steuerjahr:2026,personen:['Noah','Charlene'],ausgaben:state.expenses,einnahmen:state.incomes,arbeitstage:state.workdays,versicherungen:state.insurances,aufgaben:state.taxTasks};const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='zuhause-steuer-2026-kontrolle.json';a.click();URL.revokeObjectURL(a.href);toast('Kontroll-Datei geladen')});
-function renderAll(){renderTimeline();renderTasks();renderShopping();renderCalendar();renderExpenses();renderTaxTasks();const income=state.incomes.reduce((s,i)=>s+Number(i.amount),0);$('#incomeTotal').textContent=money(income);$('#profitTotal').textContent=money(income-462.30)}
+$('#scanDocument').addEventListener('click',()=>$('#cameraInput').click());
+$('#fileInput').addEventListener('change',e=>{if(e.target.files[0])uploadDocument(e.target.files[0]);e.target.value=''});
+$('#cameraInput').addEventListener('change',e=>{if(e.target.files[0])uploadDocument(e.target.files[0]);e.target.value=''});
+function escapeHtml(value=''){return String(value).replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]))}
+function readableSize(bytes=0){if(bytes<1024)return bytes+' B';if(bytes<1048576)return Math.round(bytes/1024)+' KB';return (bytes/1048576).toFixed(1).replace('.',',')+' MB'}
+async function uploadDocument(file){
+  if(!cloudReady||!currentHousehold||!currentUser){toast('Bitte zuerst anmelden');return}
+  const allowed=['application/pdf','image/jpeg','image/png','image/webp'];
+  if(!allowed.includes(file.type)){toast('Bitte ein PDF oder Foto auswählen');return false}
+  if(file.size>10485760){toast('Die Datei darf höchstens 10 MB groß sein');return false}
+  setSyncStatus('Datei wird geschützt abgelegt …','syncing');
+  const cleanName=file.name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9._-]/g,'-').slice(-100)||'dokument';
+  const visibility='shared',meta=window.__pendingDocumentMeta||{},originalPaths=[];
+  const path=`${currentHousehold.id}/shared/${crypto.randomUUID()}-${cleanName}`;
+  for(const original of Array.isArray(meta.originalFiles)?meta.originalFiles:[]){
+    const originalName=original.name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9._-]/g,'-').slice(-100)||'original';
+    const originalPath=`${currentHousehold.id}/shared/originals/${crypto.randomUUID()}-${originalName}`;
+    const {error}=await cloud.storage.from('receipts').upload(originalPath,original,{cacheControl:'3600',upsert:false,contentType:original.type});
+    if(error){if(originalPaths.length)await cloud.storage.from('receipts').remove(originalPaths);setSyncStatus('Originale konnten nicht gesichert werden','error');toast('Die Originalfotos konnten nicht vollständig gespeichert werden');return false}
+    originalPaths.push(originalPath);
+  }
+  const {error:uploadError}=await cloud.storage.from('receipts').upload(path,file,{cacheControl:'3600',upsert:false,contentType:file.type});
+  if(uploadError){if(originalPaths.length)await cloud.storage.from('receipts').remove(originalPaths);setSyncStatus('Upload fehlgeschlagen','error');toast('Die Datei konnte nicht hochgeladen werden');return false}
+  const record={household_id:currentHousehold.id,uploaded_by:currentUser.id,owner_user_id:currentUser.id,visibility,storage_path:path,file_name:meta.name||file.name,mime_type:file.type,size_bytes:file.size,category:meta.category||'Sonstige Dokumente',folder:meta.folder||'Gemeinsam',ocr_text:meta.ocrText||'',original_paths:originalPaths};
+  let {error:metaError}=await cloud.from('documents').insert(record);
+  if(metaError&&/folder|ocr_text|original_paths/i.test(metaError.message||'')){delete record.folder;delete record.ocr_text;delete record.original_paths;({error:metaError}=await cloud.from('documents').insert(record))}
+  if(metaError){await cloud.storage.from('receipts').remove([path,...originalPaths]);setSyncStatus('Upload zurückgenommen','error');toast('Die Datei konnte nicht vollständig gespeichert werden');return false}
+  window.__pendingDocumentMeta=null;await loadDocuments();setSyncStatus('Sicher gespeichert','connected');toast('Dokument sicher abgelegt');return true;
+}
+async function loadDocuments(){
+  const list=$('#documentList');if(!list||!cloudReady||!currentHousehold)return;
+  let {data,error}=await cloud.from('documents').select('id,file_name,mime_type,size_bytes,storage_path,created_at,category,folder,ocr_text,visibility,owner_user_id,uploaded_by').eq('household_id',currentHousehold.id).order('created_at',{ascending:false});
+  if(error&&/folder|ocr_text/i.test(error.message||''))({data,error}=await cloud.from('documents').select('id,file_name,mime_type,size_bytes,storage_path,created_at,category,visibility,owner_user_id,uploaded_by').eq('household_id',currentHousehold.id).order('created_at',{ascending:false}));
+  if(error){list.innerHTML='<p>Dateien konnten gerade nicht geladen werden.</p>';return}
+  list.innerHTML=data.length?data.map(doc=>`<button class="document-row" data-document-path="${escapeHtml(doc.storage_path)}" data-folder="${escapeHtml(doc.folder||'Gemeinsam')}" data-category="${escapeHtml(doc.category||'Sonstige Dokumente')}" data-search="${escapeHtml(`${doc.file_name} ${doc.category||''} ${doc.folder||''} ${doc.ocr_text||''}`)}"><span class="document-icon">${doc.mime_type==='application/pdf'?'PDF':'▣'}</span><span><strong>${escapeHtml(doc.file_name)}</strong><small>${new Date(doc.created_at).toLocaleDateString('de-DE')} · ${readableSize(doc.size_bytes)} · ${escapeHtml(doc.folder||'Gemeinsam')} / ${escapeHtml(doc.category||'Sonstige Dokumente')}</small></span><em>Öffnen →</em></button>`).join(''):'<p>Noch keine Datei hochgeladen.</p>';
+  const privateSalary=data.filter(doc=>doc.visibility!=='shared'&&(doc.owner_user_id||doc.uploaded_by)===currentUser.id&&/lohn/i.test(doc.category||'')).length,shared=data.filter(doc=>doc.visibility==='shared').length;
+  if($('#documentPrivateCount'))$('#documentPrivateCount').textContent=String(privateSalary);if($('#documentPrivateProgress'))$('#documentPrivateProgress').style.width=`${Math.min(100,Math.round(privateSalary/12*100))}%`;if($('#documentSharedCount'))$('#documentSharedCount').textContent=String(shared);if($('#documentSharedProgress'))$('#documentSharedProgress').style.width=shared?'100%':'0%';
+  $$('[data-document-path]').forEach(button=>button.addEventListener('click',()=>openDocument(button.dataset.documentPath)));
+}
+function bindDocumentChecklist(){
+  $$('[data-document-check]').forEach(input=>{input.checked=!!state.documentChecklist[input.dataset.documentCheck];if(input.dataset.bound)return;input.dataset.bound='1';input.addEventListener('change',()=>{state.documentChecklist[input.dataset.documentCheck]=input.checked;persist();toast('Dokumenten-Check gespeichert')})});
+}
+async function openDocument(path){
+  const {data,error}=await cloud.storage.from('receipts').createSignedUrl(path,60);
+  if(error||!data?.signedUrl){toast('Datei konnte gerade nicht geöffnet werden');return}
+  const link=document.createElement('a');link.href=data.signedUrl;link.target='_blank';link.rel='noopener';link.click();
+}
+$('#showRegister').addEventListener('click',()=>showAuthPanel('authRegister'));
+$('#showLogin').addEventListener('click',()=>showAuthPanel('authLogin'));
+$('#loginForm').addEventListener('submit',async e=>{
+  e.preventDefault();const form=e.currentTarget,data=Object.fromEntries(new FormData(form));const button=form.querySelector('button');button.disabled=true;button.textContent='Wird angemeldet …';$('#loginMessage').textContent='';
+  const {data:result,error}=await cloud.auth.signInWithPassword({email:data.email,password:data.password});
+  button.disabled=false;button.textContent='Anmelden';
+  if(error){$('#loginMessage').textContent=friendlyError(error.message);return}
+  currentUser=result.user;await loadHousehold();form.reset();
+});
+$('#registerForm').addEventListener('submit',async e=>{
+  e.preventDefault();const form=e.currentTarget,data=Object.fromEntries(new FormData(form));const button=form.querySelector('button');button.disabled=true;button.textContent='Wird angelegt …';$('#registerMessage').textContent='';
+  const {data:result,error}=await cloud.auth.signUp({email:data.email,password:data.password,options:{emailRedirectTo:location.origin}});
+  button.disabled=false;button.textContent='Zugang anlegen';
+  if(error){$('#registerMessage').textContent=friendlyError(error.message);return}
+  if(result.session){currentUser=result.user;await loadHousehold()}else{$('#registerMessage').textContent='Fast fertig: Bitte öffne jetzt die Bestätigungs-E-Mail und tippe dort auf den Link.'}
+});
+$('#createHouseholdForm').addEventListener('submit',async e=>{
+  e.preventDefault();const form=e.currentTarget,data=Object.fromEntries(new FormData(form));const button=form.querySelector('button');button.disabled=true;$('#householdMessage').textContent='Euer Zuhause wird angelegt …';
+  const {error}=await cloud.rpc('create_household',{household_name:data.householdName,member_name:data.memberName});button.disabled=false;
+  if(error){$('#householdMessage').textContent=friendlyError(error.message);return}await loadHousehold();
+});
+$('#joinHouseholdForm').addEventListener('submit',async e=>{
+  e.preventDefault();const form=e.currentTarget,data=Object.fromEntries(new FormData(form));const button=form.querySelector('button');button.disabled=true;$('#householdMessage').textContent='Einladungscode wird geprüft …';
+  const {error}=await cloud.rpc('join_household',{invite_code:data.inviteCode,member_name:data.memberName});button.disabled=false;
+  if(error){$('#householdMessage').textContent=/Einladungscode/i.test(error.message)?'Der Einladungscode stimmt nicht. Bitte noch einmal prüfen.':friendlyError(error.message);return}await loadHousehold();
+});
+document.addEventListener('click',async e=>{if(e.target.closest('[data-sign-out]')){await disableCurrentPush();await cloud.auth.signOut();$('#detailDialog').close()}});
+$('#exportData').addEventListener('click',()=>{const year=new Date().getFullYear(),data={hinweis:'Kontrolldatei. Noch keine ELSTER-Datei.',steuerjahr:year,personen:[personNames.person1,personNames.person2],ausgaben:state.expenses,einnahmen:state.incomes,aufgaben:state.taxTasks};const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`zuhause-steuer-${year}-kontrolle.json`;a.click();URL.revokeObjectURL(a.href);toast('Kontroll-Datei geladen')});
+function renderAll(){
+  setGreeting();renderTimeline();renderTasks();renderShopping();renderCalendar();renderExpenses();renderTaxTasks();bindDocumentChecklist();
+  const year=new Date().getFullYear(),income=state.incomes.filter(item=>{const date=parseStoredDate(item.date);return date&&date.getFullYear()===year}).reduce((sum,item)=>sum+(Number(item.amount)||0),0),businessExpenses=state.expenses.filter(item=>{const date=parseStoredDate(item.date);return date&&date.getFullYear()===year&&item.category==='Nebengewerbe'}).reduce((sum,item)=>sum+(Number(item.amount)||0),0);
+  $('#incomeTotal').textContent=money(income);$('#businessExpenseTotal').textContent=money(businessExpenses);$('#profitTotal').textContent=money(income-businessExpenses);
+}
+window.ZuhauseCalendar?.bootstrap({legacyAppointments:state.appointments,automaticEvents,callbacks:{toast,go,detail:openDetail,remindersSelected:notificationHelp}});
 setGreeting();bindOpenButtons();renderAll();renderInsurance();
+const localCalendarPreview=['127.0.0.1','localhost'].includes(location.hostname)&&new URLSearchParams(location.search).get('preview')==='calendar';
+if(localCalendarPreview){$('#authScreen').hidden=true;go('calendar')}else{startCloud();setInterval(refreshCloudState,15000);window.addEventListener('focus',refreshCloudState);window.addEventListener('online',()=>{setSyncStatus('Verbindung wieder da','syncing');saveCloudState()})}
 if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+const requestParams=new URLSearchParams(location.search),requestedDate=requestParams.get('date'),requestedPage=requestParams.get('page');if(/^\d{4}-\d{2}-\d{2}$/.test(requestedDate||''))window.ZuhauseCalendar?.selectDate(requestedDate);if(requestedPage&&document.getElementById(requestedPage))go(requestedPage);
