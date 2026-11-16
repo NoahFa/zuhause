@@ -59,11 +59,11 @@
     };
   }
   function automaticEvent(item) {
-    const key = item.kind === 'football' || item.person === 'person1' ? 'person1' : 'shared';
+    const key = item.kind === 'football' || item.person === 'person1' ? 'person1' : item.kind === 'study' || item.person === 'person2' ? 'person2' : 'shared';
     return {
       id: `automatic:${item.key}`, calendarKey: key, title: item.title || 'Termin', allDay: false,
-      startDate: item.date, endDate: item.date, startTime: item.time || '06:00', endTime: addMinutes(item.time || '06:00', 60),
-      labelColor: item.kind === 'waste' ? 'sage' : item.kind === 'football' ? 'blue' : 'calendar',
+      startDate: item.date, endDate: item.date, startTime: item.time || '06:00', endTime: item.endTime || addMinutes(item.time || '06:00', 60),
+      labelColor: item.kind === 'waste' ? 'sage' : item.kind === 'football' ? 'blue' : item.kind === 'study' ? 'violet' : 'calendar',
       location: '', url: item.url || '', notes: item.note || '', revision: 1, readOnly: true,
       source: item.source || item.kind || 'Automatisch', status: item.status || 'scheduled', recurrence: null,
       participantKeys: key === 'shared' ? ['person1', 'person2'] : [key], reminderMinutes: [],

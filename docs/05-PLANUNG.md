@@ -14,10 +14,20 @@ Stand: 16. November 2026. Ergänzt `02-UMSETZUNGSSTAND.md`. Noah hat freigegeben
 | 15 | Aufräumen: untere Leiste Heute · Kalender · Haushalt · Finanzen · Mehr. Ausgeblendet (nur per CSS, nichts gelöscht): Steuerbereich, „Ihr beide“, „Einstellungen“, Karten „Wohnung & Verträge“ und „Haustier“, Arbeitstage-Hinweis. Budget-Formular klappt nach dem Speichern zu. |
 | 16 | Abgleich: Hinweis mit Einladungscode, wenn nur eine Person im Zuhause ist; Mitgliederliste im Verbindungsfenster; sofortiger Abgleich beim Zurückkehren in die App. |
 | 17 | Kalender-Abgleich: Termine werden beim Zurückkehren in die App und spätestens alle 45 Sekunden neu geladen; abgerissene Live-Verbindung wird neu aufgebaut. Ursache: iPhone trennt die Live-Verbindung im Hintergrund, Kalender wurde sonst nur beim Neustart geladen. |
+| 18 | Hochschul-Kalender automatisch in Charleens Kalender (lila, mit Endzeit) und Morgen-Nachricht um 7 Uhr – siehe „Server“ unten. |
 
 ## Offen / in Klärung
 
 - Derzeit nichts.
+
+## Server (Supabase) – Stand 16.11.2026
+
+Claude hat über einen Supabase-Zugangsschlüssel von Noah (Access Token „Claude Zuhause“, in der Claude-Umgebung gespeichert, nicht im Code) eingerichtet. Änderungen stehen in `supabase/migrations-claude/2026-11-16-hochschule-und-morgen.sql`. Sicherung vorher: `sicherung.external_events_20261116`.
+
+- **Hochschul-Kalender:** `sync-family-content?jobs=study` holt den Moodle-Export (Secret `STUDY_CALENDAR_URL`, Ziel-Haushalt `STUDY_HOUSEHOLD_ID`), fasst Blöcke eines Fachs am selben Tag zusammen und speichert sie als `external_events` (`source='hochschule'`, `kind='study'`, `person='person2'`, Endzeit in `metadata.end_time`). Entfallene zukünftige Termine werden entfernt. Cron `zuhause-hochschule` um 04:40, 10:40, 16:40 UTC.
+- **Morgen-Nachricht:** neue Edge Function `send-morning-summary`, Cron `zuhause-morgen` um 05:02 und 06:02 UTC; gesendet wird nur, wenn es in Berlin 7 Uhr ist. Inhalt je Person: Termine (gemeinsam + eigene), Geburtstage mit Alter, Hochschule, Fußball, Müllabholung, fällige/überfällige Aufgaben. Nichts los → keine Nachricht. Doppelversand verhindert über `notification_deliveries` (`morning:<Datum>`). Probelauf ohne Versand: `?dry=1&date=JJJJ-MM-TT`.
+- **Termin-Erinnerungen** (`send-event-reminders`) sauber neu bereitgestellt: auf dem Server war die Datei mit einer Supabase-Beispielvorlage vermischt; zusätzlich Erinnerung für Geburtstage am 29. Februar in Nicht-Schaltjahren.
+- Push-Geräte: Stand heute nur Noahs iPhone registriert; Charleen muss Mitteilungen in der App einmal erlauben.
 
 ## Erledigt außerhalb des Codes
 
@@ -26,21 +36,12 @@ Stand: 16. November 2026. Ergänzt `02-UMSETZUNGSSTAND.md`. Noah hat freigegeben
 
 ## Geplant (Reihenfolge nach Nutzen)
 
-1. **Hochschul-Kalender automatisch in Charleens Bereich.**
-   - Quelle: Moodle-Kalenderexport der Kolping-Hochschule (ICS). Der Link enthält einen persönlichen Zugangsschlüssel und gehört **nicht** ins Repository, sondern als Secret in den Supabase-Vault.
-   - Der Hochschul-Server erlaubt keinen Abruf aus dem Browser (kein CORS). Darum muss der Abruf serverseitig laufen: Erweiterung der Edge Function `sync-family-content`, Speicherung in `external_events` mit `person = 'person2'`, `kind = 'study'`, Quelle `hochschule`.
-   - `calendar.js` → `automaticEvent()` ordnet derzeit nur `person1` zu; `person2` muss ergänzt werden, sonst landen die Termine im gemeinsamen Kalender.
-   - Mehrere Blöcke am selben Tag mit gleichem Fach ggf. zu einem Eintrag zusammenfassen (Entscheidung offen).
-   - Benötigt: Zugriff zum Deployen der Edge Function (Supabase-Zugangstoken) oder Ausführung durch Noah.
-   - Bis dahin: einmaliger Import der ICS-Datei über „Kalender → Importieren → Charleen“.
-2. **Morgen-Nachricht um 7 Uhr** (Termine, Müll, offene Aufgaben, Geburtstage) über die vorhandene Push-Technik. Benötigt neuen Cron-Job/Edge Function.
-3. **Lou-Bereich**: wiederkehrende Erinnerungen (Wurmkur, Floh-/Zeckenschutz, Impfung, Futter), nächster Tierarzttermin, Lous Dokumente.
-4. **Einkaufsliste**: häufig gekaufte Artikel mit einem Tipp, Artikel nachträglich bearbeiten, schnellerer Abgleich beim gemeinsamen Einkaufen.
-5. **Montage ↔ Kalender**: vorbereiteter Auftrag erscheint am Montagetag im Kalender, optional mit Kundenadresse und Route.
-6. **Putzplan mit Wechsel** zwischen Noah und Charleen.
-7. Charleens Bereich erst nach Rücksprache mit ihr ausbauen.
+1. **Lou-Bereich**: wiederkehrende Erinnerungen (Wurmkur, Floh-/Zeckenschutz, Impfung, Futter), nächster Tierarzttermin, Lous Dokumente.
+2. **Einkaufsliste**: häufig gekaufte Artikel mit einem Tipp, Artikel nachträglich bearbeiten, schnellerer Abgleich beim gemeinsamen Einkaufen.
+3. **Montage ↔ Kalender**: vorbereiteter Auftrag erscheint am Montagetag im Kalender, optional mit Kundenadresse und Route.
+4. **Putzplan mit Wechsel** zwischen Noah und Charleen.
+5. Charleens Bereich erst nach Rücksprache mit ihr ausbauen.
 
 ## Bekannte Grenzen der neuen Funktionen
 
 - ICS-Import: Wiederholungen wie „jeder 2. Dienstag im Monat“ werden nur als erster Termin übernommen; Erinnerungen aus der Datei werden nicht übernommen.
-- Geburtstage am 29. Februar: Anzeige in Nicht-Schaltjahren am 28. Februar, die Server-Erinnerung kommt dann aber nicht (Edge Function `send-event-reminders` prüft nur den exakten Tag).

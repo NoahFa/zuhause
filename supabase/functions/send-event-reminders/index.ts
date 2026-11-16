@@ -43,7 +43,10 @@ function repeatsOn(event: any, recurrence: any, candidate: string) {
     const months = (current.getUTCFullYear() - start.getUTCFullYear()) * 12 + current.getUTCMonth() - start.getUTCMonth()
     return months >= 0 && months % interval === 0 && current.getUTCDate() === Number(recurrence.month_day || start.getUTCDate())
   }
-  return recurrence.frequency === 'yearly' && (current.getUTCFullYear() - start.getUTCFullYear()) % interval === 0 && current.getUTCMonth() === start.getUTCMonth() && current.getUTCDate() === start.getUTCDate()
+  if (recurrence.frequency !== 'yearly' || (current.getUTCFullYear() - start.getUTCFullYear()) % interval !== 0 || current.getUTCMonth() !== start.getUTCMonth()) return false
+  // Geburtstag am 29. Februar: in Nicht-Schaltjahren am 28. Februar erinnern.
+  const leapFallback = start.getUTCMonth() === 1 && start.getUTCDate() === 29 && new Date(Date.UTC(current.getUTCFullYear(), 1, 29)).getUTCMonth() !== 1
+  return current.getUTCDate() === (leapFallback ? 28 : start.getUTCDate())
 }
 
 function reminderMoment(event: any, occurrenceDate: string, minutesBefore: number) {

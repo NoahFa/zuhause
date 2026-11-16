@@ -195,7 +195,7 @@ function go(page){
 $$('[data-page]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();go(b.dataset.page)}));
 
 function normaliseExternal(row){
-  return {key:`${row.source}:${row.external_id}`,date:row.event_date,time:(row.start_time||'00:00').slice(0,5),title:row.title,person:row.person||'Gemeinsam',kind:row.kind||'private',source:row.source,status:row.status||'scheduled',note:row.note||row.metadata?.competition||'',url:row.source_url||''};
+  return {key:`${row.source}:${row.external_id}`,date:row.event_date,time:(row.start_time||'00:00').slice(0,5),title:row.title,person:row.person||'Gemeinsam',kind:row.kind||'private',source:row.source,status:row.status||'scheduled',note:row.note||row.metadata?.competition||'',url:row.source_url||'',endTime:row.metadata?.end_time||''};
 }
 async function loadAutomaticContent(){
   let events=[];

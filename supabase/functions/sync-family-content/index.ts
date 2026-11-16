@@ -85,6 +85,54 @@ async function fetchGoodNews() {
   return { headline: title, source_url: link, published_on: published ? new Date(published).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10) }
 }
 
+// ---- Hochschul-Kalender (Moodle-Export, ICS) für Charleen ----
+// Der Link enthält einen persönlichen Schlüssel und liegt nur als Secret STUDY_CALENDAR_URL auf dem Server.
+const studyCalendarUrl = Deno.env.get('STUDY_CALENDAR_URL') || ''
+const studyHouseholdId = Deno.env.get('STUDY_HOUSEHOLD_ID') || ''
+
+function icsText(value = '') { return value.replace(/\\n/gi, '\n').replace(/\\([,;\\])/g, '$1').trim() }
+function berlinDateTime(value: string) {
+  const match = value.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/)
+  if (!match) return null
+  const utc = Date.UTC(+match[1], +match[2] - 1, +match[3], +match[4], +match[5], +(match[6] || 0))
+  if (!match[7]) return { date: `${match[1]}-${match[2]}-${match[3]}`, time: `${match[4]}:${match[5]}`, ms: utc }
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(utc)).map(part => [part.type, part.value]))
+  return { date: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}`, ms: utc }
+}
+function minutesOf(time: string) { const [hour, minute] = time.split(':').map(Number); return hour * 60 + minute }
+
+async function fetchStudy() {
+  if (!studyCalendarUrl || !studyHouseholdId) throw new Error('STUDY_CALENDAR_URL oder STUDY_HOUSEHOLD_ID fehlt')
+  const response = await fetch(studyCalendarUrl, { headers: { 'user-agent': 'Zuhause Familienkalender/1.0' } })
+  if (!response.ok) throw new Error(`Hochschule antwortet mit ${response.status}`)
+  const text = (await response.text()).replace(/\r\n?/g, '\n').replace(/\n[ \t]/g, '')
+  const blocks: any[] = []
+  for (const chunk of text.split('BEGIN:VEVENT').slice(1)) {
+    const field = (name: string) => chunk.match(new RegExp(`^${name}(?:;[^:\\n]*)?:(.*)$`, 'm'))?.[1] || ''
+    if (/^STATUS:CANCELLED/m.test(chunk)) continue
+    const start = berlinDateTime(field('DTSTART').trim()), end = berlinDateTime(field('DTEND').trim())
+    const title = icsText(field('SUMMARY')).replace(/\s*-\s*dual\s*$/i, '').slice(0, 150)
+    if (!start || !title) continue
+    const description = icsText(field('DESCRIPTION'))
+    blocks.push({ title, date: start.date, start: start.time, end: end && end.date === start.date ? end.time : start.time, ms: start.ms, category: icsText(field('CATEGORIES')), location: icsText(field('LOCATION')), online: /^online/i.test(description), link: description.match(/https:\/\/[^\s\]>)]+/)?.[0] || null })
+  }
+  blocks.sort((a, b) => a.ms - b.ms)
+  // Aufeinanderfolgende Blöcke desselben Fachs am selben Tag zu einem Termin zusammenfassen.
+  const merged: any[] = []
+  for (const block of blocks) {
+    const last = merged[merged.length - 1]
+    if (last && last.date === block.date && last.title === block.title && minutesOf(block.start) - minutesOf(last.end) <= 90) { last.end = block.end; last.blocks.push(`${block.start}–${block.end}`); last.link ||= block.link; continue }
+    merged.push({ ...block, blocks: [`${block.start}–${block.end}`] })
+  }
+  const now = new Date().toISOString()
+  return merged.map(item => ({
+    source: 'hochschule', external_id: `${item.date}:${item.start}:${item.title}`.slice(0, 200), event_date: item.date, start_time: item.start,
+    title: `🎓 ${item.title}`, person: 'person2', kind: 'study', status: 'scheduled',
+    note: [item.online ? 'Online' : item.location, item.blocks.length > 1 ? `Blöcke: ${item.blocks.join(' · ')}` : ''].filter(Boolean).join(' · ') || null,
+    source_url: item.link, metadata: { end_time: item.end, blocks: item.blocks, category: item.category }, last_seen_at: now, updated_at: now,
+  }))
+}
+
 async function log(source: string, status: 'ok' | 'error', itemCount: number, message?: string) {
   await supabase.from('sync_runs').insert({ source, status, item_count: itemCount, message: message?.slice(0, 500) })
 }
@@ -104,6 +152,17 @@ Deno.serve(async request => {
       await log(job.name, 'ok', items.length); results[job.name] = items.length
     } catch (error) { await log(job.name, 'error', 0, String(error)); results[job.name] = String(error) }
   }
+  if (requested.has('study')) try {
+    const runStarted = new Date().toISOString(), today = new Date().toISOString().slice(0, 10)
+    const items = await fetchStudy()
+    if (items.length) {
+      const { error } = await supabase.from('external_events').upsert(items.map((item: any) => ({ ...item, household_id: studyHouseholdId })), { onConflict: 'household_id,source,external_id' })
+      if (error) throw error
+      // Termine, die in der Hochschule entfallen sind, ab heute wieder entfernen.
+      await supabase.from('external_events').delete().eq('household_id', studyHouseholdId).eq('source', 'hochschule').gte('event_date', today).lt('last_seen_at', runStarted)
+    }
+    await log('study', 'ok', items.length); results.study = items.length
+  } catch (error) { await log('study', 'error', 0, String(error)); results.study = String(error) }
   if (requested.has('good_news')) try {
     const news = await fetchGoodNews(), contentDate = new Date().toISOString().slice(0, 10)
     for (const household of households || []) await supabase.from('daily_content').upsert({ household_id: household.id, content_date: contentDate, source_name: 'Good News', fetched_at: new Date().toISOString(), ...news }, { onConflict: 'household_id,content_date' })
