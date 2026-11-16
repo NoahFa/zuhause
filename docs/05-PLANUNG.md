@@ -33,6 +33,10 @@ Stand: 16. November 2026. Ergänzt `02-UMSETZUNGSSTAND.md`. Noah hat freigegeben
 
 - Derzeit nichts.
 
+## Prüf-Agenten (seit 16.11.2026)
+
+In `.claude/agents/` liegen vier Agenten, die die App nur prüfen und nichts ändern: `pruefer-sicherheit`, `pruefer-oberflaeche`, `pruefer-fehler`, `pruefer-bedienbarkeit`. Mit dem Befehl `/pruefen` laufen alle vier gleichzeitig; das Ergebnis wird zusammengefasst und offene Punkte hier unter „Geplant“ eingetragen. Hilfsmittel: `tests/ui-check.cjs`, `tests/regression.cjs`, `tests/verify-anonymous-access.cjs`.
+
 ## Server (Supabase) – Stand 16.11.2026
 
 Claude hat über einen Supabase-Zugangsschlüssel von Noah (Access Token „Claude Zuhause“, in der Claude-Umgebung gespeichert, nicht im Code) eingerichtet. Änderungen stehen in `supabase/migrations-claude/2026-11-16-hochschule-und-morgen.sql`. Sicherung vorher: `sicherung.external_events_20261116`.

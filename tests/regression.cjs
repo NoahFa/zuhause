@@ -1,9 +1,11 @@
-const { JSDOM } = require('../tools/dom-test/node_modules/jsdom');
+// jsdom: erst tools/dom-test (npm install dort), sonst global/ lokal installiert.
+const { JSDOM } = (() => { try { return require('../tools/dom-test/node_modules/jsdom'); } catch { return require('jsdom'); } })();
 const fs = require('node:fs');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
 const path = require('node:path');
-const root = path.resolve(__dirname, '../dist');
+// Früher lag die App in dist/, heute direkt im Wurzelordner.
+const root = require('node:fs').existsSync(path.resolve(__dirname, '../dist/index.html')) ? path.resolve(__dirname, '../dist') : path.resolve(__dirname, '..');
 const errors = [];
 let dom;
 (async () => {
@@ -29,7 +31,7 @@ for (const name of ['monthlyAmount', 'savingsGoal', 'dueOn']) {
 w.addEventListener('error', event => errors.push(event.error));
 const ctx = dom.getInternalVMContext();
 const run = source => new vm.Script(source).runInContext(ctx);
-for (const file of ['calendar.js', 'app.js', 'features.js', 'workspaces.js']) {
+for (const file of ['calendar.js', 'app.js', 'features.js', 'workspaces.js', 'lou.js', 'charleen.js', 'noah-jobs.js']) {
   run(fs.readFileSync(path.join(root, file), 'utf8'));
 }
 run('renderAll()');
