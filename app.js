@@ -93,7 +93,12 @@ function updatePersonNames(members=[]){
 }
 function updateStorageExplanation(){
   if(!currentHousehold)return;
-  details.storage=['Sicher zwischen euren Geräten verbunden',`<p><strong>${escapeHtml(currentHousehold.name)}</strong> wird geschützt bei Supabase gespeichert.</p><p>Einladungscode für die zweite Person: <strong class="invite-code">${escapeHtml(currentHousehold.join_code)}</strong></p><p>Nur angemeldete Mitglieder dieses Zuhauses können die Daten und Belege öffnen.</p><div class="detail-actions"><button class="secondary" type="button" data-sign-out>Abmelden</button></div>`];
+  let banner=$('#householdAloneBanner');
+  if(householdMembers.length<2){
+    if(!banner){banner=document.createElement('div');banner.id='householdAloneBanner';banner.className='household-banner';$('#today')?.prepend(banner)}
+    banner.innerHTML=`<strong>Ihr seid noch nicht verbunden.</strong><span>In diesem Zuhause ist bisher nur ${escapeHtml(householdMembers[0]?.display_name||'eine Person')}. Darum erscheinen Einträge nicht auf dem anderen Handy.</span><span>Einladungscode für die zweite Person: <b>${escapeHtml(currentHousehold.join_code)}</b></span>`;
+  }else banner?.remove();
+  details.storage=['Sicher zwischen euren Geräten verbunden',`<p><strong>${escapeHtml(currentHousehold.name)}</strong> wird geschützt bei Supabase gespeichert.</p><p>Einladungscode für die zweite Person: <strong class="invite-code">${escapeHtml(currentHousehold.join_code)}</strong></p><p>Mitglieder in diesem Zuhause: <strong>${escapeHtml(householdMembers.map(member=>member.display_name||'Ohne Namen').join(', ')||'–')}</strong></p>${householdMembers.length<2?'<p class="household-alone">Bisher ist nur eine Person in diesem Zuhause. Die zweite Person muss sich mit dem Einladungscode oben verbinden, sonst seht ihr nicht dieselben Daten.</p>':''}<p>Nur angemeldete Mitglieder dieses Zuhauses können die Daten und Belege öffnen.</p><div class="detail-actions"><button class="secondary" type="button" data-sign-out>Abmelden</button></div>`];
 }
 let connectionRetry=null,connectionAttempts=0;
 function connectionProblem(){
@@ -450,6 +455,6 @@ function renderAll(){
 window.ZuhauseCalendar?.bootstrap({legacyAppointments:state.appointments,automaticEvents,callbacks:{toast,go,detail:openDetail,remindersSelected:notificationHelp}});
 setGreeting();bindOpenButtons();renderAll();renderInsurance();
 const localCalendarPreview=['127.0.0.1','localhost'].includes(location.hostname)&&new URLSearchParams(location.search).get('preview')==='calendar';
-if(localCalendarPreview){$('#authScreen').hidden=true;go('calendar')}else{startCloud();setInterval(refreshCloudState,15000);window.addEventListener('focus',refreshCloudState);window.addEventListener('online',()=>{if(!$('#authOffline').hidden){connectionAttempts=0;resumeSession();return}setSyncStatus('Verbindung wieder da','syncing');saveCloudState()})}
+if(localCalendarPreview){$('#authScreen').hidden=true;go('calendar')}else{startCloud();setInterval(refreshCloudState,15000);window.addEventListener('focus',refreshCloudState);document.addEventListener('visibilitychange',()=>{if(!document.hidden){refreshCloudState();if(localDirty)saveCloudState()}});window.addEventListener('pageshow',()=>refreshCloudState());window.addEventListener('online',()=>{if(!$('#authOffline').hidden){connectionAttempts=0;resumeSession();return}setSyncStatus('Verbindung wieder da','syncing');saveCloudState()})}
 if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 const requestParams=new URLSearchParams(location.search),requestedDate=requestParams.get('date'),requestedPage=requestParams.get('page');if(/^\d{4}-\d{2}-\d{2}$/.test(requestedDate||''))window.ZuhauseCalendar?.selectDate(requestedDate);if(requestedPage&&document.getElementById(requestedPage))go(requestedPage);
