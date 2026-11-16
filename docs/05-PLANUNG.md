@@ -45,7 +45,7 @@ Claude hat über einen Supabase-Zugangsschlüssel von Noah (Access Token „Clau
 
 ## Geplant (Reihenfolge nach Nutzen)
 
-- Derzeit nichts offen. Neue Wünsche von Noah oder Charleen hier ergänzen.
+1. **Foto von Lou im Lou-Bereich** (Wunsch von Noah, 16.11.2026): Lous Seite persönlicher machen – großes Foto oben (Lou sitzt im hohen Gras, Himmel mit Wolken). Umsetzung als Funktion „Foto ändern“ im Lou-Bereich: Bild wird privat im Supabase-Speicher abgelegt (`<Haushalt>/shared/lou/…`, nur für Haushaltsmitglieder, Anzeige über zeitlich begrenzten Link) – **nicht** ins öffentliche Repository. Das Foto lädt Noah dann selbst in der App hoch (oder schickt es beim Umsetzen erneut).
 
 ## Bewusst verworfen
 
