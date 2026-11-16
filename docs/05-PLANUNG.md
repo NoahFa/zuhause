@@ -22,6 +22,7 @@ Stand: 16. November 2026. Ergänzt `02-UMSETZUNGSSTAND.md`. Noah hat freigegeben
 | 23 | Putzplan: Bei wiederkehrenden Aufgaben gibt es „Abwechselnd Noah und Charleen“ (`task.alternate`); jede neue Runde ist die andere Person dran, Anzeige „⇄ abwechselnd“. |
 | 24 | Charleens Bereich nach ihren Wünschen (`charleen.js`, Daten in `state.charleen`), Reiter: **Studium** (Module mit Prüfungsleistungen und Datum, Stand, Note; Module aus dem Hochschulkalender übernehmen; Prüfungen in Charleens Kalender, „Demnächst“ und Morgen-Nachricht am Tag selbst, am Vortag und eine Woche vorher), **Nebenjob** (Ein-/Ausstempeln, Schichten nachtragen, Pause, Stundenlohn, Trinkgeld, Tagessumme, Monats- und Jahresübersicht, Nachtschichten), **Caritas** (Horizont BeWo To-dos mit Datum), **Sparziele** (Ziel, Einzahlen/Entnehmen, Fortschritt, nötiger Betrag pro Monat), **Notizen** (bisherige Einträge). |
 | 25 | „Passwort vergessen“ (Link per E-Mail, danach „Neues Passwort festlegen“ in der App). „Zuhause wechseln“ per Einladungscode im Verbindungsfenster – nur möglich, wenn man im bisherigen Zuhause allein ist (Datenbankfunktion `switch_household`, `supabase/migrations-claude/2026-11-16-zuhause-wechseln.sql`). |
+| 26 | Kalenderfarben deutlicher: Gemeinsam grün `#2e7d4f`, Noah blau `#1f6fc5`, Charleen beere `#cc3d6a` (Konstanten in `calendar.js`, überschreiben die Farben aus der Datenbank). Person bestimmt immer die Farbe, Farbmarkierung nur als Punkt; Monatsansicht am Handy zeigt den Titel; Filterpunkte und Avatare N/C angepasst. |
 
 ## Offen / in Klärung
 
@@ -46,7 +47,6 @@ Claude hat über einen Supabase-Zugangsschlüssel von Noah (Access Token „Clau
 ## Geplant (Reihenfolge nach Nutzen)
 
 1. **Foto von Lou im Lou-Bereich** (Wunsch von Noah, 16.11.2026): Lous Seite persönlicher machen – großes Foto oben (Lou sitzt im hohen Gras, Himmel mit Wolken). Umsetzung als Funktion „Foto ändern“ im Lou-Bereich: Bild wird privat im Supabase-Speicher abgelegt (`<Haushalt>/shared/lou/…`, nur für Haushaltsmitglieder, Anzeige über zeitlich begrenzten Link) – **nicht** ins öffentliche Repository. Das Foto lädt Noah dann selbst in der App hoch (oder schickt es beim Umsetzen erneut).
-2. **Kalenderfarben deutlicher** (Wunsch von Noah, 16.11.2026): Personen sind im Kalender schwer zu unterscheiden. Ursachen: die drei Kalenderfarben (Gemeinsam `#536b57`, Noah `#54778e`, Charleen `#a65f52`) sind alle gedämpft und ähnlich dunkel, die Hintergründe der Einträge sehr blass; außerdem überschreibt eine gewählte Farbmarkierung die Personenfarbe (`colorsFor()` in `calendar.js`), und automatische Einträge haben eigene Farben (Müll salbeigrün wie „Gemeinsam“, Hochschule lila, Montage gold). Plan: kräftigere, klar verschiedene Farben je Person (z. B. Gemeinsam grün, Noah blau, Charleen rot/beere), Personenfarbe immer als Hauptfarbe, Farbmarkierung nur noch als kleiner Punkt, automatische Einträge in der Farbe der Person, dazu eine kleine Legende bzw. Initiale im Eintrag. Vor der Umsetzung Farbvorschlag zeigen.
 
 ## Bewusst verworfen
 
