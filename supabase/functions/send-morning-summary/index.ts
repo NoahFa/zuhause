@@ -1,7 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import webpush from 'npm:web-push@3.6.7'
 
-// Morgen-Nachricht um 7 Uhr (Berlin): Termine, Hochschule, Müll, Fußball, Geburtstage, Lous fällige Pflege und offene Aufgaben des Tages.
+// Morgen-Nachricht um 7 Uhr (Berlin): Termine, Hochschule, Müll, Fußball, Geburtstage, Montageaufträge (Noah), Lous fällige Pflege und offene Aufgaben des Tages.
 // Wird per Cron um 05:02 und 06:02 UTC aufgerufen; gesendet wird nur, wenn es in Berlin 7 Uhr ist (Sommer-/Winterzeit).
 // ?force=1 sendet unabhängig von der Uhrzeit, ?dry=1 zeigt nur den Text, ohne zu senden (mit &date=JJJJ-MM-TT für einen anderen Tag).
 
@@ -111,6 +111,9 @@ Deno.serve(async request => {
     if (tasks.length) {
       const overdue = tasks.filter((task: any) => task.dueOn < today).length
       items.push({ sort: '99:99', text: tasks.length === 1 ? `✓ Aufgabe: ${tasks[0].title}${overdue ? ' (überfällig)' : ''}` : `✓ ${tasks.length} Aufgaben offen${overdue ? ` (${overdue} überfällig)` : ''}` })
+    }
+    if (personKey === 'person1') for (const job of stateByHousehold.get(member.household_id)?.montageJobs || []) {
+      if (job?.date === today && job.status !== 'done') items.push({ sort: '00:04', text: `🔧 Montage: ${job.title}${job.status === 'ready' ? ' (vorbereitet)' : ''}` })
     }
     for (const care of stateByHousehold.get(member.household_id)?.lou?.care || []) {
       if (care?.nextDue && care.nextDue <= today) items.push({ sort: '99:98', text: `🐾 Lou: ${care.title}${care.nextDue < today ? ' (überfällig)' : ' ist heute dran'}` })

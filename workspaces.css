@@ -29,3 +29,4 @@
 .lou-interval{display:grid;grid-template-columns:1fr 1.3fr;gap:12px}
 @media(max-width:760px){.lou-grid{grid-template-columns:1fr}.lou-care{flex-wrap:wrap}.lou-care>div{flex-basis:100%}.lou-care .lou-done{flex:1}.lou-profile dl>div{grid-template-columns:1fr;gap:2px}}
 .lou-call,.lou-call:visited{color:#20251f;font-weight:700;border-radius:12px;padding:0 16px;background:#ebece5}
+.ws-route-link{display:inline-flex;align-items:center;min-height:44px;margin-top:4px;font-weight:750;color:#536b57;text-decoration:none;overflow-wrap:anywhere}
