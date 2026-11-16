@@ -61,6 +61,8 @@
     page.innerHTML = `
       <div class="section-back"><button data-ws-route="household">← Haushalt</button></div>
       <div class="ws-personal-title"><div><p class="eyebrow">Eure Hündin</p><h1>Lou.</h1><p>Tierarzt, Pflege und alles Wichtige auf einen Blick.</p></div><span class="ws-personal-badge lou-badge">🐾</span></div>
+      ${lou.photoPath ? `<figure class="lou-hero"><img data-lou-photo alt="Lou" ${photoCache.path === lou.photoPath && photoCache.url ? `src="${h(photoCache.url)}"` : ''}><button class="lou-photo-change" data-lou-photo-change>📷 Foto ändern</button></figure>` : '<button class="card lou-photo-empty" data-lou-photo-change><span>📷</span><strong>Foto von Lou hinzufügen</strong><small>Macht ihren Bereich persönlicher. Das Bild bleibt privat bei euch.</small></button>'}
+      <input type="file" accept="image/*" id="louPhotoInput" hidden>
       <div class="lou-grid">
         <article class="card lou-vet"><span class="kicker">Tierarzt</span>
           ${vet ? `<h2>${h(vet.title)}</h2><p class="lou-big">${h(niceDate(vet.occurrenceDate))}${vet.allDay ? '' : ` · ${h(vet.startTime)} Uhr`}</p>` : '<h2>Kein Termin geplant</h2><p class="ws-muted">Tierarzttermine tragt ihr im Kalender ein. Steht „Tierarzt“ oder „Lou“ im Titel, erscheinen sie hier.</p>'}
@@ -77,7 +79,40 @@
       <article class="card lou-profile"><div class="card-head"><div><span class="kicker">Steckbrief</span><h2>Wichtige Angaben</h2></div><button class="secondary" data-lou-profile>Bearbeiten</button></div>
         <dl>${[['Tierarzt', [profile.vetName, profile.vetPhone].filter(Boolean).join(' · ')], ['Versicherung', profile.insurance], ['Chipnummer', profile.chip], ['Geburtstag', profile.birthday ? niceDate(profile.birthday) : ''], ['Notizen', profile.notes]].map(([label, value]) => `<div><dt>${label}</dt><dd>${value ? h(value) : '<span class="ws-muted">–</span>'}</dd></div>`).join('')}</dl>
       </article>`;
+    showPhoto();
   }
+
+  // ---- Foto: privat im Speicher unter <Haushalt>/shared/lou/, Anzeige über einen zeitlich begrenzten Link ----
+  const photoCache = { path: '', url: '', until: 0 };
+  async function showPhoto() {
+    const path = data().photoPath, img = document.querySelector('#lou [data-lou-photo]'); if (!path || !img) return;
+    if (photoCache.path === path && photoCache.url && Date.now() < photoCache.until) { if (img.src !== photoCache.url) img.src = photoCache.url; return; }
+    const { data: signed, error } = await cloud.storage.from('receipts').createSignedUrl(path, 3600);
+    if (error || !signed?.signedUrl) return;
+    Object.assign(photoCache, { path, url: signed.signedUrl, until: Date.now() + 50 * 60000 });
+    const current = document.querySelector('#lou [data-lou-photo]'); if (current) current.src = signed.signedUrl;
+  }
+  async function shrink(file) {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas'); canvas.width = Math.round(bitmap.width * scale); canvas.height = Math.round(bitmap.height * scale);
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    return await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+  }
+  async function uploadPhoto(file) {
+    if (!cloud || !currentHousehold || !cloudReady) { toast('Das Foto kann nur mit Internet und Anmeldung gespeichert werden'); return; }
+    toast('Foto wird hochgeladen …');
+    try {
+      const blob = await shrink(file); if (!blob) throw new Error('Bild konnte nicht gelesen werden');
+      const path = `${currentHousehold.id}/shared/lou/lou-${uid()}.jpg`;
+      const { error } = await cloud.storage.from('receipts').upload(path, blob, { contentType: 'image/jpeg', upsert: false, cacheControl: '3600' });
+      if (error) throw error;
+      const lou = data(), previous = lou.photoPath; lou.photoPath = path; persist(); render();
+      if (previous && previous !== path) cloud.storage.from('receipts').remove([previous]).catch(() => {});
+      toast('Foto gespeichert');
+    } catch { toast('Das Foto konnte gerade nicht gespeichert werden. Bitte noch einmal versuchen.'); }
+  }
+  document.addEventListener('change', event => { if (event.target.id === 'louPhotoInput' && event.target.files?.[0]) { uploadPhoto(event.target.files[0]); event.target.value = ''; } });
 
   function dialog(title, html, onSave, extra) {
     let d = document.querySelector('#louDialog');
@@ -123,6 +158,7 @@
     if ('louCareEdit' in d) editCare(d.louCareEdit);
     if ('louSuggest' in d) editCare(null, SUGGESTIONS[Number(d.louSuggest)]);
     if ('louProfile' in d) editProfile();
+    if ('louPhotoChange' in d) document.querySelector('#louPhotoInput')?.click();
     if ('louFood' in d) {
       const exists = state.shopping.some(item => !item.done && /futter/i.test(item.title));
       if (exists) { toast('Futter steht schon auf der Einkaufsliste'); return; }
