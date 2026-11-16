@@ -379,7 +379,7 @@ $('#loginForm').addEventListener('submit',async e=>{
 });
 $('#registerForm').addEventListener('submit',async e=>{
   e.preventDefault();const form=e.currentTarget,data=Object.fromEntries(new FormData(form));const button=form.querySelector('button');button.disabled=true;button.textContent='Wird angelegt …';$('#registerMessage').textContent='';
-  const {data:result,error}=await cloud.auth.signUp({email:data.email,password:data.password,options:{emailRedirectTo:location.origin}});
+  const {data:result,error}=await cloud.auth.signUp({email:data.email,password:data.password,options:{emailRedirectTo:location.origin+location.pathname}});
   button.disabled=false;button.textContent='Zugang anlegen';
   if(error){$('#registerMessage').textContent=friendlyError(error.message);return}
   if(result.session){currentUser=result.user;await loadHousehold()}else{$('#registerMessage').textContent='Fast fertig: Bitte öffne jetzt die Bestätigungs-E-Mail und tippe dort auf den Link.'}
