@@ -60,3 +60,6 @@
 .lou-photo-empty{width:100%;display:grid;justify-items:center;gap:6px;padding:28px 18px;margin:0 0 18px;border:1px dashed #cfd7c9;background:#fbfcf8;box-shadow:none;cursor:pointer;font:inherit;color:#20251f}
 .lou-photo-empty span{font-size:30px}.lou-photo-empty small{color:#72786e}
 @media(min-width:900px){.lou-hero{aspect-ratio:16/9}}
+.study-date-hint{display:block;color:#72786e;font-size:13px;margin:4px 2px -4px}
+#studyList .check-row>span:nth-of-type(2) strong,#studyList .check-row>span:nth-of-type(2) small{display:block}
+#studyForm input[type=date]{width:100%;max-width:100%;box-sizing:border-box;-webkit-appearance:none;appearance:none;text-align:left}

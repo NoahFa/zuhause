@@ -24,6 +24,7 @@ Stand: 16. November 2026. Ergänzt `02-UMSETZUNGSSTAND.md`. Noah hat freigegeben
 | 25 | „Passwort vergessen“ (Link per E-Mail, danach „Neues Passwort festlegen“ in der App). „Zuhause wechseln“ per Einladungscode im Verbindungsfenster – nur möglich, wenn man im bisherigen Zuhause allein ist (Datenbankfunktion `switch_household`, `supabase/migrations-claude/2026-11-16-zuhause-wechseln.sql`). |
 | 26 | Kalenderfarben deutlicher: Gemeinsam grün `#2e7d4f`, Noah blau `#1f6fc5`, Charleen beere `#cc3d6a` (Konstanten in `calendar.js`, überschreiben die Farben aus der Datenbank). Person bestimmt immer die Farbe, Farbmarkierung nur als Punkt; Monatsansicht am Handy zeigt den Titel; Filterpunkte und Avatare N/C angepasst. |
 | 27 | Foto von Lou: großes Bild oben im Lou-Bereich mit „Foto ändern“. Beim Hochladen auf max. 1600 px verkleinert (JPEG), privat im Speicher unter `<Haushalt>/shared/lou/…`, Anzeige über zeitlich begrenzten Link; altes Foto wird beim Austausch gelöscht. Pfad in `state.lou.photoPath`. |
+| 28 | Charleens Reiter „Notizen“ heißt jetzt „✓ Aufgaben“: einfache Liste ohne Kategorien, Datum freiwillig (nicht mehr vorausgefüllt); Karte „Eigene Kategorien“ entfernt (Wunsch Charleen). Vorhandene Einträge bleiben erhalten. |
 
 ## Offen / in Klärung
 

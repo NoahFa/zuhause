@@ -175,7 +175,7 @@
     const page = document.querySelector('#study'); if (!page || page.querySelector('.ch-tabs')) return;
     const anchor = page.querySelector('.ws-intro') || page.querySelector('.page-title');
     [...page.children].forEach(child => { if (!child.matches('.page-title,.ws-intro,.section-back')) child.dataset.chNotes = '1'; });
-    anchor.insertAdjacentHTML('afterend', '<nav class="ws-tabs ch-tabs" aria-label="Charleens Bereiche"><button data-ch-tab="study">🎓 Studium</button><button data-ch-tab="job">⏱ Nebenjob</button><button data-ch-tab="work">🤝 Caritas</button><button data-ch-tab="savings">💶 Sparziele</button><button data-ch-tab="notes">📝 Notizen</button></nav><div id="charleenPanel"></div>');
+    anchor.insertAdjacentHTML('afterend', '<nav class="ws-tabs ch-tabs" aria-label="Charleens Bereiche"><button data-ch-tab="study">🎓 Studium</button><button data-ch-tab="job">⏱ Nebenjob</button><button data-ch-tab="work">🤝 Caritas</button><button data-ch-tab="savings">💶 Sparziele</button><button data-ch-tab="notes">✓ Aufgaben</button></nav><div id="charleenPanel"></div>');
     const intro = page.querySelector('.ws-intro p'); if (intro) intro.textContent = 'Studium, Nebenjob, Caritas und Sparziele – alles an einem Ort. Termine und Dokumente bleiben mit eurem gemeinsamen Zuhause verbunden.';
   }
   function render() {
