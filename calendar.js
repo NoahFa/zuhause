@@ -716,7 +716,17 @@
     qs('#calendarEventForm')?.addEventListener('submit', saveFromForm); qs('#calendarDeleteButton')?.addEventListener('click', deleteCurrent); qs('#calendarCopyButton')?.addEventListener('click', copyCurrent);
     qs('#calendarEventForm [name="allDay"]')?.addEventListener('change', updateFormVisibility); qs('#calendarEventForm [name="recurrence"]')?.addEventListener('change', updateFormVisibility);
     qs('#calendarEventForm [name="calendarKey"]')?.addEventListener('change', event => { const key = event.target.value; qsa('[name="participant"]', qs('#calendarEventForm')).forEach(input => { input.checked = key === 'shared' || input.value === key; }); });
-    const grid = qs('#calendarGrid'); grid?.addEventListener('pointerdown', event => { state.touchStartX = event.clientX; }); grid?.addEventListener('pointerup', event => { const delta = event.clientX - state.touchStartX; if (Math.abs(delta) > 55) navigate(delta > 0 ? -1 : 1); });
+    const grid = qs('#calendarGrid'); let swipe = null;
+    // Nur echtes Wischen auf dem Kalender blättert um: Start und Ende auf dem Kalender, gleicher Finger, vorwiegend waagerecht, kurz.
+    // Vorher reichte ein einzelnes Loslassen über dem Kalender (z. B. nach „Speichern“ im Termin-Fenster auf dem iPhone), um einen Monat zurückzuspringen.
+    grid?.addEventListener('pointerdown', event => { swipe = qsa('dialog[open]').length ? null : { id: event.pointerId, x: event.clientX, y: event.clientY, at: Date.now() }; });
+    grid?.addEventListener('pointercancel', () => { swipe = null; });
+    grid?.addEventListener('pointerup', event => {
+      const start = swipe; swipe = null;
+      if (!start || start.id !== event.pointerId || qsa('dialog[open]').length || Date.now() - start.at > 900) return;
+      const dx = event.clientX - start.x, dy = event.clientY - start.y;
+      if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.5) navigate(dx > 0 ? -1 : 1);
+    });
     window.addEventListener('online', flushQueue); document.addEventListener('keydown', event => { if (!qs('#calendar')?.classList.contains('active') || event.target.matches('input,textarea,select')) return; if (event.key === 'ArrowLeft') navigate(-1); if (event.key === 'ArrowRight') navigate(1); });
   }
 
