@@ -1,0 +1,354 @@
+MASTER-PROMPT – Unsere Zuhause-App
+
+Auftrag
+
+Ich möchte unsere bereits geplante Zuhause-Web-App weiterentwickeln und die nachfolgenden Funktionen vollständig umsetzen.
+
+Die App ist ein gemeinsames Familien-Dashboard für mich, meine Freundin Shalin und unsere Hündin Lou.
+
+Wir haben die folgenden Anforderungen bereits ausführlich besprochen und festgelegt. Bitte verwende sie als verbindliche Grundlage und beginne nicht erneut mit der allgemeinen Planung.
+
+Wichtig:
+
+* Die bestehende App soll weiterentwickelt werden, nicht unnötig neu erstellt werden.
+* Das vorhandene Design soll möglichst erhalten bleiben.
+* Die Bedienung muss auf dem iPhone besonders einfach sein.
+* Beide Personen sollen ihre Daten und Änderungen synchron sehen können.
+* Einstellungen, Kategorien und Vorlagen sollen möglichst ohne Programmierung bearbeitbar sein.
+* Keine unnötigen Funktionen oder komplizierten Bedienabläufe.
+* Vor der Umsetzung bitte die vorhandene App-Struktur prüfen.
+* Fehlende technische Informationen gezielt erfragen.
+* Die Umsetzung soll über Site erfolgen, soweit das technisch möglich ist.
+
+⸻
+
+1. Aufbau der Zuhause-App
+
+Es gibt drei Hauptbereiche:
+
+1. Gemeinsamer Familienbereich
+2. Mein persönlicher Bereich
+3. Shalins persönlicher Bereich
+
+Beide Personen dürfen sämtliche Bereiche und Informationen einsehen. Die Trennung dient der Übersichtlichkeit und nicht der Geheimhaltung.
+
+Persönliche Funktionen können unabhängig gestaltet und verwaltet werden.
+
+2. Gemeinsame Startseite
+
+Die Startseite soll folgende Reihenfolge haben:
+
+1. Heute – Kalender und Termine
+2. Wetter
+3. Gemeinsame Aufgaben
+4. Einkaufsliste
+5. Müllabfuhr
+6. Demnächst wichtig
+
+Die Startseite soll übersichtlich sein und innerhalb weniger Sekunden zeigen, was heute ansteht.
+
+Zusätzlich gibt es persönliche Schnellzugriffe, beispielsweise auf meine Montagevorbereitung oder Shalins Studienbereich.
+
+Finanzen gehören ausdrücklich nicht auf die Startseite, sondern in einen eigenen Bereich.
+
+3. Kalender
+
+Es gibt drei umschaltbare Ansichten:
+
+* Alle Termine
+* Meine Termine
+* Shalins Termine
+
+Gemeinsame und persönliche Termine sollen farblich unterscheidbar sein.
+
+Beide Personen können alle Termine sehen.
+
+Änderungen müssen synchronisiert werden.
+
+Tierarztbesuche, Impfungen und sonstige Termine für Lou werden ebenfalls im normalen Kalender geführt.
+
+4. Aufgabenverwaltung
+
+Alle Aufgaben sind für beide sichtbar.
+
+Jede Aufgabe enthält:
+
+* Titel und gegebenenfalls Beschreibung
+* Zuständige Person: Ich, Shalin oder beide
+* Fälligkeitsdatum
+* Erledigt-Status
+* Optional eine Wiederholung
+
+Verhalten:
+
+Offene Aufgaben bleiben auf der Startseite sichtbar, auch wenn das Fälligkeitsdatum überschritten wurde.
+
+Überfällige Aufgaben werden entsprechend gekennzeichnet.
+
+Erledigte Aufgaben bleiben am Tag des Abhakens sichtbar und verschwinden erst am Folgetag von der Startseite.
+
+Sie bleiben im Aufgabenverlauf gespeichert.
+
+Wiederkehrende Aufgaben:
+
+Beim Erstellen einer Aufgabe gibt es die Option „Wiederholt sich“.
+
+Mögliche Intervalle:
+
+* Täglich
+* Wöchentlich
+* Alle zwei Wochen
+* Monatlich
+* Benutzerdefiniert
+
+Eine neue Aufgabe wird zum nächsten Wiederholungstermin erstellt, auch wenn die vorherige Aufgabe noch unerledigt ist.
+
+Die alte Aufgabe bleibt dann als überfällig bestehen.
+
+5. Gemeinsame Einkaufsliste
+
+Beide Personen verwenden dieselbe Einkaufsliste.
+
+Artikel können frei eingegeben werden, möglichst auch per Sprache.
+
+Beispiele:
+
+* 2 × Milch
+* 1 × Brot
+* 6 × Bananen
+
+Die App erkennt die Artikel und Mengen und sortiert sie automatisch nach Supermarktbereichen.
+
+Festgelegte Reihenfolge:
+
+1. Obst und Gemüse
+2. Tiefkühlprodukte
+3. Kühlprodukte
+4. Trockenwaren
+5. Getränke
+6. Haushaltsartikel
+7. Sonstiges
+
+Es werden keine unterschiedlichen Supermarktprofile benötigt.
+
+Artikel können abgehakt werden. Änderungen werden zwischen beiden Nutzern synchronisiert.
+
+6. Müllabfuhr
+
+Die Müllabfuhrtermine sollen möglichst automatisch vom zuständigen Entsorgungsunternehmen übernommen werden.
+
+Standort: Bergisch Gladbach, 51491. Die genaue Straße und Hausnummer werden bei der Einrichtung angegeben.
+
+Zu berücksichtigen:
+
+* Restmüll
+* Papier
+* Gelbe Tonne
+* Biomüll
+
+Erinnerungen:
+
+Am Tag vor der Abholung um 15:00 Uhr sollen beide Nutzer eine Push-Benachrichtigung erhalten.
+
+Zusätzlich wird die anstehende Abholung am Vortag und am Abfuhrtag auf der Startseite angezeigt.
+
+Die Termine sollen möglichst automatisch aktualisiert werden.
+
+Bitte prüfen, ob das Entsorgungsunternehmen eine Schnittstelle oder einen importierbaren Kalender anbietet.
+
+7. Gemeinsame Finanzen
+
+Die Finanzen erhalten einen eigenen Menübereich.
+
+Wir nutzen ein gemeinsames Haushaltskonto und ein gemeinsames Budget.
+
+Es gibt keine getrennten persönlichen Budgets.
+
+Budgetverwaltung:
+
+* Fester monatlicher Budgetbetrag
+* Budget jederzeit anpassbar
+* Automatische Berücksichtigung der Fixkosten
+* Automatischer Abzug eingetragener Ausgaben
+* Übernahme des Restbudgets in den Folgemonat
+* Auch negative Restbeträge werden übertragen
+* Vergangene Monate bleiben nachvollziehbar und unverändert
+
+Der tatsächliche Bankkontostand darf nicht mit dem rechnerischen Budget verwechselt werden.
+
+Finanzübersicht als Listenansicht:
+
+Ganz oben:
+
+1. Verfügbar in diesem Monat
+2. Übertrag aus Vormonat
+3. Fixkosten diesen Monat
+
+Darunter folgen die Ausgaben in chronologischer Reihenfolge.
+
+Kassenbon-Scanner
+
+Kassenbons sollen mit dem iPhone fotografiert werden können.
+
+Die App erkennt möglichst automatisch:
+
+* Geschäft
+* Einkaufsdatum
+* Gekaufte Artikel
+* Gesamtbetrag
+
+Vor dem Speichern werden die erkannten Angaben zur Kontrolle angezeigt.
+
+Nach Bestätigung wird der Gesamtbetrag vom Haushaltsbudget abgezogen.
+
+In der normalen Finanzübersicht wird ein Einkauf nur unter dem Geschäft mit Datum und Gesamtbetrag angezeigt.
+
+Einzelne Artikel bleiben im Beleg nachvollziehbar, werden aber nicht separat kategorisiert.
+
+Sparanalyse
+
+Ein eigener Unterpunkt „Sparanalyse“ soll enthalten:
+
+* Monatliche Ausgabenentwicklung
+* Vergleich mit vergangenen Monaten
+* Ausgaben nach Geschäften
+* Einfache, nachvollziehbare Spartipps
+* Optional ein Sparziel
+
+Keine Produktpreisvergleiche zwischen Supermärkten.
+
+Die Analyse soll möglichst automatisch anhand der vorhandenen Ausgaben erfolgen.
+
+8. Dokumentenverwaltung
+
+Es gibt vier Hauptordner:
+
+1. Gemeinsam
+2. Mein Bereich
+3. Shalin
+4. Lou
+
+Innerhalb dieser Ordner können Kategorien angelegt und bearbeitet werden.
+
+Beispielsweise:
+
+* Versicherungen
+* Verträge
+* Rechnungen
+* Steuerunterlagen
+* Sonstige Dokumente
+
+Im Lou-Ordner werden beispielsweise Impfpass, Tierarztrechnungen und Versicherungsunterlagen abgelegt.
+
+Tierarzttermine werden nicht im Dokumentenbereich verwaltet, sondern im Kalender.
+
+Dokumentensuche
+
+Es soll zwei Suchmöglichkeiten geben:
+
+* Suche innerhalb einer Kategorie
+* Gesamtsuche über alle Dokumente
+
+Integrierter PDF-Scanner
+
+Direkt in der App soll ein Dokumentenscanner verfügbar sein.
+
+Gewünschter Ablauf:
+
+1. Dokument mit der iPhone-Kamera erfassen
+2. Seiten automatisch zuschneiden und gegebenenfalls korrigieren
+3. Mehrere Seiten zu einem PDF zusammenfassen können
+4. Dokument benennen
+5. Hauptordner und Kategorie auswählen
+6. PDF speichern
+
+Automatische Texterkennung (OCR)
+
+Gescannten Dokumenten soll automatisch durchsuchbarer Text zugeordnet werden.
+
+Dadurch sollen beispielsweise Versicherungsnamen, Rechnungsnummern oder Begriffe aus eingescannten Dokumenten gefunden werden können.
+
+Die Originaldatei muss erhalten bleiben.
+
+Da sensible Dokumente gespeichert werden, müssen Zugriffsschutz, sichere Speicherung und Datenschutz bei der Umsetzung berücksichtigt werden.
+
+9. Mein persönlicher Montagebereich
+
+Mein Montagebereich soll für den Arbeitsalltag möglichst schnell bedienbar sein.
+
+Es gibt frei bearbeitbare Montagevorlagen, beispielsweise für Fenstermontagen.
+
+Ich möchte selbst:
+
+* Maschinen hinzufügen
+* Verbrauchsmaterialien anlegen
+* Kategorien verändern
+* Montagevorlagen erstellen und bearbeiten
+* Materiallisten verwalten
+
+Bei Maschinen wird unterschieden zwischen:
+
+Immer im Montagewagen: Diese Maschinen sind normalerweise bereits vorhanden.
+
+Extra einpacken: Diese Maschinen müssen morgens zusätzlich aus der Werkstatt geholt werden.
+
+Die Packliste für meinen Helfer soll hauptsächlich die zusätzlich benötigten Maschinen, Verbrauchsmaterialien und offene Nachfüllartikel enthalten.
+
+Die vollständige Ausrüstung soll bei Bedarf ebenfalls angezeigt werden können.
+
+Es muss möglich sein, eine übersichtliche PDF-Packliste zu erstellen.
+
+Keine Rückgabe-Erinnerungen für Maschinen.
+
+Ziel ist, morgens innerhalb von ein bis zwei Minuten eine fertige Packliste zu erstellen.
+
+10. Shalins persönlicher Bereich
+
+Shalin soll ihren eigenen Bereich unabhängig gestalten können.
+
+Dort sollen sich beispielsweise Studienaufgaben, persönliche Termine, Dokumente und weitere selbst angelegte Kategorien verwalten lassen.
+
+Änderungen und Erweiterungen sollen möglichst ohne Programmierung möglich sein.
+
+11. Technische Anforderungen
+
+Die App soll:
+
+* Für iPhones optimiert sein
+* Auch auf dem Computer funktionieren
+* Eine übersichtliche Navigation besitzen
+* Daten dauerhaft speichern
+* Änderungen zwischen beiden Nutzern synchronisieren
+* PDF-Dateien erzeugen und verwalten können
+* Kamera-Uploads unterstützen
+* OCR für Dokumente und Kassenbons nutzen
+* Push-Erinnerungen ermöglichen, soweit die gewählte Plattform dies unterstützt
+* Mit sensiblen Finanz- und Dokumentendaten sicher umgehen
+
+Bitte keine Funktionen als fertig darstellen, bevor sie tatsächlich implementiert und getestet wurden.
+
+12. Vorgehen bei der Umsetzung
+
+Bitte gehe folgendermaßen vor:
+
+Schritt 1: Prüfe die bestehende App und ihre technische Struktur.
+
+Schritt 2: Vergleiche die vorhandenen Funktionen mit dieser Anforderungsliste.
+
+Schritt 3: Erstelle eine übersichtliche Liste, was bereits funktioniert, was angepasst werden muss und was noch fehlt.
+
+Schritt 4: Schlage eine sinnvolle Reihenfolge für die Umsetzung vor.
+
+Schritt 5: Erarbeite mit mir die notwendigen Änderungen für Site, sodass ich sie möglichst einfach übernehmen kann.
+
+Schritt 6: Berücksichtige Datenbank, Speicherung, Synchronisierung, Berechtigungen und die tatsächliche technische Machbarkeit.
+
+Schritt 7: Teste die Funktionen systematisch und vermeide, dass bestehende Funktionen durch neue Änderungen beschädigt werden.
+
+Abschließende Anweisung
+
+Wir haben die fachliche Planung bereits gemeinsam abgeschlossen.
+
+Bitte stelle nicht erneut sämtliche Grundsatzfragen. Frage nur nach Informationen, die für die konkrete Umsetzung tatsächlich fehlen.
+
+Beginne mit der Bestandsaufnahme der vorhandenen Zuhause-App und leite daraus den ersten konkreten Umsetzungsschritt ab.

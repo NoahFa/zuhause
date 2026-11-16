@@ -1,0 +1,8 @@
+[functions.sync-family-content]
+verify_jwt = false
+
+[functions.send-waste-reminders]
+verify_jwt = false
+
+[functions.send-event-reminders]
+verify_jwt = false
