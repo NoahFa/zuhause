@@ -93,17 +93,28 @@ function renderShopping(){
     persist();renderShopping();toast(i.checked?'Als eingekauft markiert':'Wieder auf der Liste');
   }));
 }
+// Kalender: angezeigter Monat und Personen-Filter
+const calNow=new Date();let calY=calNow.getFullYear(),calM=calNow.getMonth(),calPerson='Alle';
+function isoDate(y,m,d){return y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0')}
+// "Noah" zeigt Noahs und gemeinsame Termine, "Gemeinsam" nur gemeinsame
+function matchesPerson(a){return calPerson==='Alle'||a.person===calPerson||(calPerson!=='Gemeinsam'&&a.person==='Gemeinsam')}
 function renderCalendar(){
   const labels=['Mo','Di','Mi','Do','Fr','Sa','So'].map(x=>`<div class="cal-label">${x}</div>`).join('');
-  let days='';for(let i=26;i<=31;i++)days+=`<div class="cal-day muted"><strong>${i}</strong></div>`;
-  for(let i=1;i<=30;i++){
-    const date=`2026-11-${String(i).padStart(2,'0')}`;
-    const events=state.appointments.filter(a=>a.date===date);
-    days+=`<button class="cal-day" data-calendar-day="${date}"><strong>${i}</strong>${events.slice(0,2).map(e=>`<span class="event ${e.kind}">${e.title}</span>`).join('')}</button>`;
+  const lead=(new Date(calY,calM,1).getDay()+6)%7,prevDays=new Date(calY,calM,0).getDate(),daysInMonth=new Date(calY,calM+1,0).getDate(),today=todayISO();
+  let days='';
+  for(let i=lead;i>0;i--)days+=`<div class="cal-day muted"><strong>${prevDays-i+1}</strong></div>`;
+  for(let i=1;i<=daysInMonth;i++){
+    const date=isoDate(calY,calM,i);
+    const events=state.appointments.filter(a=>a.date===date&&matchesPerson(a)).sort((a,b)=>a.time.localeCompare(b.time));
+    const more=events.length>2?`<span class="event more">+${events.length-2}</span>`:'';
+    days+=`<button class="cal-day${date===today?' today':''}" data-calendar-day="${date}"><strong>${i}</strong>${events.slice(0,2).map(e=>`<span class="event ${e.kind}">${e.title}</span>`).join('')}${more}</button>`;
   }
+  const trail=(7-(lead+daysInMonth)%7)%7;
+  for(let i=1;i<=trail;i++)days+=`<div class="cal-day muted"><strong>${i}</strong></div>`;
   $('#calendarGrid').innerHTML=labels+days;
-  const upcoming=state.appointments.filter(a=>a.date>=todayISO()).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)).slice(0,5);
-  $('#upcomingList').innerHTML=upcoming.map(a=>`<button class="upcoming-item" data-appointment="${a.id}"><b>${Number(a.date.slice(-2))}</b><span><strong>${a.title}</strong><small>${a.time} Uhr · ${a.person}</small></span></button>`).join('');
+  $('#calMonthLabel').textContent=new Intl.DateTimeFormat('de-DE',{month:'long',year:'numeric'}).format(new Date(calY,calM,1));
+  const upcoming=state.appointments.filter(a=>a.date>=today&&matchesPerson(a)).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)).slice(0,5);
+  $('#upcomingList').innerHTML=upcoming.length?upcoming.map(a=>`<button class="upcoming-item" data-appointment="${a.id}"><b>${Number(a.date.slice(-2))}.${Number(a.date.slice(5,7))}.</b><span><strong>${a.title}</strong><small>${a.time} Uhr · ${a.person}</small></span></button>`).join(''):'<p>Keine anstehenden Termine.</p>';
 }
 function expenseMarkup(e){return `<button class="expense-row" data-expense="${e.id}"><span class="expense-icon">${e.icon||'€'}</span><span><strong>${e.title}</strong><small>${e.date} · ${e.person} · ${e.category}</small></span><strong>${money(e.amount)}</strong><em class="tag">${e.review?'Bitte prüfen':'geordnet'}</em></button>`}
 function renderExpenses(filter=''){
@@ -193,9 +204,10 @@ document.addEventListener('click',e=>{
   const day=e.target.closest('[data-calendar-day]');if(day){const entries=state.appointments.filter(x=>x.date===day.dataset.calendarDay),work=state.workdays.filter(x=>x.date===day.dataset.calendarDay);openDetail(day.dataset.calendarDay.split('-').reverse().join('.'),(entries.length?entries.map(x=>`<p><strong>${x.time} Uhr</strong> · ${x.title} · ${x.person}</p>`).join(''):'<p>Noch kein Termin eingetragen.</p>')+(work.length?'<ul class="detail-list">'+work.map(w=>`<li>${w.person}: ${w.kind}</li>`).join('')+'</ul>':''))}
 });
 $('#expenseSearch').addEventListener('input',e=>renderExpenses(e.target.value));
-$$('.chip').forEach(c=>c.addEventListener('click',()=>{$$('.chip').forEach(x=>x.classList.remove('active'));c.classList.add('active');toast(c.textContent+' angezeigt')}));
-const months=['Oktober 2026','November 2026','Dezember 2026'];let month=1;
-$$('.month-select').forEach((b,i)=>b.addEventListener('click',()=>{month=Math.max(0,Math.min(2,month+(i===0?-1:1)));$('.filter-row>strong').textContent=months[month];toast(months[month]+' angezeigt')}));
+$$('.chip').forEach(c=>c.addEventListener('click',()=>{$$('.chip').forEach(x=>x.classList.remove('active'));c.classList.add('active');calPerson=c.textContent.trim();renderCalendar()}));
+$$('.month-select').forEach((b,i)=>b.addEventListener('click',()=>{calM+=i===0?-1:1;if(calM<0){calM=11;calY--}if(calM>11){calM=0;calY++}renderCalendar()}));
+// Tippen auf den Monatsnamen springt zurück zu heute
+$('#calMonthLabel').addEventListener('click',()=>{const n=new Date();calY=n.getFullYear();calM=n.getMonth();renderCalendar()});
 $('#fakeUpload').addEventListener('click',()=>$('#fileInput').click());
 $('#fileInput').addEventListener('change',()=>toast('Dokument ausgewählt – sicherer Upload folgt'));
 $('#exportData').addEventListener('click',()=>{const data={hinweis:'Kontrolldatei. Noch keine ELSTER-Datei.',steuerjahr:2026,personen:['Noah','Freundin'],ausgaben:state.expenses,einnahmen:state.incomes,arbeitstage:state.workdays,versicherungen:state.insurances,aufgaben:state.taxTasks};const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='zuhause-steuer-2026-kontrolle.json';a.click();URL.revokeObjectURL(a.href);toast('Kontroll-Datei geladen')});
