@@ -43,6 +43,10 @@ Claude hat über einen Supabase-Zugangsschlüssel von Noah (Access Token „Clau
 3. **Putzplan mit Wechsel** zwischen Noah und Charleen.
 4. Charleens Bereich erst nach Rücksprache mit ihr ausbauen.
 
+## Bewusst verworfen
+
+- **Home-Bildschirm-Widget wie bei TimeTree** (16.11.2026): Für Web-Apps auf dem iPhone nicht möglich. Alternative wäre ein Kalender-Abo-Link für den Apple-Kalender (dessen Widgets) gewesen – Noah hat sich dagegen entschieden.
+
 ## Bekannte Grenzen der neuen Funktionen
 
 - ICS-Import: Wiederholungen wie „jeder 2. Dienstag im Monat“ werden nur als erster Termin übernommen; Erinnerungen aus der Datei werden nicht übernommen.
