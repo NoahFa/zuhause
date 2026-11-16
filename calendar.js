@@ -86,7 +86,7 @@
       location: row.location || '', url: row.url || '', notes: row.notes || '', revision: Number(row.revision || 1),
       readOnly: false, source: 'cloud', createdBy: row.created_by, updatedBy: row.updated_by,
       recurrence: state.recurrences.get(row.id) || null, participantKeys: state.participants.get(row.id) || [],
-      reminderMinutes: state.reminders.get(row.id) || [],
+      reminderMinutes: state.reminders.get(row.id) || [], legacyKey: row.legacy_key || null,
     };
   }
 
@@ -517,12 +517,153 @@
   }
   function setAutomaticEvents(items) { state.automatic = (items || []).map(item => item.id?.startsWith?.('automatic:') ? item : automaticEvent(item)); render(); }
   function setLegacyAppointments(items) { if (!state.normalized) { state.events = (items || []).map(legacyEvent); render(); } }
+  // ---- Kalenderdatei (.ics) importieren, z. B. aus TimeTree ----
+  function icsLines(text) { return String(text).replace(/\r\n?/g, '\n').replace(/\n[ \t]/g, '').split('\n'); }
+  function icsText(value = '') { return value.replace(/\\n/gi, '\n').replace(/\\([,;\\])/g, '$1').trim(); }
+  function icsParse(text) {
+    const events = []; let current = null, depth = 0;
+    for (const line of icsLines(text)) {
+      if (line === 'BEGIN:VEVENT') { current = { props: {} }; depth = 0; continue; }
+      if (!current) continue;
+      if (line === 'END:VEVENT') { events.push(current); current = null; continue; }
+      if (line.startsWith('BEGIN:')) { depth += 1; continue; }
+      if (line.startsWith('END:')) { depth = Math.max(0, depth - 1); continue; }
+      if (depth) continue;
+      const index = line.indexOf(':'); if (index < 1) continue;
+      const [name, ...paramParts] = line.slice(0, index).split(';'); const params = {};
+      paramParts.forEach(part => { const [key, ...rest] = part.split('='); params[key.toUpperCase()] = rest.join('=').replace(/^"|"$/g, ''); });
+      (current.props[name.toUpperCase()] ||= []).push({ value: line.slice(index + 1), params });
+    }
+    return events;
+  }
+  function zoneOffset(timeZone, utcMs) {
+    const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).formatToParts(new Date(utcMs)).map(part => [part.type, part.value]));
+    return Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour, +parts.minute, +parts.second) - utcMs;
+  }
+  function wallParts(ms) { const iso = new Date(ms).toISOString(); return { date: iso.slice(0, 10), time: iso.slice(11, 16) }; }
+  function icsDate(prop) {
+    if (!prop) return null;
+    const match = prop.value.trim().match(/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})?(Z)?)?$/); if (!match) return null;
+    const date = `${match[1]}-${match[2]}-${match[3]}`;
+    if (prop.params.VALUE === 'DATE' || !match[4]) return { allDay: true, date };
+    const wall = Date.UTC(+match[1], +match[2] - 1, +match[3], +match[4], +match[5], +(match[6] || 0));
+    let utc = null;
+    if (match[7]) utc = wall;
+    else if (prop.params.TZID) { try { let guess = wall - zoneOffset(prop.params.TZID, wall); guess = wall - zoneOffset(prop.params.TZID, guess); utc = guess; } catch { utc = null; } }
+    if (utc === null) return { allDay: false, ...wallParts(wall), wall };
+    const berlin = utc + zoneOffset('Europe/Berlin', utc); return { allDay: false, ...wallParts(berlin), wall: berlin };
+  }
+  function icsDurationMinutes(value) {
+    const match = String(value || '').match(/^[+]?P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/); if (!match) return null;
+    return (+(match[1] || 0)) * 10080 + (+(match[2] || 0)) * 1440 + (+(match[3] || 0)) * 60 + (+(match[4] || 0));
+  }
+  function icsTimes(entry) {
+    const first = key => entry.props[key]?.[0]; const start = icsDate(first('DTSTART')); if (!start) return null;
+    let end = icsDate(first('DTEND'));
+    if (start.allDay) { let endDate = end ? isoDate(addDays(end.date, -1)) : start.date; if (endDate < start.date) endDate = start.date; return { allDay: true, startDate: start.date, endDate, startTime: '', endTime: '' }; }
+    if (!end || end.allDay) { const minutes = icsDurationMinutes(first('DURATION')?.value) ?? 60; end = { ...wallParts(start.wall + minutes * 60000) }; }
+    if (`${end.date}T${end.time}` < `${start.date}T${start.time}`) end = { date: start.date, time: start.time };
+    return { allDay: false, startDate: start.date, endDate: end.date, startTime: start.time, endTime: end.time };
+  }
+  function icsRecurrence(rule, startDate) {
+    if (!rule) return { recurrence: null, simplified: false };
+    const r = Object.fromEntries(rule.split(';').map(part => part.split('=')).map(([key, value]) => [String(key).toUpperCase(), String(value || '').toUpperCase()]));
+    const frequency = (r.FREQ || '').toLowerCase(); if (!['daily', 'weekly', 'monthly', 'yearly'].includes(frequency)) return { recurrence: null, simplified: true };
+    if (r.BYSETPOS || r.BYWEEKNO || r.BYYEARDAY || r.BYHOUR || (r.BYMONTH && frequency !== 'yearly')) return { recurrence: null, simplified: true };
+    const codes = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']; let weekdays = [], monthDay = null;
+    if (r.BYDAY) { const days = r.BYDAY.split(','); if (frequency !== 'weekly' || !days.every(day => codes.includes(day))) return { recurrence: null, simplified: true }; weekdays = days.map(day => codes.indexOf(day) + 1); }
+    if (frequency === 'weekly' && !weekdays.length) weekdays = [dateFromIso(startDate).getDay() || 7];
+    if (frequency === 'monthly') { if (r.BYMONTHDAY && !/^\d+$/.test(r.BYMONTHDAY)) return { recurrence: null, simplified: true }; monthDay = r.BYMONTHDAY ? +r.BYMONTHDAY : dateFromIso(startDate).getDate(); }
+    const recurrence = { frequency, interval: Math.min(999, Math.max(1, parseInt(r.INTERVAL || '1', 10) || 1)), weekdays, monthDay, endsOn: r.UNTIL ? icsDate({ value: r.UNTIL, params: {} })?.date || null : null };
+    if (r.COUNT) { const count = parseInt(r.COUNT, 10) || 1; let seen = 0, day = startDate; for (let i = 0; i < 40000 && seen < count; i += 1) { if (recurrenceMatches({ startDate, recurrence }, day) && ++seen === count) recurrence.endsOn = day; day = isoDate(addDays(day, 1)); } }
+    return { recurrence, simplified: false };
+  }
+  async function importIcs(text, { calendarKey = 'shared', includePast = false, onProgress = () => {} } = {}) {
+    if (!state.normalized || !state.client || !state.household || !navigator.onLine) throw new Error('Für den Import braucht der Kalender eine Internetverbindung. Bitte später erneut versuchen.');
+    const calendar = state.calendars[calendarKey]; if (!calendar?.id) throw new Error('Dieser Kalender ist noch nicht eingerichtet.');
+    const entries = icsParse(text); if (!entries.length) throw new Error('In dieser Datei wurden keine Termine gefunden.');
+    const today = isoDate(new Date()), summary = { added: 0, duplicate: 0, past: 0, simplified: 0, invalid: 0 };
+    const known = new Map(); state.events.forEach(event => { if (event.legacyKey) known.set(event.legacyKey, event.id); });
+    for (const value of state.exceptions.values()) if (value.replacement?.legacyKey) known.set(value.replacement.legacyKey, value.replacement.id);
+    const participantIds = state.members.filter(member => calendarKey === 'shared' || memberKey(member) === calendarKey).map(member => member.user_id);
+    const rows = [], recurrences = [], participants = [], exceptions = new Map(), seriesByUid = new Map();
+    const text1 = (entry, key) => icsText(entry.props[key]?.[0]?.value || '');
+    const addRow = (entry, times, key, recurrence) => {
+      const id = uuid(); const url = safeUrl(text1(entry, 'URL'));
+      rows.push({ id, household_id: state.household.id, calendar_id: calendar.id, title: (text1(entry, 'SUMMARY') || 'Termin').slice(0, 160), all_day: times.allDay, start_date: times.startDate, end_date: times.endDate, start_time: times.allDay ? null : times.startTime, end_time: times.allDay ? null : times.endTime, timezone: 'Europe/Berlin', label_color: 'calendar', location: text1(entry, 'LOCATION').slice(0, 240) || null, url: url && url.length <= 500 ? url : null, notes: text1(entry, 'DESCRIPTION').slice(0, 4000) || null, created_by: state.user.id, updated_by: state.user.id, revision: 1, legacy_key: key });
+      participantIds.forEach(userId => participants.push({ event_id: id, household_id: state.household.id, user_id: userId }));
+      if (recurrence) recurrences.push({ event_id: id, household_id: state.household.id, frequency: recurrence.frequency, interval_count: recurrence.interval, weekdays: recurrence.weekdays, month_day: recurrence.monthDay, ends_on: recurrence.endsOn, rrule: recurrenceRRule({ recurrence }) });
+      known.set(key, id); summary.added += 1; return id;
+    };
+    const keyFor = (entry, suffix = '') => { const uid = text1(entry, 'UID'); return `ics:${uid || `${text1(entry, 'SUMMARY')}|${entry.props.DTSTART?.[0]?.value || ''}`}${suffix}`; };
+    const cancelled = entry => text1(entry, 'STATUS').toUpperCase() === 'CANCELLED';
+    const masters = entries.filter(entry => !entry.props['RECURRENCE-ID']), overrides = entries.filter(entry => entry.props['RECURRENCE-ID']);
+    masters.forEach((entry, index) => {
+      if (index % 50 === 0) onProgress(`Termine werden gelesen … ${index} von ${masters.length}`);
+      if (cancelled(entry)) return;
+      const times = icsTimes(entry); if (!times) { summary.invalid += 1; return; }
+      const key = keyFor(entry), uid = text1(entry, 'UID');
+      if (known.has(key)) { summary.duplicate += 1; if (uid) seriesByUid.set(uid, { id: known.get(key), existing: true }); return; }
+      const { recurrence, simplified } = icsRecurrence(entry.props.RRULE?.[0]?.value, times.startDate); if (simplified) summary.simplified += 1;
+      const lastDay = recurrence ? (recurrence.endsOn || '9999-12-31') : times.endDate;
+      if (!includePast && lastDay < today) { summary.past += 1; return; }
+      const id = addRow(entry, times, key, recurrence);
+      if (uid && recurrence) seriesByUid.set(uid, { id, existing: false });
+      if (recurrence) (entry.props.EXDATE || []).forEach(prop => prop.value.split(',').forEach(value => { const day = icsDate({ value, params: prop.params })?.date; if (day) exceptions.set(`${id}:${day}`, { household_id: state.household.id, series_event_id: id, occurrence_date: day, action: 'skip', replacement_event_id: null, created_by: state.user.id }); }));
+    });
+    overrides.forEach(entry => {
+      const series = seriesByUid.get(text1(entry, 'UID')), day = icsDate(entry.props['RECURRENCE-ID'][0])?.date; if (!day) return;
+      if (series?.existing) { summary.duplicate += 1; return; }
+      if (series && cancelled(entry)) { exceptions.set(`${series.id}:${day}`, { household_id: state.household.id, series_event_id: series.id, occurrence_date: day, action: 'skip', replacement_event_id: null, created_by: state.user.id }); return; }
+      if (cancelled(entry)) return;
+      const times = icsTimes(entry); if (!times) { summary.invalid += 1; return; }
+      const key = keyFor(entry, `@${day}`); if (known.has(key)) { summary.duplicate += 1; return; }
+      if (!includePast && times.endDate < today && !series) { summary.past += 1; return; }
+      const id = addRow(entry, times, key, null);
+      if (series) exceptions.set(`${series.id}:${day}`, { household_id: state.household.id, series_event_id: series.id, occurrence_date: day, action: 'replace', replacement_event_id: id, created_by: state.user.id });
+    });
+    const inserted = [];
+    const chunks = (list, size = 200) => Array.from({ length: Math.ceil(list.length / size) }, (_, i) => list.slice(i * size, i * size + size));
+    try {
+      for (const chunk of chunks(rows)) { onProgress(`Termine werden gespeichert … ${inserted.length} von ${rows.length}`); const { error } = await state.client.from('calendar_events').insert(chunk); if (error) throw error; inserted.push(...chunk.map(row => row.id)); }
+      for (const chunk of chunks(recurrences)) { const { error } = await state.client.from('event_recurrences').insert(chunk); if (error) throw error; }
+      for (const chunk of chunks(participants, 500)) { const { error } = await state.client.from('event_participants').insert(chunk); if (error) throw error; }
+      for (const chunk of chunks([...exceptions.values()])) { const { error } = await state.client.from('event_exceptions').insert(chunk); if (error) throw error; }
+    } catch (error) {
+      for (const chunk of chunks(inserted)) await state.client.from('calendar_events').delete().in('id', chunk);
+      throw new Error(`Der Import wurde abgebrochen und nichts übernommen (${errorText(error)}). Bitte erneut versuchen.`);
+    }
+    onProgress('Kalender wird aktualisiert …'); await loadCloudData(); return summary;
+  }
+  function openImport() {
+    let dialog = qs('#calendarImportDialog');
+    if (!dialog) { dialog = document.createElement('dialog'); dialog.id = 'calendarImportDialog'; dialog.className = 'calendar-event-dialog'; document.body.append(dialog); }
+    const options = ['shared', 'person1', 'person2'].map(key => `<option value="${key}">${escapeHtml(state.calendars[key]?.name || CALENDARS[key].name)}</option>`).join('');
+    dialog.innerHTML = `<form><div class="dialog-head"><div><span class="kicker">Kalender</span><h2>Termine importieren</h2></div><button class="close" type="button" data-import-close aria-label="Schließen">×</button></div><div class="ws-dialog-fields"><p class="ws-help">Wähle eine Kalenderdatei (.ics) aus, zum Beispiel den Export aus TimeTree. Termine, die schon übernommen wurden, werden übersprungen.</p><label class="ws-field"><span>Kalenderdatei</span><input name="file" type="file" accept=".ics,text/calendar" required></label><label class="ws-field"><span>In welchen Kalender?</span><select name="calendarKey">${options}</select></label><label class="ws-check"><input type="checkbox" name="includePast"> <span>Auch vergangene Termine übernehmen</span></label><p class="auth-message" data-import-message aria-live="polite"></p></div><div class="dialog-actions"><button class="secondary" type="button" data-import-close>Abbrechen</button><button class="primary" type="submit">Importieren</button></div></form>`;
+    const form = qs('form', dialog), message = qs('[data-import-message]', dialog), submit = qs('button[type="submit"]', dialog);
+    qsa('[data-import-close]', dialog).forEach(button => { button.onclick = () => dialog.close(); });
+    form.onsubmit = async event => {
+      event.preventDefault(); const file = form.elements.file.files[0]; if (!file) return;
+      submit.disabled = true; message.textContent = 'Datei wird gelesen …';
+      try {
+        const result = await importIcs(await file.text(), { calendarKey: form.elements.calendarKey.value, includePast: form.elements.includePast.checked, onProgress: text => { message.textContent = text; } });
+        const parts = [`${result.added} Termine übernommen`]; if (result.duplicate) parts.push(`${result.duplicate} waren schon da`); if (result.past) parts.push(`${result.past} vergangene übersprungen`);
+        if (result.simplified) parts.push(`${result.simplified} mit besonderer Wiederholung nur als einzelner Termin`); if (result.invalid) parts.push(`${result.invalid} nicht lesbar`);
+        message.textContent = parts.join(' · ') + '.'; submit.textContent = 'Weitere Datei importieren'; form.elements.file.value = ''; state.callbacks.toast?.(`${result.added} Termine übernommen`);
+      } catch (error) { message.textContent = errorText(error); }
+      finally { submit.disabled = false; }
+    };
+    dialog.showModal();
+  }
+
   function bootstrap(options = {}) {
     state.callbacks = { ...state.callbacks, ...options.callbacks };
     state.events = (options.legacyAppointments || []).map(legacyEvent); setAutomaticEvents(options.automaticEvents || []);
     if (!state.initialized) bindUi(); state.initialized = true; render();
   }
   function bindUi() {
+    const titleAdd = qs('.calendar-titlebar > [data-calendar-add]');
+    if (titleAdd) { const actions = el('div', 'calendar-title-actions'); titleAdd.replaceWith(actions); const importButton = el('button', 'secondary', 'Importieren'); importButton.type = 'button'; importButton.addEventListener('click', openImport); actions.append(importButton, titleAdd); }
     qs('#previousPeriod')?.addEventListener('click', () => navigate(-1)); qs('#nextPeriod')?.addEventListener('click', () => navigate(1));
     qs('#currentPeriod')?.addEventListener('click', () => { state.selectedDate = isoDate(new Date()); state.cursor = startOfMonth(new Date()); render(); });
     qsa('[data-calendar-view]').forEach(button => button.addEventListener('click', () => { state.view = button.dataset.calendarView; render(); }));
@@ -538,5 +679,5 @@
     window.addEventListener('online', flushQueue); document.addEventListener('keydown', event => { if (!qs('#calendar')?.classList.contains('active') || event.target.matches('input,textarea,select')) return; if (event.key === 'ArrowLeft') navigate(-1); if (event.key === 'ArrowRight') navigate(1); });
   }
 
-  window.ZuhauseCalendar = { bootstrap, connect, disconnect, render, setAutomaticEvents, setLegacyAppointments, openCreate, selectDate, renderHomeTimeline, occurrencesInRange };
+  window.ZuhauseCalendar = { importIcs, openImport, bootstrap, connect, disconnect, render, setAutomaticEvents, setLegacyAppointments, openCreate, selectDate, renderHomeTimeline, occurrencesInRange };
 })();
