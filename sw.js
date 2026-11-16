@@ -1,6 +1,6 @@
-const CACHE='zuhause-v28';
-const WORKSPACE_ASSETS=['./workspaces.css?v=28','./workspaces.js?v=28','./lou.js?v=28','./charleen.js?v=28'];
-const ASSETS=['./','./index.html','./styles.css?v=28','./features.css?v=28','./calendar.js?v=28','./app.js?v=28','./features.js?v=28','./vendor/supabase.min.js?v=2.49.4','./manifest.webmanifest?v=28','./icon.svg?v=28','./apple-touch-icon.png?v=28','./icon-192.png?v=28','./icon-512.png?v=28','./icon-maskable-512.png?v=28'];
+const CACHE='zuhause-v29';
+const WORKSPACE_ASSETS=['./workspaces.css?v=29','./workspaces.js?v=29','./lou.js?v=29','./charleen.js?v=29'];
+const ASSETS=['./','./index.html','./styles.css?v=29','./features.css?v=29','./calendar.js?v=29','./app.js?v=29','./features.js?v=29','./vendor/supabase.min.js?v=2.49.4','./manifest.webmanifest?v=29','./icon.svg?v=29','./apple-touch-icon.png?v=29','./icon-192.png?v=29','./icon-512.png?v=29','./icon-maskable-512.png?v=29'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll([...ASSETS,...WORKSPACE_ASSETS])).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{
@@ -11,7 +11,7 @@ self.addEventListener('fetch',event=>{
 self.addEventListener('push',event=>{
   let data={};try{data=event.data?.json()||{}}catch{data={body:event.data?.text()}}
   const title=data.title||'Zuhause';
-  event.waitUntil(self.registration.showNotification(title,{body:data.body||'Es gibt eine neue Erinnerung.',icon:'./icon-192.png?v=28',badge:'./icon-192.png?v=28',tag:data.tag||'zuhause-erinnerung',data:{url:data.url||'./?page=calendar'},renotify:false}));
+  event.waitUntil(self.registration.showNotification(title,{body:data.body||'Es gibt eine neue Erinnerung.',icon:'./icon-192.png?v=29',badge:'./icon-192.png?v=29',tag:data.tag||'zuhause-erinnerung',data:{url:data.url||'./?page=calendar'},renotify:false}));
 });
 self.addEventListener('notificationclick',event=>{
   event.notification.close();const target=new URL(event.notification.data?.url||'./?page=calendar',self.location.origin).href;

@@ -25,6 +25,7 @@ Stand: 16. November 2026. Ergänzt `02-UMSETZUNGSSTAND.md`. Noah hat freigegeben
 | 26 | Kalenderfarben deutlicher: Gemeinsam grün `#2e7d4f`, Noah blau `#1f6fc5`, Charleen beere `#cc3d6a` (Konstanten in `calendar.js`, überschreiben die Farben aus der Datenbank). Person bestimmt immer die Farbe, Farbmarkierung nur als Punkt; Monatsansicht am Handy zeigt den Titel; Filterpunkte und Avatare N/C angepasst. |
 | 27 | Foto von Lou: großes Bild oben im Lou-Bereich mit „Foto ändern“. Beim Hochladen auf max. 1600 px verkleinert (JPEG), privat im Speicher unter `<Haushalt>/shared/lou/…`, Anzeige über zeitlich begrenzten Link; altes Foto wird beim Austausch gelöscht. Pfad in `state.lou.photoPath`. |
 | 28 | Charleens Reiter „Notizen“ heißt jetzt „✓ Aufgaben“: einfache Liste ohne Kategorien, Datum freiwillig (nicht mehr vorausgefüllt); Karte „Eigene Kategorien“ entfernt (Wunsch Charleen). Vorhandene Einträge bleiben erhalten. |
+| 29 | Charleens Nebenjob: Überstundenkonto. Monatsgrenze (Standard 43 h, je Monat überschreibbar über `job.limitOverrides`), Mehrstunden aufs Konto, fehlende Stunden werden am Monatsende vom Konto aufgefüllt; Auszahlungen/Korrekturen (`job.adjustments`) werden im Monat zuerst verbucht; Verlauf nach Monaten. Charleens Kauler-Hof-Schichten April–November 2026 nachgetragen (April Grenze 21,5 h, da Start am 24.4.; Auszahlung Okt. 32 h / 450 €). |
 
 ## Offen / in Klärung
 
