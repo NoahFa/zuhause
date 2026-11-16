@@ -135,6 +135,30 @@ async function loadHouseholdOnce(){
   renderAll();renderInsurance();await loadDocuments();
   connectionAttempts=0;clearTimeout(connectionRetry);$('#authScreen').hidden=true;setSyncStatus('Sicher gespeichert','connected');
   if(dirty||!row.data||!Object.keys(row.data).length){setDirty(true);await saveCloudState()}
+  if(!state.settings?.sampleDataRemoved)await removeSampleDataOnce();
+}
+// Einmalig (16.11.2026, auf Wunsch von Noah): alle Muster-/Beispieldaten leeren.
+// Fußball, Müll und Wetter kommen aus eigenen Quellen und bleiben unberührt.
+// Vorher wird eine Sicherung in state.resetBackup abgelegt; Dokumentdateien im Speicher bleiben erhalten.
+async function removeSampleDataOnce(){
+  try{
+    const hid=currentHousehold.id;
+    if(!state.resetBackup){
+      const [events,docs]=await Promise.all([cloud.from('calendar_events').select('*').eq('household_id',hid),cloud.from('documents').select('*').eq('household_id',hid)]);
+      if(events.error||docs.error)return;
+      const {resetBackup,...appState}=state;
+      state.resetBackup={createdAt:new Date().toISOString(),appState:structuredClone(appState),calendarEvents:events.data||[],documents:docs.data||[]};
+      setDirty(true);localChangeVersion+=1;await saveCloudState();
+      if(localDirty)return;
+    }
+    const delEvents=await cloud.from('calendar_events').delete().eq('household_id',hid);
+    const delDocs=await cloud.from('documents').delete().eq('household_id',hid);
+    if(delEvents.error||delDocs.error)return;
+    const keep=state.settings||{};
+    state={...structuredClone(seed),montageJobs:[],resetBackup:state.resetBackup,settings:{...seed.settings,wasteStreetId:keep.wasteStreetId||seed.settings.wasteStreetId,wasteDistrict:keep.wasteDistrict||seed.settings.wasteDistrict,wasteStreetLabel:keep.wasteStreetLabel||seed.settings.wasteStreetLabel,weatherPlace:keep.weatherPlace||seed.settings.weatherPlace,montageInitialised:true,sampleDataRemoved:new Date().toISOString()}};
+    setDirty(true);localChangeVersion+=1;storeScopedState();await saveCloudState();
+    if(!localDirty){toast('Beispieldaten entfernt');setTimeout(()=>location.reload(),900)}
+  }catch{}
 }
 async function refreshCloudState(){
   if(!cloudReady||!currentHousehold||document.hidden||saveInFlight)return;

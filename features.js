@@ -531,9 +531,6 @@
     let changed = false;
     if (state.settings.montageInitialised) return false;
     state.settings.montageInitialised = true; changed = true;
-    if (!state.montageMachines.length) { state.montageMachines.push({ id: crypto.randomUUID(), name: 'Akkuschrauber', category: 'Maschinen', placement: 'van', refill: false }, { id: crypto.randomUUID(), name: 'Bohrhammer', category: 'Maschinen', placement: 'extra', refill: false }); changed = true; }
-    if (!state.montageMaterials.length) { state.montageMaterials.push({ id: crypto.randomUUID(), name: 'Montageschaum', category: 'Montagematerial', quantity: '2 Dosen', refill: true }, { id: crypto.randomUUID(), name: 'Rahmenschrauben', category: 'Befestigung', quantity: '1 Karton', refill: false }); changed = true; }
-    if (!state.montageTemplates.length) { state.montageTemplates.push({ id: crypto.randomUUID(), name: 'Fenstermontage', machineIds: state.montageMachines.map(item => item.id), materialIds: state.montageMaterials.map(item => item.id), notes: '' }); changed = true; }
     return changed;
   }
 
