@@ -3,13 +3,13 @@ const seed={
     {id:1,date:'2026-11-08',time:'10:30',title:'Wochenplanung',person:'Gemeinsam',kind:'private'},
     {id:2,date:'2026-11-08',time:'17:00',title:'Spaziergang mit Lou',person:'Gemeinsam',kind:'private'},
     {id:3,date:'2026-11-09',time:'07:00',title:'Arbeit',person:'Noah',kind:'work'},
-    {id:4,date:'2026-11-10',time:'15:30',title:'Hochschule',person:'Freundin',kind:'work'},
+    {id:4,date:'2026-11-10',time:'15:30',title:'Hochschule',person:'Charlene',kind:'work'},
     {id:5,date:'2026-11-18',time:'16:00',title:'Tierarzt mit Lou',person:'Gemeinsam',kind:'private'}
   ],
   householdTasks:[
     {id:1,title:'Müll rausstellen',person:'Noah',due:'Heute Abend',done:false},
     {id:2,title:'Wäsche zusammenlegen',person:'Gemeinsam',due:'Heute',done:false},
-    {id:3,title:'Stromzähler fotografieren',person:'Freundin',due:'Diese Woche',done:false},
+    {id:3,title:'Stromzähler fotografieren',person:'Charlene',due:'Diese Woche',done:false},
     {id:4,title:'Bad putzen',person:'Noah',due:'Erledigt',done:true}
   ],
   shopping:[
@@ -17,9 +17,9 @@ const seed={
   ],
   expenses:[
     {id:1,date:'06.11.2026',title:'Tanken',category:'Fahrt noch zuordnen',person:'Noah',amount:68.40,receipt:true,review:true,icon:'⛽'},
-    {id:2,date:'02.11.2026',title:'Fachbuch Elektrotechnik',category:'Beruf / Studium',person:'Freundin',amount:39.90,receipt:true,review:true,icon:'▤'},
+    {id:2,date:'02.11.2026',title:'Fachbuch Elektrotechnik',category:'Beruf / Studium',person:'Charlene',amount:39.90,receipt:true,review:true,icon:'▤'},
     {id:3,date:'29.10.2026',title:'Arbeitsschuhe',category:'Nebengewerbe',person:'Noah',amount:119.00,receipt:true,review:true,icon:'◇'},
-    {id:4,date:'15.10.2026',title:'Studiengebühr',category:'Hochschule',person:'Freundin',amount:201.40,receipt:false,review:true,icon:'▦'}
+    {id:4,date:'15.10.2026',title:'Studiengebühr',category:'Hochschule',person:'Charlene',amount:201.40,receipt:false,review:true,icon:'▦'}
   ],
   incomes:[{id:1,title:'Montageauftrag Mustermann',amount:1240,date:'28.10.2026'}],
   taxTasks:[
@@ -45,6 +45,8 @@ if(legacy&&!saved){
 }
 if(!Array.isArray(state.insurances))state.insurances=structuredClone(seed.insurances);
 if(!Array.isArray(state.workdays))state.workdays=[];
+// Umbenennung: aus "Freundin" wird "Charlene" (auch in schon gespeicherten Einträgen)
+['appointments','householdTasks','expenses','workdays','insurances'].forEach(k=>(state[k]||[]).forEach(x=>{if(x.person==='Freundin')x.person='Charlene'}));
 // Heutiges Datum als JJJJ-MM-TT (lokale Zeit, nicht UTC)
 function todayISO(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 const $=s=>document.querySelector(s);
@@ -143,13 +145,13 @@ function openExpense(id){
 }
 
 const fieldSets={
-  appointment:{kicker:'Kalender',title:'Termin eintragen',help:'Für euch beide, nur für dich oder nur für Noah.',fields:`<div class="field-grid"><div class="field full"><label>Was steht an?</label><input name="title" placeholder="z. B. Zahnarzt" required></div><div class="field"><label>Datum</label><input name="date" type="date" required></div><div class="field"><label>Uhrzeit</label><input name="time" type="time" value="12:00" required></div><div class="field full"><label>Für wen?</label><select name="person"><option>Gemeinsam</option><option>Noah</option><option>Freundin</option></select></div></div>`},
-  task:{kicker:'Haushalt',title:'Aufgabe hinzufügen',help:'Wer kümmert sich darum und bis wann?',fields:`<div class="field-grid"><div class="field full"><label>Was muss erledigt werden?</label><input name="title" placeholder="z. B. Paket abholen" required></div><div class="field"><label>Wer?</label><select name="person"><option>Gemeinsam</option><option>Noah</option><option>Freundin</option></select></div><div class="field"><label>Wann?</label><select name="due"><option>Heute</option><option>Heute Abend</option><option>Morgen</option><option>Diese Woche</option></select></div></div>`},
+  appointment:{kicker:'Kalender',title:'Termin eintragen',help:'Für euch beide, nur für dich oder nur für Noah.',fields:`<div class="field-grid"><div class="field full"><label>Was steht an?</label><input name="title" placeholder="z. B. Zahnarzt" required></div><div class="field"><label>Datum</label><input name="date" type="date" required></div><div class="field"><label>Uhrzeit</label><input name="time" type="time" value="12:00" required></div><div class="field full"><label>Für wen?</label><select name="person"><option>Gemeinsam</option><option>Noah</option><option>Charlene</option></select></div></div>`},
+  task:{kicker:'Haushalt',title:'Aufgabe hinzufügen',help:'Wer kümmert sich darum und bis wann?',fields:`<div class="field-grid"><div class="field full"><label>Was muss erledigt werden?</label><input name="title" placeholder="z. B. Paket abholen" required></div><div class="field"><label>Wer?</label><select name="person"><option>Gemeinsam</option><option>Noah</option><option>Charlene</option></select></div><div class="field"><label>Wann?</label><select name="due"><option>Heute</option><option>Heute Abend</option><option>Morgen</option><option>Diese Woche</option></select></div></div>`},
   shopping:{kicker:'Einkauf',title:'Zur Liste hinzufügen',help:'Der Eintrag erscheint sofort bei euch auf der Startseite.',fields:`<div class="field-grid"><div class="field full"><label>Was brauchen wir?</label><input name="title" placeholder="z. B. Brot" required></div></div>`},
-  expense:{kicker:'Ausgabe',title:'Wofür habt ihr bezahlt?',help:'Privat sammeln oder für die spätere Steuerprüfung kennzeichnen.',fields:`<div class="field-grid"><div class="field"><label>Wer hat bezahlt?</label><select name="person"><option>Noah</option><option>Freundin</option><option>Gemeinsam</option></select></div><div class="field"><label>Wann?</label><input name="date" type="date" required></div><div class="field full"><label>Was wurde bezahlt?</label><input name="title" placeholder="z. B. Einkauf oder Werkzeug" required></div><div class="field"><label>Wie viel?</label><input name="amount" type="number" step="0.01" min="0" required></div><div class="field"><label>Bereich</label><select name="category"><option>Gemeinsamer Haushalt</option><option>Persönlich</option><option>Beruf / Arbeit</option><option>Hochschule / Studium</option><option>Nebengewerbe</option><option>Noch unklar</option></select></div><div class="field full"><label><input name="receipt" type="checkbox"> Beleg ist vorhanden</label></div></div>`},
-  day:{kicker:'Arbeit & Fahrten',title:'Wie sah der Tag aus?',help:'Wählt den Ort. Eine mögliche Steuerwirkung wird später geprüft.',fields:`<div class="field-grid"><div class="field"><label>Für wen?</label><select name="person"><option>Noah</option><option>Freundin</option></select></div><div class="field"><label>Datum</label><input name="date" type="date" required></div><div class="field full"><label>Was war?</label><select name="kind"><option>Im Büro / Betrieb gearbeitet</option><option>Zu Hause gearbeitet</option><option>In der Hochschule</option><option>Fahrt fürs Nebengewerbe</option><option>Urlaub</option><option>Krank</option><option>Frei</option></select></div></div>`},
+  expense:{kicker:'Ausgabe',title:'Wofür habt ihr bezahlt?',help:'Privat sammeln oder für die spätere Steuerprüfung kennzeichnen.',fields:`<div class="field-grid"><div class="field"><label>Wer hat bezahlt?</label><select name="person"><option>Noah</option><option>Charlene</option><option>Gemeinsam</option></select></div><div class="field"><label>Wann?</label><input name="date" type="date" required></div><div class="field full"><label>Was wurde bezahlt?</label><input name="title" placeholder="z. B. Einkauf oder Werkzeug" required></div><div class="field"><label>Wie viel?</label><input name="amount" type="number" step="0.01" min="0" required></div><div class="field"><label>Bereich</label><select name="category"><option>Gemeinsamer Haushalt</option><option>Persönlich</option><option>Beruf / Arbeit</option><option>Hochschule / Studium</option><option>Nebengewerbe</option><option>Noch unklar</option></select></div><div class="field full"><label><input name="receipt" type="checkbox"> Beleg ist vorhanden</label></div></div>`},
+  day:{kicker:'Arbeit & Fahrten',title:'Wie sah der Tag aus?',help:'Wählt den Ort. Eine mögliche Steuerwirkung wird später geprüft.',fields:`<div class="field-grid"><div class="field"><label>Für wen?</label><select name="person"><option>Noah</option><option>Charlene</option></select></div><div class="field"><label>Datum</label><input name="date" type="date" required></div><div class="field full"><label>Was war?</label><select name="kind"><option>Im Büro / Betrieb gearbeitet</option><option>Zu Hause gearbeitet</option><option>In der Hochschule</option><option>Fahrt fürs Nebengewerbe</option><option>Urlaub</option><option>Krank</option><option>Frei</option></select></div></div>`},
   income:{kicker:'Nebengewerbe',title:'Geld vom Auftrag eintragen',help:'Rechnungsbetrag und Status festhalten.',fields:`<div class="field-grid"><div class="field full"><label>Wofür?</label><input name="title" placeholder="z. B. Montageauftrag Müller" required></div><div class="field"><label>Betrag</label><input name="amount" type="number" step="0.01" min="0" required></div><div class="field"><label>Datum</label><input name="date" type="date" required></div></div>`},
-  insurance:{kicker:'Versicherung',title:'Vertrag ergänzen',help:'Wir speichern Fakten, versprechen aber keine steuerliche Wirkung.',fields:`<div class="field-grid"><div class="field full"><label>Welche Versicherung?</label><input name="title" required></div><div class="field"><label>Auf wen?</label><select name="person"><option>Noah</option><option>Freundin</option><option>Auf beide</option></select></div><div class="field"><label>Betrag pro Jahr</label><input name="amount" type="number" step="0.01"></div></div>`}
+  insurance:{kicker:'Versicherung',title:'Vertrag ergänzen',help:'Wir speichern Fakten, versprechen aber keine steuerliche Wirkung.',fields:`<div class="field-grid"><div class="field full"><label>Welche Versicherung?</label><input name="title" required></div><div class="field"><label>Auf wen?</label><select name="person"><option>Noah</option><option>Charlene</option><option>Auf beide</option></select></div><div class="field"><label>Betrag pro Jahr</label><input name="amount" type="number" step="0.01"></div></div>`}
 };
 let activeEntry='task';
 function bindOpenButtons(){$$('[data-open]').forEach(b=>{if(b.dataset.bound)return;b.dataset.bound='1';b.addEventListener('click',e=>{e.stopPropagation();openEntry(b.dataset.open)})})}
@@ -177,11 +179,11 @@ const details={
   settings:['Einstellungen','<p>Hier kommen später eure Zugänge, Datensicherung, persönliche Ansicht und die Auswahl der Erinnerungen hinein.</p>'],
   financeTogether:['Gemeinsame Finanzen','<p>Miete, Haushaltskosten und gemeinsame Verträge. Bei Steuerthemen wird zusätzlich gespeichert, wer tatsächlich bezahlt hat.</p>'],
   financeNoah:['Noahs Bereich','<p>Persönliche Ausgaben und Einnahmen bleiben Noah zugeordnet.</p>'],
-  financePartner:['Bereich der Freundin','<p>Persönliche Ausgaben, Studium und Minijob bleiben der richtigen Person zugeordnet.</p>'],
+  financePartner:['Charlenes Bereich','<p>Persönliche Ausgaben, Studium und Minijob bleiben der richtigen Person zugeordnet.</p>'],
   docsNoah:['Noahs Dokumente','<p>Lohnabrechnungen, Jahresbescheinigungen und Unterlagen zum Nebengewerbe.</p>'],
-  docsPartner:['Dokumente der Freundin','<p>Lohn, duales Studium, Hochschule und Minijob.</p>'],
+  docsPartner:['Charlenes Dokumente','<p>Lohn, duales Studium, Hochschule und Minijob.</p>'],
   profileNoah:['Profil Noah','<p>Angestellter mit geplantem Montage-Nebengewerbe und eigener Steuererklärung.</p>'],
-  profilePartner:['Profil Freundin','<p>Angestellte im dualen Studium mit Minijob und eigener Steuererklärung.</p>'],
+  profilePartner:['Profil Charlene','<p>Angestellte im dualen Studium mit Minijob und eigener Steuererklärung.</p>'],
   householdProfile:['Euer gemeinsamer Bereich','<p>Kalender, Aufgaben, Einkauf, Wohnung und gemeinsame Kosten.</p>'],
   elsterWhy:['Warum noch nicht direkt senden?','<p>ELSTER muss echte Steuerdaten sicher prüfen und verschlüsseln. Dafür brauchen wir eine offizielle Entwicklerfreigabe und die ELSTER-Komponente ERiC.</p>'],
   elsterData:['Schritt 1: Daten sammeln','<p>Kalender, Ausgaben, Versicherungen, Lohnunterlagen und Nebengewerbe werden getrennt gesammelt.</p>'],
@@ -189,7 +191,7 @@ const details={
   elsterAccount:['Schritt 3: ELSTER verbinden','<p>Ihr erhaltet jeweils einen eigenen kostenlosen ELSTER-Zugang. Zertifikate bleiben bei euch.</p>'],
   elsterSend:['Schritt 4: Prüfen und senden','<p>Vorher seht ihr jede Angabe. Gesendet wird nur nach eurer ausdrücklichen Bestätigung.</p>'],
   elsterNoah:['ELSTER für Noah','<p>Eigene Einkommensteuererklärung und später die Angaben zum Nebengewerbe.</p>'],
-  elsterPartner:['ELSTER für die Freundin','<p>Eigene Einkommensteuererklärung mit Studium und Minijob.</p>']
+  elsterPartner:['ELSTER für Charlene','<p>Eigene Einkommensteuererklärung mit Studium und Minijob.</p>']
 };
 function openDetail(title,body){$('#detailTitle').textContent=title;$('#detailBody').innerHTML=body;$('#detailDialog').showModal()}
 $$('[data-detail]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();const d=details[b.dataset.detail];if(d)openDetail(d[0],d[1])}));
@@ -210,7 +212,7 @@ $$('.month-select').forEach((b,i)=>b.addEventListener('click',()=>{calM+=i===0?-
 $('#calMonthLabel').addEventListener('click',()=>{const n=new Date();calY=n.getFullYear();calM=n.getMonth();renderCalendar()});
 $('#fakeUpload').addEventListener('click',()=>$('#fileInput').click());
 $('#fileInput').addEventListener('change',()=>toast('Dokument ausgewählt – sicherer Upload folgt'));
-$('#exportData').addEventListener('click',()=>{const data={hinweis:'Kontrolldatei. Noch keine ELSTER-Datei.',steuerjahr:2026,personen:['Noah','Freundin'],ausgaben:state.expenses,einnahmen:state.incomes,arbeitstage:state.workdays,versicherungen:state.insurances,aufgaben:state.taxTasks};const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='zuhause-steuer-2026-kontrolle.json';a.click();URL.revokeObjectURL(a.href);toast('Kontroll-Datei geladen')});
+$('#exportData').addEventListener('click',()=>{const data={hinweis:'Kontrolldatei. Noch keine ELSTER-Datei.',steuerjahr:2026,personen:['Noah','Charlene'],ausgaben:state.expenses,einnahmen:state.incomes,arbeitstage:state.workdays,versicherungen:state.insurances,aufgaben:state.taxTasks};const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='zuhause-steuer-2026-kontrolle.json';a.click();URL.revokeObjectURL(a.href);toast('Kontroll-Datei geladen')});
 function renderAll(){renderTimeline();renderTasks();renderShopping();renderCalendar();renderExpenses();renderTaxTasks();const income=state.incomes.reduce((s,i)=>s+Number(i.amount),0);$('#incomeTotal').textContent=money(income);$('#profitTotal').textContent=money(income-462.30)}
 setGreeting();bindOpenButtons();renderAll();renderInsurance();
 if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
