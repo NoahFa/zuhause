@@ -517,6 +517,15 @@
       .on('postgres_changes', { event: '*', schema: 'public', table: 'event_participants', filter: `household_id=eq.${state.household.id}` }, refresh)
       .subscribe();
   }
+  let lastRefresh = 0;
+  async function refresh(force = false) {
+    if (!state.normalized || !state.client || !state.household || !navigator.onLine) return;
+    if (!force && Date.now() - lastRefresh < 45000) return;
+    lastRefresh = Date.now();
+    if (state.realtime && state.realtime.state !== 'joined') { try { state.client.removeChannel(state.realtime); } catch {} state.realtime = null; }
+    subscribeRealtime();
+    try { await flushQueue(); await loadCloudData(); } catch {}
+  }
   function disconnect() {
     if (state.realtime && state.client) state.client.removeChannel(state.realtime); state.realtime = null; state.client = null; state.household = null; state.user = null; state.normalized = false;
   }
@@ -711,5 +720,5 @@
     window.addEventListener('online', flushQueue); document.addEventListener('keydown', event => { if (!qs('#calendar')?.classList.contains('active') || event.target.matches('input,textarea,select')) return; if (event.key === 'ArrowLeft') navigate(-1); if (event.key === 'ArrowRight') navigate(1); });
   }
 
-  window.ZuhauseCalendar = { importIcs, openImport, openBirthday, bootstrap, connect, disconnect, render, setAutomaticEvents, setLegacyAppointments, openCreate, selectDate, renderHomeTimeline, occurrencesInRange };
+  window.ZuhauseCalendar = { refresh, importIcs, openImport, openBirthday, bootstrap, connect, disconnect, render, setAutomaticEvents, setLegacyAppointments, openCreate, selectDate, renderHomeTimeline, occurrencesInRange };
 })();
