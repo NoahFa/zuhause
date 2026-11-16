@@ -24,3 +24,4 @@
 .shopping-clear{margin-top:12px}
 .check-row.shopping-feature{grid-template-columns:24px minmax(0,1fr) auto auto;gap:6px 9px}.check-row.shopping-feature>span:nth-of-type(2) strong,.check-row.shopping-feature>span:nth-of-type(2) small{display:block}
 .calendar-readonly-detail a,.calendar-readonly-detail>button{display:flex;margin:8px 0}.calendar-readonly-detail>button{min-height:48px;padding:0 18px;align-items:center}
+.switch-household{display:grid;gap:8px;margin:14px 0;padding:14px;border:1px dashed #cfd7c9;border-radius:14px;background:#fbfcf8}.switch-household span{color:#72786e;font-size:14px;line-height:1.5}.switch-household input{min-height:48px;border:1px solid #d5dbd0;border-radius:12px;padding:0 12px;font:inherit;font-size:16px;letter-spacing:.06em;text-transform:uppercase}.switch-household button{min-height:48px}.household-banner .text-button{justify-self:start;text-align:left;padding:4px 0}

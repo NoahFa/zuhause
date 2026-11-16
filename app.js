@@ -73,6 +73,7 @@ function friendlyError(message=''){
   if(/Email not confirmed/i.test(message))return 'Bitte zuerst den Link in der Bestätigungs-E-Mail öffnen.';
   if(/User already registered/i.test(message))return 'Für diese E-Mail-Adresse gibt es schon einen Zugang.';
   if(/Password should be/i.test(message))return 'Das Passwort braucht mindestens 6 Zeichen.';
+  if(/should be different/i.test(message))return 'Das neue Passwort muss sich vom alten unterscheiden.';
   return 'Das hat gerade nicht geklappt. Bitte noch einmal versuchen.';
 }
 function mergedState(data){
@@ -96,11 +97,11 @@ function updateStorageExplanation(){
   let banner=$('#householdAloneBanner');
   if(householdMembers.length<2){
     if(!banner){banner=document.createElement('div');banner.id='householdAloneBanner';banner.className='household-banner';$('#today')?.prepend(banner)}
-    banner.innerHTML=`<strong>Ihr seid noch nicht verbunden.</strong><span>In diesem Zuhause ist bisher nur ${escapeHtml(householdMembers[0]?.display_name||'eine Person')}. Darum erscheinen Einträge nicht auf dem anderen Handy.</span><span>Einladungscode für die zweite Person: <b>${escapeHtml(currentHousehold.join_code)}</b></span>`;
+    banner.innerHTML=`<strong>Ihr seid noch nicht verbunden.</strong><span>In diesem Zuhause ist bisher nur ${escapeHtml(householdMembers[0]?.display_name||'eine Person')}. Darum erscheinen Einträge nicht auf dem anderen Handy.</span><span>Einladungscode für die zweite Person: <b>${escapeHtml(currentHousehold.join_code)}</b></span><button type="button" class="text-button" data-open-switch>Du willst stattdessen in ein anderes Zuhause wechseln? →</button>`;
   }else banner?.remove();
-  details.storage=['Sicher zwischen euren Geräten verbunden',`<p><strong>${escapeHtml(currentHousehold.name)}</strong> wird geschützt bei Supabase gespeichert.</p><p>Einladungscode für die zweite Person: <strong class="invite-code">${escapeHtml(currentHousehold.join_code)}</strong></p><p>Mitglieder in diesem Zuhause: <strong>${escapeHtml(householdMembers.map(member=>member.display_name||'Ohne Namen').join(', ')||'–')}</strong></p>${householdMembers.length<2?'<p class="household-alone">Bisher ist nur eine Person in diesem Zuhause. Die zweite Person muss sich mit dem Einladungscode oben verbinden, sonst seht ihr nicht dieselben Daten.</p>':''}<p>Nur angemeldete Mitglieder dieses Zuhauses können die Daten und Belege öffnen.</p><div class="detail-actions"><button class="secondary" type="button" data-sign-out>Abmelden</button></div>`];
+  details.storage=['Sicher zwischen euren Geräten verbunden',`<p><strong>${escapeHtml(currentHousehold.name)}</strong> wird geschützt bei Supabase gespeichert.</p><p>Einladungscode für die zweite Person: <strong class="invite-code">${escapeHtml(currentHousehold.join_code)}</strong></p><p>Mitglieder in diesem Zuhause: <strong>${escapeHtml(householdMembers.map(member=>member.display_name||'Ohne Namen').join(', ')||'–')}</strong></p>${householdMembers.length<2?'<p class="household-alone">Bisher ist nur eine Person in diesem Zuhause. Die zweite Person muss sich mit dem Einladungscode oben verbinden, sonst seht ihr nicht dieselben Daten.</p><div id="switchHouseholdForm" class="switch-household"><strong>Oder: Du willst in ein anderes Zuhause wechseln?</strong><span>Gib den Einladungscode der anderen Person ein. Dein bisheriges Zuhause bleibt gespeichert, du siehst es danach aber nicht mehr.</span><input name="code" required maxlength="20" autocomplete="off" autocapitalize="characters" placeholder="Einladungscode" aria-label="Einladungscode"><button class="secondary" type="button" data-switch-household>Zuhause wechseln</button><small id="switchHouseholdMessage"></small></div>':''}<p>Nur angemeldete Mitglieder dieses Zuhauses können die Daten und Belege öffnen.</p><div class="detail-actions"><button class="secondary" type="button" data-sign-out>Abmelden</button></div>`];
 }
-let connectionRetry=null,connectionAttempts=0;
+let connectionRetry=null,connectionAttempts=0,passwordRecovery=/type=recovery/.test(location.hash)||new URLSearchParams(location.search).get('type')==='recovery';
 function connectionProblem(){
   showAuthPanel('authOffline');setSyncStatus('Keine Verbindung','error');
   clearTimeout(connectionRetry);const wait=Math.min(30000,2000*2**connectionAttempts++);
@@ -112,6 +113,7 @@ async function resumeSession(){
   try{
     const result=await cloud.auth.getSession();clearTimeout(slow);
     const {data:{session},error}=result;
+    if(session&&passwordRecovery){currentUser=session.user;showAuthPanel('authNewPassword');setSyncStatus('Neues Passwort festlegen','');return}
     if(session){currentUser=session.user;await loadHousehold();return}
     if(error&&/fetch|network|timeout|load failed/i.test(String(error.message||error.name||'')))return connectionProblem();
     if(error&&error.name==='AuthRetryableFetchError')return connectionProblem();
@@ -186,7 +188,8 @@ async function startCloud(){
   await resumeSession();
   cloud.auth.onAuthStateChange((event,sessionNow)=>{
     if(event==='SIGNED_OUT'){window.ZuhauseCalendar?.disconnect();const prefix=currentUser&&currentHousehold?`zuhause-v2:${currentUser.id}:${currentHousehold.id}:`:'';if(prefix)Object.keys(localStorage).filter(key=>key.startsWith(prefix)).forEach(key=>localStorage.removeItem(key));localStorage.removeItem('zuhause-v1');state=structuredClone(seed);currentUser=null;currentHousehold=null;householdMembers=[];cloudReady=false;localDirty=false;showAuthPanel('authLogin');setSyncStatus('Bitte anmelden','')}
-    if(sessionNow&&sessionNow.user.id!==currentUser?.id){currentUser=sessionNow.user;setTimeout(loadHousehold,0)}
+    if(event==='PASSWORD_RECOVERY'){passwordRecovery=true;currentUser=sessionNow?.user||currentUser;showAuthPanel('authNewPassword');return}
+    if(sessionNow&&sessionNow.user.id!==currentUser?.id){currentUser=sessionNow.user;if(!passwordRecovery)setTimeout(loadHousehold,0)}
   });
 }
 function toast(message='Gespeichert'){const el=$('#toast');el.textContent=message;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2100)}
@@ -425,7 +428,32 @@ async function openDocument(path){
   const link=document.createElement('a');link.href=data.signedUrl;link.target='_blank';link.rel='noopener';link.click();
 }
 $('#retryConnection').addEventListener('click',()=>{connectionAttempts=0;showAuthPanel('authLoading');resumeSession()});
+document.addEventListener('click',e=>{if(e.target.closest('[data-open-switch]')&&details.storage)openDetail(details.storage[0],details.storage[1])});
+document.addEventListener('click',async e=>{
+  if(!e.target.closest('[data-switch-household]'))return;e.preventDefault();
+  const form=e.target.closest('#switchHouseholdForm'),code=form.querySelector('[name=code]').value.trim(),message=form.querySelector('#switchHouseholdMessage'),button=form.querySelector('button');
+  if(!code)return;if(!confirm('Wirklich in das andere Zuhause wechseln? Dein bisheriges Zuhause bleibt gespeichert, du siehst es danach aber nicht mehr.'))return;
+  button.disabled=true;message.textContent='Wird gewechselt …';
+  const {error}=await cloud.rpc('switch_household',{invite_code:code,member_name:currentMemberName||null});button.disabled=false;
+  if(error){message.textContent=/Einladungscode/i.test(error.message)?'Der Einladungscode stimmt nicht. Bitte noch einmal prüfen.':/bereits/i.test(error.message)?'Du bist schon in diesem Zuhause.':/noch jemand/i.test(error.message)?'Wechseln geht nicht, weil in deinem jetzigen Zuhause noch jemand ist.':friendlyError(error.message);return}
+  message.textContent='Geschafft! Die App lädt neu …';setTimeout(()=>location.reload(),800);
+});
 $('#showRegister').addEventListener('click',()=>showAuthPanel('authRegister'));
+$('#showReset').addEventListener('click',()=>{const email=$('#loginForm').elements.email.value;showAuthPanel('authReset');if(email)$('#resetForm').elements.email.value=email;$('#resetMessage').textContent=''});
+document.querySelectorAll('[data-show-login]').forEach(button=>button.addEventListener('click',()=>showAuthPanel('authLogin')));
+$('#resetForm').addEventListener('submit',async e=>{
+  e.preventDefault();const form=e.currentTarget,button=form.querySelector('button'),email=form.elements.email.value.trim();button.disabled=true;$('#resetMessage').textContent='Wird gesendet …';
+  const {error}=await cloud.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname});button.disabled=false;
+  $('#resetMessage').textContent=error?(/rate|limit|seconds/i.test(error.message)?'Gerade wurden zu viele E-Mails verschickt. Bitte in einer Stunde noch einmal versuchen.':friendlyError(error.message)):'Geschafft! Schau in dein Postfach (auch im Spam-Ordner). Die E-Mail heißt „Reset your password“ – tippe dort auf den Link.';
+});
+$('#newPasswordForm').addEventListener('submit',async e=>{
+  e.preventDefault();const form=e.currentTarget,button=form.querySelector('button');
+  if(form.elements.password.value!==form.elements.repeat.value){$('#newPasswordMessage').textContent='Die beiden Passwörter stimmen nicht überein.';return}
+  button.disabled=true;$('#newPasswordMessage').textContent='Wird gespeichert …';
+  const {error}=await cloud.auth.updateUser({password:form.elements.password.value});button.disabled=false;
+  if(error){$('#newPasswordMessage').textContent=friendlyError(error.message);return}
+  passwordRecovery=false;history.replaceState(null,'',location.pathname);form.reset();toast('Neues Passwort gespeichert');await loadHousehold();
+});
 $('#showLogin').addEventListener('click',()=>showAuthPanel('authLogin'));
 $('#loginForm').addEventListener('submit',async e=>{
   e.preventDefault();const form=e.currentTarget,data=Object.fromEntries(new FormData(form));const button=form.querySelector('button');button.disabled=true;button.textContent='Wird angemeldet …';$('#loginMessage').textContent='';

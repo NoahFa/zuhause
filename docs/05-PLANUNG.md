@@ -21,6 +21,7 @@ Stand: 16. November 2026. Ergänzt `02-UMSETZUNGSSTAND.md`. Noah hat freigegeben
 | 22 | Montage ↔ Kalender: Aufträge erscheinen als ganztägige Einträge in Noahs Kalender (🔧, abgeschlossen ✓; nur lesen, „Auftrag öffnen“ springt in den Auftrag). Neues Feld Adresse mit „Route öffnen“ (Apple Karten) im Auftrag und im Kalender. Montage des Tages in Noahs Morgen-Nachricht. |
 | 23 | Putzplan: Bei wiederkehrenden Aufgaben gibt es „Abwechselnd Noah und Charleen“ (`task.alternate`); jede neue Runde ist die andere Person dran, Anzeige „⇄ abwechselnd“. |
 | 24 | Charleens Bereich nach ihren Wünschen (`charleen.js`, Daten in `state.charleen`), Reiter: **Studium** (Module mit Prüfungsleistungen und Datum, Stand, Note; Module aus dem Hochschulkalender übernehmen; Prüfungen in Charleens Kalender, „Demnächst“ und Morgen-Nachricht am Tag selbst, am Vortag und eine Woche vorher), **Nebenjob** (Ein-/Ausstempeln, Schichten nachtragen, Pause, Stundenlohn, Trinkgeld, Tagessumme, Monats- und Jahresübersicht, Nachtschichten), **Caritas** (Horizont BeWo To-dos mit Datum), **Sparziele** (Ziel, Einzahlen/Entnehmen, Fortschritt, nötiger Betrag pro Monat), **Notizen** (bisherige Einträge). |
+| 25 | „Passwort vergessen“ (Link per E-Mail, danach „Neues Passwort festlegen“ in der App). „Zuhause wechseln“ per Einladungscode im Verbindungsfenster – nur möglich, wenn man im bisherigen Zuhause allein ist (Datenbankfunktion `switch_household`, `supabase/migrations-claude/2026-11-16-zuhause-wechseln.sql`). |
 
 ## Offen / in Klärung
 
@@ -34,6 +35,8 @@ Claude hat über einen Supabase-Zugangsschlüssel von Noah (Access Token „Clau
 - **Morgen-Nachricht:** neue Edge Function `send-morning-summary`, Cron `zuhause-morgen` um 03:02 und 04:02 UTC; gesendet wird nur, wenn es in Berlin 5 Uhr ist (auf Wunsch von Noah, vorher 7 Uhr). Inhalt je Person: Termine (gemeinsam + eigene), Geburtstage mit Alter, Hochschule, Fußball, Müllabholung, fällige/überfällige Aufgaben. Nichts los → keine Nachricht. Doppelversand verhindert über `notification_deliveries` (`morning:<Datum>`). Probelauf ohne Versand: `?dry=1&date=JJJJ-MM-TT`.
 - **Termin-Erinnerungen** (`send-event-reminders`) sauber neu bereitgestellt: auf dem Server war die Datei mit einer Supabase-Beispielvorlage vermischt; zusätzlich Erinnerung für Geburtstage am 29. Februar in Nicht-Schaltjahren.
 - Push-Geräte: Stand heute nur Noahs iPhone registriert; Charleen muss Mitteilungen in der App einmal erlauben.
+- **Anmelde-Mails** (16.11.2026): Supabase leitete Links noch auf die alte Adresse `zuhause-familienapp.pages.dev` (dort läuft eine veraltete Version 6). `site_url` jetzt `https://noahfa.github.io/zuhause/`, die alte Adresse bleibt erlaubt. Mail-Texte bleiben englisch (im kostenlosen Tarif ohne eigenen Mailserver nicht änderbar).
+- **Dokumentrechte geprüft** (16.11.2026): Es gibt derzeit keine Dokumente und keine Dateien im Speicher; neue Uploads landen unter `<Haushalt>/shared/…` und sind für beide lesbar. Kein Handlungsbedarf.
 
 ## Erledigt außerhalb des Codes
 
