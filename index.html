@@ -23,6 +23,7 @@
     <div class="auth-card">
       <div class="auth-brand"><span class="brand-mark" aria-label="Zwei Haushaltsmitglieder"><i>1</i><i>2</i></span><span><strong>Zuhause</strong><small>euer gemeinsamer Alltag</small></span></div>
       <section id="authLoading" class="auth-panel"><span class="auth-spinner"></span><h1>Euer Zuhause wird geöffnet …</h1><p>Einen kleinen Moment bitte.</p></section>
+      <section id="authOffline" class="auth-panel" hidden><span class="auth-spinner"></span><h1>Verbindung wird hergestellt …</h1><p>Du bleibst angemeldet. Sobald das Internet wieder da ist, öffnet sich euer Zuhause von selbst.</p><button class="primary" id="retryConnection" type="button">Jetzt erneut versuchen</button></section>
       <section id="authLogin" class="auth-panel" hidden>
         <p class="eyebrow">Sicher auf allen Geräten</p><h1>Schön, dass ihr da seid.</h1><p>Meldet euch mit eurer E-Mail-Adresse an. Jeder von euch bekommt einen eigenen Zugang zum selben Zuhause.</p>
         <form id="loginForm" class="auth-form"><label>E-Mail-Adresse<input name="email" type="email" autocomplete="email" required></label><label>Passwort<input name="password" type="password" autocomplete="current-password" minlength="6" required></label><button class="primary" type="submit">Anmelden</button></form>

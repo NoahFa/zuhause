@@ -95,24 +95,45 @@ function updateStorageExplanation(){
   if(!currentHousehold)return;
   details.storage=['Sicher zwischen euren Geräten verbunden',`<p><strong>${escapeHtml(currentHousehold.name)}</strong> wird geschützt bei Supabase gespeichert.</p><p>Einladungscode für die zweite Person: <strong class="invite-code">${escapeHtml(currentHousehold.join_code)}</strong></p><p>Nur angemeldete Mitglieder dieses Zuhauses können die Daten und Belege öffnen.</p><div class="detail-actions"><button class="secondary" type="button" data-sign-out>Abmelden</button></div>`];
 }
+let connectionRetry=null,connectionAttempts=0;
+function connectionProblem(){
+  showAuthPanel('authOffline');setSyncStatus('Keine Verbindung','error');
+  clearTimeout(connectionRetry);const wait=Math.min(30000,2000*2**connectionAttempts++);
+  connectionRetry=setTimeout(resumeSession,wait);
+}
+async function resumeSession(){
+  clearTimeout(connectionRetry);if(!cloud)return;
+  const slow=setTimeout(()=>{if(!$('#authLoading').hidden){showAuthPanel('authOffline');setSyncStatus('Keine Verbindung','error')}},6000);
+  try{
+    const result=await cloud.auth.getSession();clearTimeout(slow);
+    const {data:{session},error}=result;
+    if(session){currentUser=session.user;await loadHousehold();return}
+    if(error&&/fetch|network|timeout|load failed/i.test(String(error.message||error.name||'')))return connectionProblem();
+    if(error&&error.name==='AuthRetryableFetchError')return connectionProblem();
+    showAuthPanel('authLogin');setSyncStatus('Bitte anmelden','');
+  }catch{clearTimeout(slow);connectionProblem()}
+}
 async function loadHousehold(){
+  try{return await loadHouseholdOnce()}catch{return connectionProblem()}
+}
+async function loadHouseholdOnce(){
   showAuthPanel('authLoading');setSyncStatus('Verbindung wird geprüft','syncing');
   const {data:member,error:memberError}=await cloud.from('household_members').select('household_id,display_name,role').eq('user_id',currentUser.id).maybeSingle();
-  if(memberError){showAuthPanel('authLogin');$('#loginMessage').textContent='Euer Zuhause konnte gerade nicht geladen werden.';return}
+  if(memberError){return connectionProblem()}
   if(!member){cloudReady=false;showAuthPanel('householdSetup');return}
   const {data:household,error:householdError}=await cloud.from('households').select('id,name,join_code').eq('id',member.household_id).single();
-  if(householdError){showAuthPanel('authLogin');$('#loginMessage').textContent='Euer Zuhause konnte gerade nicht geladen werden.';return}
+  if(householdError){return connectionProblem()}
   currentHousehold=household;currentMemberName=member.display_name||'';
   const {data:members}=await cloud.from('household_members').select('user_id,display_name,role').eq('household_id',household.id);
   householdMembers=members||[];updatePersonNames(householdMembers);
   const {data:row,error:stateError}=await cloud.from('app_state').select('data,updated_at,revision').eq('household_id',household.id).single();
-  if(stateError){showAuthPanel('authLogin');$('#loginMessage').textContent='Die gemeinsamen Daten konnten gerade nicht geladen werden.';return}
+  if(stateError){return connectionProblem()}
   const scoped=readJson(scopedStorageKey()),dirty=localStorage.getItem(scopedStorageKey('dirty'))==='1',storedBase=readJson(scopedStorageKey('base'));
   lastSyncedState=mergedState(row.data);state=dirty&&scoped?mergeStates(row.data,scoped,storedBase||lastSyncedState):structuredClone(lastSyncedState);localDirty=dirty;localChangeVersion=dirty?1:0;storeScopedState();lastCloudUpdate=row.updated_at;cloudRevision=Number(row.revision||0);
   cloudReady=true;updateStorageExplanation();await loadAutomaticContent();
   await window.ZuhauseCalendar?.connect({cloud,household,user:currentUser,members:members||[],legacyAppointments:state.appointments,automaticEvents,callbacks:{toast,go,detail:openDetail,remindersSelected:notificationHelp}});
   renderAll();renderInsurance();await loadDocuments();
-  $('#authScreen').hidden=true;setSyncStatus('Sicher gespeichert','connected');
+  connectionAttempts=0;clearTimeout(connectionRetry);$('#authScreen').hidden=true;setSyncStatus('Sicher gespeichert','connected');
   if(dirty||!row.data||!Object.keys(row.data).length){setDirty(true);await saveCloudState()}
 }
 async function refreshCloudState(){
@@ -126,8 +147,8 @@ async function refreshCloudState(){
 }
 async function startCloud(){
   if(!cloud){showAuthPanel('authLogin');$('#loginMessage').textContent='Die sichere Verbindung konnte nicht geladen werden. Bitte die Seite neu öffnen.';return}
-  const {data:{session}}=await cloud.auth.getSession();
-  if(session){currentUser=session.user;await loadHousehold()}else{showAuthPanel('authLogin');setSyncStatus('Bitte anmelden','')}
+  navigator.storage?.persist?.().catch(()=>{});
+  await resumeSession();
   cloud.auth.onAuthStateChange((event,sessionNow)=>{
     if(event==='SIGNED_OUT'){window.ZuhauseCalendar?.disconnect();const prefix=currentUser&&currentHousehold?`zuhause-v2:${currentUser.id}:${currentHousehold.id}:`:'';if(prefix)Object.keys(localStorage).filter(key=>key.startsWith(prefix)).forEach(key=>localStorage.removeItem(key));localStorage.removeItem('zuhause-v1');state=structuredClone(seed);currentUser=null;currentHousehold=null;householdMembers=[];cloudReady=false;localDirty=false;showAuthPanel('authLogin');setSyncStatus('Bitte anmelden','')}
     if(sessionNow&&sessionNow.user.id!==currentUser?.id){currentUser=sessionNow.user;setTimeout(loadHousehold,0)}
@@ -368,6 +389,7 @@ async function openDocument(path){
   if(error||!data?.signedUrl){toast('Datei konnte gerade nicht geöffnet werden');return}
   const link=document.createElement('a');link.href=data.signedUrl;link.target='_blank';link.rel='noopener';link.click();
 }
+$('#retryConnection').addEventListener('click',()=>{connectionAttempts=0;showAuthPanel('authLoading');resumeSession()});
 $('#showRegister').addEventListener('click',()=>showAuthPanel('authRegister'));
 $('#showLogin').addEventListener('click',()=>showAuthPanel('authLogin'));
 $('#loginForm').addEventListener('submit',async e=>{
@@ -404,6 +426,6 @@ function renderAll(){
 window.ZuhauseCalendar?.bootstrap({legacyAppointments:state.appointments,automaticEvents,callbacks:{toast,go,detail:openDetail,remindersSelected:notificationHelp}});
 setGreeting();bindOpenButtons();renderAll();renderInsurance();
 const localCalendarPreview=['127.0.0.1','localhost'].includes(location.hostname)&&new URLSearchParams(location.search).get('preview')==='calendar';
-if(localCalendarPreview){$('#authScreen').hidden=true;go('calendar')}else{startCloud();setInterval(refreshCloudState,15000);window.addEventListener('focus',refreshCloudState);window.addEventListener('online',()=>{setSyncStatus('Verbindung wieder da','syncing');saveCloudState()})}
+if(localCalendarPreview){$('#authScreen').hidden=true;go('calendar')}else{startCloud();setInterval(refreshCloudState,15000);window.addEventListener('focus',refreshCloudState);window.addEventListener('online',()=>{if(!$('#authOffline').hidden){connectionAttempts=0;resumeSession();return}setSyncStatus('Verbindung wieder da','syncing');saveCloudState()})}
 if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 const requestParams=new URLSearchParams(location.search),requestedDate=requestParams.get('date'),requestedPage=requestParams.get('page');if(/^\d{4}-\d{2}-\d{2}$/.test(requestedDate||''))window.ZuhauseCalendar?.selectDate(requestedDate);if(requestedPage&&document.getElementById(requestedPage))go(requestedPage);
