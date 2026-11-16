@@ -17,6 +17,7 @@ Stand: 16. November 2026. Ergänzt `02-UMSETZUNGSSTAND.md`. Noah hat freigegeben
 | 18 | Hochschul-Kalender automatisch in Charleens Kalender (lila, mit Endzeit) und Morgen-Nachricht um 7 Uhr – siehe „Server“ unten. |
 | 19 | Kalender springt beim Eintragen/Ändern nicht mehr einen Monat zurück: Wischen zum Blättern zählt nur noch, wenn der Finger auf dem Kalender aufsetzt und waagerecht wischt (vorher löste auf dem iPhone das Loslassen nach „Speichern“ ein Zurückblättern aus). |
 | 20 | Lou-Bereich (`lou.js`, Seite über Haushalt und Mehr): nächster Tierarzttermin aus dem Kalender (Titel mit „Tierarzt“, „Lou“ oder 🐾), regelmäßige Pflege mit „Erledigt“ und automatisch berechneter nächster Fälligkeit, Vorschläge (Wurmkur, Floh-/Zeckenschutz, Impfung, Futter, Krallen), Steckbrief mit Tierarzt-Telefon, Futter auf die Einkaufsliste, Lous Dokumente. Fällige Pflege erscheint unter „Demnächst wichtig“ und in der Morgen-Nachricht. Daten in `state.lou`. |
+| 21 | Einkaufsliste: Eingabefeld direkt über der Liste, „Oft gekauft“ zum Antippen (Verlauf in `state.shoppingHistory`), ✎ zum Ändern von Artikel/Menge/Bereich (auf Wunsch dauerhaft gemerkt über `customCategories.shopping`), keine Doppelten, „Eingekaufte entfernen“, Abgleich alle 5 Sekunden solange die Haushaltsseite offen ist. |
 
 ## Offen / in Klärung
 
@@ -38,10 +39,9 @@ Claude hat über einen Supabase-Zugangsschlüssel von Noah (Access Token „Clau
 
 ## Geplant (Reihenfolge nach Nutzen)
 
-1. **Einkaufsliste**: häufig gekaufte Artikel mit einem Tipp, Artikel nachträglich bearbeiten, schnellerer Abgleich beim gemeinsamen Einkaufen.
-2. **Montage ↔ Kalender**: vorbereiteter Auftrag erscheint am Montagetag im Kalender, optional mit Kundenadresse und Route.
-3. **Putzplan mit Wechsel** zwischen Noah und Charleen.
-4. Charleens Bereich erst nach Rücksprache mit ihr ausbauen.
+1. **Montage ↔ Kalender**: vorbereiteter Auftrag erscheint am Montagetag im Kalender, optional mit Kundenadresse und Route.
+2. **Putzplan mit Wechsel** zwischen Noah und Charleen.
+3. Charleens Bereich erst nach Rücksprache mit ihr ausbauen.
 
 ## Bewusst verworfen
 

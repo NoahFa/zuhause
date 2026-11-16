@@ -165,8 +165,12 @@ async function removeSampleDataOnce(){
     if(!localDirty){toast('Beispieldaten entfernt');setTimeout(()=>location.reload(),900)}
   }catch{}
 }
+let lastStateRefresh=0;
 async function refreshCloudState(force){
   if(!cloudReady||!currentHousehold||document.hidden)return;
+  // Auf der Haushaltsseite (Einkaufsliste) alle 5 Sekunden abgleichen, sonst alle 15 Sekunden.
+  if(!force&&!$('#household.active')&&Date.now()-lastStateRefresh<14000)return;
+  lastStateRefresh=Date.now();
   window.ZuhauseCalendar?.refresh(force===true||force?.type!==undefined);
   if(saveInFlight)return;
   await Promise.allSettled([loadDocuments(),loadAutomaticContent()]);
@@ -457,6 +461,6 @@ function renderAll(){
 window.ZuhauseCalendar?.bootstrap({legacyAppointments:state.appointments,automaticEvents,callbacks:{toast,go,detail:openDetail,remindersSelected:notificationHelp}});
 setGreeting();bindOpenButtons();renderAll();renderInsurance();
 const localCalendarPreview=['127.0.0.1','localhost'].includes(location.hostname)&&new URLSearchParams(location.search).get('preview')==='calendar';
-if(localCalendarPreview){$('#authScreen').hidden=true;go('calendar')}else{startCloud();setInterval(refreshCloudState,15000);window.addEventListener('focus',refreshCloudState);document.addEventListener('visibilitychange',()=>{if(!document.hidden){refreshCloudState(true);if(localDirty)saveCloudState()}});window.addEventListener('pageshow',()=>refreshCloudState(true));window.addEventListener('online',()=>{if(!$('#authOffline').hidden){connectionAttempts=0;resumeSession();return}setSyncStatus('Verbindung wieder da','syncing');saveCloudState()})}
+if(localCalendarPreview){$('#authScreen').hidden=true;go('calendar')}else{startCloud();setInterval(refreshCloudState,5000);window.addEventListener('focus',refreshCloudState);document.addEventListener('visibilitychange',()=>{if(!document.hidden){refreshCloudState(true);if(localDirty)saveCloudState()}});window.addEventListener('pageshow',()=>refreshCloudState(true));window.addEventListener('online',()=>{if(!$('#authOffline').hidden){connectionAttempts=0;resumeSession();return}setSyncStatus('Verbindung wieder da','syncing');saveCloudState()})}
 if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 const requestParams=new URLSearchParams(location.search),requestedDate=requestParams.get('date'),requestedPage=requestParams.get('page');if(/^\d{4}-\d{2}-\d{2}$/.test(requestedDate||''))window.ZuhauseCalendar?.selectDate(requestedDate);if(requestedPage&&document.getElementById(requestedPage))go(requestedPage);

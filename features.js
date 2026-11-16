@@ -160,7 +160,7 @@
   }
 
   function shoppingRow(item) {
-    return `<label class="check-row shopping-feature ${item.done ? 'done' : ''}"><input type="checkbox" data-shopping-id="${escapeHtml(item.id)}" ${item.done ? 'checked' : ''}><span class="check-dot"></span><span><strong>${item.quantity ? `${escapeHtml(item.quantity)} ` : ''}${escapeHtml(item.title)}</strong><small>${item.done ? 'eingekauft' : escapeHtml(item.category || 'Sonstiges')}</small></span><button type="button" class="row-delete" data-delete-shopping aria-label="Artikel löschen">×</button></label>`;
+    return `<label class="check-row shopping-feature ${item.done ? 'done' : ''}"><input type="checkbox" data-shopping-id="${escapeHtml(item.id)}" ${item.done ? 'checked' : ''}><span class="check-dot"></span><span><strong>${item.quantity ? `${escapeHtml(item.quantity)} ` : ''}${escapeHtml(item.title)}</strong><small>${item.done ? 'eingekauft' : escapeHtml(item.category || 'Sonstiges')}</small></span><button type="button" class="row-edit" data-edit-shopping="${escapeHtml(item.id)}" aria-label="Artikel ändern">✎</button><button type="button" class="row-delete" data-delete-shopping aria-label="Artikel löschen">×</button></label>`;
   }
 
   function renderShoppingEnhanced() {
@@ -168,7 +168,28 @@
     state.shopping.forEach(item => {
       if (!item.category || !item.quantity) Object.assign(item, parseShoppingItem(item.raw || item.title), { done: !!item.done });
     });
+    if (!state.shoppingHistory || typeof state.shoppingHistory !== 'object') state.shoppingHistory = {};
+    let historyChanged = false;
+    state.shopping.forEach(item => {
+      if (item.counted) return;
+      const key = String(item.title || '').trim().toLowerCase(); if (!key) return;
+      const entry = state.shoppingHistory[key] || { title: item.title, count: 0 };
+      state.shoppingHistory[key] = { ...entry, title: item.title, count: entry.count + 1, last: todayIso(), quantity: item.quantity || '', category: item.category || 'Sonstiges' };
+      item.counted = true; historyChanged = true;
+    });
+    if (historyChanged) persist();
     const open = state.shopping.filter(item => !item.done);
+    const fullCard = document.querySelector('.full-shopping');
+    if (fullCard && !fullCard.querySelector('#shoppingQuickForm')) {
+      fullCard.querySelector('.card-head').insertAdjacentHTML('afterend', '<form id="shoppingQuickForm" class="shopping-quick"><input name="title" placeholder="Was brauchen wir? z. B. 2 × Milch" maxlength="160" autocomplete="off" enterkeyhint="done" aria-label="Artikel hinzufügen"><button class="primary" type="submit">＋</button></form><div id="shoppingFrequent" class="shopping-frequent"></div>');
+      fullCard.insertAdjacentHTML('beforeend', '<button type="button" class="text-button shopping-clear" id="shoppingClearDone" hidden></button>');
+    }
+    const openKeys = new Set(open.map(item => String(item.title || '').trim().toLowerCase()));
+    const frequent = Object.entries(state.shoppingHistory).filter(([key]) => !openKeys.has(key)).sort((a, b) => b[1].count - a[1].count || String(b[1].last).localeCompare(String(a[1].last))).slice(0, 10);
+    const frequentBox = document.querySelector('#shoppingFrequent');
+    if (frequentBox) frequentBox.innerHTML = frequent.length ? `<span>Oft gekauft:</span>${frequent.map(([key, entry]) => `<button type="button" data-shopping-again="${escapeHtml(key)}">＋ ${escapeHtml(entry.title)}</button>`).join('')}` : '';
+    const doneCount = state.shopping.filter(item => item.done).length, clear = document.querySelector('#shoppingClearDone');
+    if (clear) { clear.hidden = !doneCount; clear.textContent = `Eingekaufte entfernen (${doneCount})`; }
     const preview = document.querySelector('#shoppingPreview');
     if (preview) preview.innerHTML = open.slice(0, 4).map(shoppingRow).join('') || '<p>Die Liste ist leer.</p>';
     const full = document.querySelector('#shoppingFull');
@@ -186,6 +207,42 @@
       state.shopping = state.shopping.filter(item => String(item.id) !== id); persist(); renderShoppingEnhanced(); toast('Artikel entfernt');
     }));
   }
+
+  function addShopping(raw, extra = {}) {
+    const parsed = parseShoppingItem(raw); if (!parsed.title) return false;
+    const duplicate = state.shopping.find(item => !item.done && String(item.title).toLowerCase() === parsed.title.toLowerCase());
+    if (duplicate) { toast(`${parsed.title} steht schon auf der Liste`); return false; }
+    state.shopping.unshift({ id: crypto.randomUUID(), raw, title: parsed.title, quantity: extra.quantity ?? parsed.quantity, category: extra.category || parsed.category, done: false, createdAt: new Date().toISOString() });
+    persist(); renderShoppingEnhanced(); return true;
+  }
+  function editShopping(id) {
+    const item = state.shopping.find(entry => String(entry.id) === String(id)); if (!item) return;
+    let dialog = document.querySelector('#shoppingEditDialog');
+    if (!dialog) { dialog = document.createElement('dialog'); dialog.id = 'shoppingEditDialog'; dialog.className = 'calendar-event-dialog'; document.body.append(dialog); }
+    dialog.innerHTML = `<form><div class="dialog-head"><div><span class="kicker">Einkauf</span><h2>Artikel ändern</h2></div><button class="close" type="button" data-close-shopping-edit aria-label="Schließen">×</button></div><div class="ws-dialog-fields"><label class="ws-field"><span>Artikel</span><input name="title" required maxlength="160" value="${escapeHtml(item.title)}"></label><label class="ws-field"><span>Menge</span><input name="quantity" maxlength="40" value="${escapeHtml(item.quantity || '')}" placeholder="z. B. 2 × oder 500 g"></label><label class="ws-field"><span>Bereich im Supermarkt</span><select name="category">${SHOPPING_ORDER.map(category => `<option ${category === (item.category || 'Sonstiges') ? 'selected' : ''}>${category}</option>`).join('')}</select></label><label class="ws-check"><input type="checkbox" name="remember" checked> <span>Diesen Artikel künftig immer hier einsortieren</span></label></div><div class="dialog-actions"><button class="secondary" type="button" data-close-shopping-edit>Abbrechen</button><button class="primary" type="submit">Speichern</button></div></form>`;
+    dialog.querySelectorAll('[data-close-shopping-edit]').forEach(button => { button.onclick = () => dialog.close(); });
+    dialog.querySelector('form').onsubmit = event => {
+      event.preventDefault(); const data = new FormData(event.currentTarget), title = String(data.get('title')).trim(); if (!title) return;
+      const category = String(data.get('category')), changedCategory = category !== item.category;
+      Object.assign(item, { title, quantity: String(data.get('quantity')).trim(), category, raw: title });
+      if (changedCategory && data.get('remember')) { state.customCategories ||= {}; state.customCategories.shopping ||= {}; state.customCategories.shopping[title.toLowerCase()] = category; }
+      const key = title.toLowerCase(); if (state.shoppingHistory?.[key]) Object.assign(state.shoppingHistory[key], { quantity: item.quantity, category });
+      persist(); renderShoppingEnhanced(); dialog.close(); toast('Artikel geändert');
+    };
+    dialog.showModal();
+  }
+  document.addEventListener('submit', event => {
+    if (event.target.id !== 'shoppingQuickForm') return;
+    event.preventDefault(); const input = event.target.elements.title, value = input.value.trim();
+    if (value && addShopping(value)) { input.value = ''; toast('Auf die Liste gesetzt'); }
+    input.focus();
+  });
+  document.addEventListener('click', event => {
+    const again = event.target.closest('[data-shopping-again]'), edit = event.target.closest('[data-edit-shopping]'), clear = event.target.closest('#shoppingClearDone');
+    if (again) { const entry = state.shoppingHistory?.[again.dataset.shoppingAgain]; if (entry && addShopping(entry.title, { quantity: entry.quantity || '', category: entry.category })) toast(`${entry.title} steht auf der Liste`); }
+    if (edit) { event.preventDefault(); editShopping(edit.dataset.editShopping); }
+    if (clear) { const count = state.shopping.filter(item => item.done).length; if (count && confirm(`${count} eingekaufte Artikel von der Liste nehmen?`)) { state.shopping = state.shopping.filter(item => !item.done); persist(); renderShoppingEnhanced(); toast('Liste aufgeräumt'); } }
+  });
 
   function startShoppingVoice() {
     const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
