@@ -26,6 +26,7 @@ Stand: 16. November 2026. Ergänzt `02-UMSETZUNGSSTAND.md`. Noah hat freigegeben
 | 27 | Foto von Lou: großes Bild oben im Lou-Bereich mit „Foto ändern“. Beim Hochladen auf max. 1600 px verkleinert (JPEG), privat im Speicher unter `<Haushalt>/shared/lou/…`, Anzeige über zeitlich begrenzten Link; altes Foto wird beim Austausch gelöscht. Pfad in `state.lou.photoPath`. |
 | 28 | Charleens Reiter „Notizen“ heißt jetzt „✓ Aufgaben“: einfache Liste ohne Kategorien, Datum freiwillig (nicht mehr vorausgefüllt); Karte „Eigene Kategorien“ entfernt (Wunsch Charleen). Vorhandene Einträge bleiben erhalten. |
 | 29 | Charleens Nebenjob: Überstundenkonto. Monatsgrenze (Standard 43 h, je Monat überschreibbar über `job.limitOverrides`), Mehrstunden aufs Konto, fehlende Stunden werden am Monatsende vom Konto aufgefüllt; Auszahlungen/Korrekturen (`job.adjustments`) werden im Monat zuerst verbucht; Verlauf nach Monaten. Charleens Kauler-Hof-Schichten April–November 2026 nachgetragen (April Grenze 21,5 h, da Start am 24.4.; Auszahlung Okt. 32 h / 450 €). |
+| 30 | Noahs Nebenjobs (`noah-jobs.js`, Daten in `state.noahJobs`, Seite `#nebenjob`, Karte auf Noahs Startseite): Aufträge mit Kunde/Adresse/Route und Stand (In Arbeit, Abgerechnet, Bezahlt), Stempeluhr je Auftrag (Ein-/Ausstempeln, Zeiten nachtragen, Pause, Notiz), Material mit Menge, Einheit und Preis, Standard-Stundensatz plus eigener Satz je Auftrag, Abrechnung (Stunden × Satz + Material) und Übersicht (Stunden/Lohn im Monat, noch nicht bezahlt). |
 
 ## Offen / in Klärung
 

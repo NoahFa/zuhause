@@ -69,3 +69,19 @@
 .ch-ledger>div>span:first-child{display:grid;gap:2px}.ch-ledger .head{color:#72786e;font-size:12px;border-top:0}.ch-ledger .pos{color:#536b57;font-weight:700}.ch-ledger .neg{color:#a54d43;font-weight:700}
 .ch-ledger small .row-delete{padding:0 4px;font-size:14px}
 @media(max-width:760px){.ch-ledger{font-size:12.5px}.ch-ledger>div{grid-template-columns:minmax(0,1.3fr) .9fr .9fr .9fr;gap:5px}}
+/* Noahs Nebenjobs */
+.nj-start{margin-top:18px}.nj-start h2{font:500 28px Georgia,serif}
+.nj-running{display:flex;gap:14px;justify-content:space-between;align-items:center;flex-wrap:wrap;padding:18px 20px;margin-bottom:16px;background:#dceafb;border:1px solid #b7d0ef;box-shadow:none}.nj-running>div{display:grid;gap:3px}.nj-running strong{font-size:18px}.nj-running small{color:#3b5878}
+.nj-stats{grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:6px}
+.nj-head-actions{display:flex;gap:10px;flex-wrap:wrap}.nj-head-actions>button{min-height:48px}
+.nj-orders{display:grid;gap:12px}
+.nj-order{display:grid;gap:6px;text-align:left;padding:18px 20px;border:1px solid #e5e4dc;box-shadow:none;font:inherit;color:#20251f;cursor:pointer;background:#fff;width:100%}
+.nj-order-top{display:flex;justify-content:space-between;gap:10px;align-items:center}.nj-order-top strong{font-size:18px}.nj-order-top em{font-style:normal;font-size:12px;font-weight:750;padding:5px 9px;border-radius:8px;background:#e6ebe0;color:#536b57;white-space:nowrap}
+.nj-order.status-invoiced .nj-order-top em{background:#f5ead6;color:#976c2e}.nj-order.status-paid{opacity:.7}.nj-order.status-paid .nj-order-top em{background:#eeefe8;color:#72786e}
+.nj-order small{color:#72786e}.nj-order-sum{display:flex;justify-content:space-between;gap:10px;color:#53604d;font-size:14px}.nj-order-sum b{font-size:17px;color:#20251f}
+.nj-live{color:#1f6fc5;font-weight:750;font-size:13px}
+.nj-clock{margin:4px 0 16px}
+.nj-row{display:flex;gap:10px;align-items:center;padding:10px 0;border-top:1px solid #eeede6}.nj-row>div{flex:1;min-width:0;display:grid;gap:2px}.nj-row small{color:#72786e}.nj-row>b{white-space:nowrap}.nj-row .ws-van-edit{min-height:44px;width:44px;padding:0;font-size:17px}
+.nj-material-form{display:grid;grid-template-columns:minmax(0,2fr) 70px 80px 100px 52px;gap:8px;margin-bottom:10px}.nj-material-form input{min-height:48px;border:1px solid #d5dbd0;border-radius:12px;padding:0 10px;font:inherit;font-size:16px;background:#fff;min-width:0}.nj-material-form button{min-height:48px;font-size:20px;padding:0}
+.nj-bill-lines{display:grid;grid-template-columns:1fr auto;gap:8px 16px;margin-bottom:16px;color:#53604d}.nj-bill-lines .sum{border-top:1px solid #e5e4dc;padding-top:8px;font-size:18px;color:#20251f;font-weight:800}
+@media(max-width:760px){.nj-stats{grid-template-columns:1fr 1fr}.nj-stats .total{grid-column:1/-1}.nj-material-form{grid-template-columns:1fr 1fr 1fr}.nj-material-form input[name=name]{grid-column:1/-1}.nj-material-form button{grid-column:1/-1}.nj-head-actions{width:100%}.nj-head-actions>button{flex:1}}
