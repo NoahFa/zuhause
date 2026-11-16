@@ -111,7 +111,9 @@
     }
     if (recurrence.frequency === 'yearly') {
       const start = dateFromIso(event.startDate), current = dateFromIso(candidate);
-      return (current.getFullYear() - start.getFullYear()) % interval === 0 && current.getMonth() === start.getMonth() && current.getDate() === start.getDate();
+      if ((current.getFullYear() - start.getFullYear()) % interval !== 0 || current.getMonth() !== start.getMonth()) return false;
+      const leapFallback = start.getMonth() === 1 && start.getDate() === 29 && new Date(current.getFullYear(), 1, 29).getMonth() !== 1;
+      return current.getDate() === (leapFallback ? 28 : start.getDate());
     }
     return false;
   }
@@ -129,10 +131,17 @@
         if (exception?.action === 'skip') continue;
         const shown = exception?.replacement || event;
         const duration = Math.max(0, daysBetween(event.startDate, event.endDate));
-        output.push({ ...shown, occurrenceDate, occurrenceEndDate: isoDate(addDays(occurrenceDate, duration)), seriesId: event.recurrence ? event.id : null });
+        output.push({ ...shown, title: birthdayTitle(shown, occurrenceDate), occurrenceDate, occurrenceEndDate: isoDate(addDays(occurrenceDate, duration)), seriesId: event.recurrence ? event.id : null });
       }
     }
     return output.filter(matchesFilters).sort(sortOccurrences);
+  }
+  const BIRTHDAY = '🎂';
+  function isBirthday(event) { return String(event?.title || '').startsWith(BIRTHDAY) && event?.recurrence?.frequency === 'yearly'; }
+  function birthdayTitle(event, occurrenceDate) {
+    if (!isBirthday(event)) return event.title;
+    const age = Number(occurrenceDate.slice(0, 4)) - Number(event.startDate.slice(0, 4));
+    return age >= 1 ? `${event.title} wird ${age}` : event.title;
   }
   function sortOccurrences(a, b) { return `${a.occurrenceDate}${a.allDay ? '00:00' : a.startTime}`.localeCompare(`${b.occurrenceDate}${b.allDay ? '00:00' : b.startTime}`) || a.title.localeCompare(b.title, 'de'); }
   function matchesFilters(event) {
@@ -635,6 +644,29 @@
     }
     onProgress('Kalender wird aktualisiert …'); await loadCloudData(); return summary;
   }
+
+  function openBirthday() {
+    let dialog = qs('#calendarBirthdayDialog');
+    if (!dialog) { dialog = document.createElement('dialog'); dialog.id = 'calendarBirthdayDialog'; dialog.className = 'calendar-event-dialog'; document.body.append(dialog); }
+    const options = ['shared', 'person1', 'person2'].map(key => `<option value="${key}">${escapeHtml(state.calendars[key]?.name || CALENDARS[key].name)}</option>`).join('');
+    dialog.innerHTML = `<form><div class="dialog-head"><div><span class="kicker">Kalender</span><h2>Geburtstag eintragen</h2></div><button class="close" type="button" data-birthday-close aria-label="Schließen">×</button></div><div class="ws-dialog-fields"><p class="ws-help">Der Geburtstag erscheint jedes Jahr automatisch im Kalender.</p><label class="ws-field"><span>Wer hat Geburtstag?</span><input name="name" required maxlength="120" placeholder="z. B. Oma Hilde" autocomplete="off"></label><label class="ws-field"><span>Geburtsdatum</span><input name="date" type="date" required></label><label class="ws-check"><input type="checkbox" name="yearKnown" checked> <span>Das Jahr stimmt – Alter anzeigen</span></label><label class="ws-field"><span>In welchen Kalender?</span><select name="calendarKey">${options}</select></label><fieldset class="ws-check-group"><legend>Meine Erinnerung (um 9 Uhr)</legend><label class="ws-check"><input type="checkbox" name="reminder" value="0"> <span>Am Geburtstag</span></label><label class="ws-check"><input type="checkbox" name="reminder" value="1440" checked> <span>Einen Tag vorher</span></label><label class="ws-check"><input type="checkbox" name="reminder" value="10080"> <span>Eine Woche vorher</span></label></fieldset><p class="auth-message" data-birthday-message aria-live="polite"></p></div><div class="dialog-actions"><button class="secondary" type="button" data-birthday-close>Abbrechen</button><button class="primary" type="submit">Speichern</button></div></form>`;
+    const form = qs('form', dialog), message = qs('[data-birthday-message]', dialog);
+    qsa('[data-birthday-close]', dialog).forEach(button => { button.onclick = () => dialog.close(); });
+    form.onsubmit = async event => {
+      event.preventDefault(); message.textContent = '';
+      const name = form.elements.name.value.trim().replace(/^🎂\s*/, ''), date = form.elements.date.value, calendarKey = form.elements.calendarKey.value;
+      if (!name || !/^\d{4}-\d{2}-\d{2}$/.test(date)) { message.textContent = 'Bitte Name und Datum eintragen.'; return; }
+      const thisYear = new Date().getFullYear();
+      if (form.elements.yearKnown.checked && Number(date.slice(0, 4)) > thisYear) { message.textContent = 'Das Geburtsjahr liegt in der Zukunft.'; return; }
+      let startDate = form.elements.yearKnown.checked ? date : `${thisYear}${date.slice(4)}`;
+      if (startDate.endsWith('-02-29') && !form.elements.yearKnown.checked && new Date(thisYear, 1, 29).getMonth() !== 1) startDate = `2024-02-29`;
+      const reminders = [...form.querySelectorAll('[name="reminder"]:checked')].map(input => Number(input.value));
+      const payload = { id: uuid(), householdId: state.household?.id || null, calendarKey, title: `${BIRTHDAY} ${name}`.slice(0, 160), allDay: true, startDate, endDate: startDate, startTime: '', endTime: '', timezone: 'Europe/Berlin', labelColor: 'gold', location: '', url: '', notes: '', revision: 0, participantKeys: calendarKey === 'shared' ? ['person1', 'person2'] : [calendarKey], reminderMinutes: reminders, recurrence: { frequency: 'yearly', interval: 1, weekdays: [], monthDay: null, endsOn: null } };
+      try { state.editing = null; await saveEvent(payload); dialog.close(); state.callbacks.toast?.('Geburtstag gespeichert'); if (reminders.length) state.callbacks.remindersSelected?.(); }
+      catch (error) { message.textContent = errorText(error); }
+    };
+    dialog.showModal(); form.elements.name.focus();
+  }
   function openImport() {
     let dialog = qs('#calendarImportDialog');
     if (!dialog) { dialog = document.createElement('dialog'); dialog.id = 'calendarImportDialog'; dialog.className = 'calendar-event-dialog'; document.body.append(dialog); }
@@ -663,7 +695,7 @@
   }
   function bindUi() {
     const titleAdd = qs('.calendar-titlebar > [data-calendar-add]');
-    if (titleAdd) { const actions = el('div', 'calendar-title-actions'); titleAdd.replaceWith(actions); const importButton = el('button', 'secondary', 'Importieren'); importButton.type = 'button'; importButton.addEventListener('click', openImport); actions.append(importButton, titleAdd); }
+    if (titleAdd) { const actions = el('div', 'calendar-title-actions'); titleAdd.replaceWith(actions); const importButton = el('button', 'secondary', 'Importieren'); importButton.type = 'button'; importButton.addEventListener('click', openImport); const birthdayButton = el('button', 'secondary', '🎂 Geburtstag'); birthdayButton.type = 'button'; birthdayButton.addEventListener('click', openBirthday); actions.append(importButton, birthdayButton, titleAdd); }
     qs('#previousPeriod')?.addEventListener('click', () => navigate(-1)); qs('#nextPeriod')?.addEventListener('click', () => navigate(1));
     qs('#currentPeriod')?.addEventListener('click', () => { state.selectedDate = isoDate(new Date()); state.cursor = startOfMonth(new Date()); render(); });
     qsa('[data-calendar-view]').forEach(button => button.addEventListener('click', () => { state.view = button.dataset.calendarView; render(); }));
@@ -679,5 +711,5 @@
     window.addEventListener('online', flushQueue); document.addEventListener('keydown', event => { if (!qs('#calendar')?.classList.contains('active') || event.target.matches('input,textarea,select')) return; if (event.key === 'ArrowLeft') navigate(-1); if (event.key === 'ArrowRight') navigate(1); });
   }
 
-  window.ZuhauseCalendar = { importIcs, openImport, bootstrap, connect, disconnect, render, setAutomaticEvents, setLegacyAppointments, openCreate, selectDate, renderHomeTimeline, occurrencesInRange };
+  window.ZuhauseCalendar = { importIcs, openImport, openBirthday, bootstrap, connect, disconnect, render, setAutomaticEvents, setLegacyAppointments, openCreate, selectDate, renderHomeTimeline, occurrencesInRange };
 })();
