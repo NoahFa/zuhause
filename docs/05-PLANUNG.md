@@ -46,6 +46,7 @@ Claude hat über einen Supabase-Zugangsschlüssel von Noah (Access Token „Clau
 ## Geplant (Reihenfolge nach Nutzen)
 
 1. **Foto von Lou im Lou-Bereich** (Wunsch von Noah, 16.11.2026): Lous Seite persönlicher machen – großes Foto oben (Lou sitzt im hohen Gras, Himmel mit Wolken). Umsetzung als Funktion „Foto ändern“ im Lou-Bereich: Bild wird privat im Supabase-Speicher abgelegt (`<Haushalt>/shared/lou/…`, nur für Haushaltsmitglieder, Anzeige über zeitlich begrenzten Link) – **nicht** ins öffentliche Repository. Das Foto lädt Noah dann selbst in der App hoch (oder schickt es beim Umsetzen erneut).
+2. **Kalenderfarben deutlicher** (Wunsch von Noah, 16.11.2026): Personen sind im Kalender schwer zu unterscheiden. Ursachen: die drei Kalenderfarben (Gemeinsam `#536b57`, Noah `#54778e`, Charleen `#a65f52`) sind alle gedämpft und ähnlich dunkel, die Hintergründe der Einträge sehr blass; außerdem überschreibt eine gewählte Farbmarkierung die Personenfarbe (`colorsFor()` in `calendar.js`), und automatische Einträge haben eigene Farben (Müll salbeigrün wie „Gemeinsam“, Hochschule lila, Montage gold). Plan: kräftigere, klar verschiedene Farben je Person (z. B. Gemeinsam grün, Noah blau, Charleen rot/beere), Personenfarbe immer als Hauptfarbe, Farbmarkierung nur noch als kleiner Punkt, automatische Einträge in der Farbe der Person, dazu eine kleine Legende bzw. Initiale im Eintrag. Vor der Umsetzung Farbvorschlag zeigen.
 
 ## Bewusst verworfen
 
