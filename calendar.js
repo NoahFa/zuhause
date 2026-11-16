@@ -2,9 +2,10 @@
   'use strict';
 
   const CALENDARS = {
-    shared: { key: 'shared', name: 'Gemeinsam', color: '#536b57', soft: '#e6ebe0' },
-    person1: { key: 'person1', name: 'Person 1', color: '#54778e', soft: '#e1eaf0' },
-    person2: { key: 'person2', name: 'Person 2', color: '#a65f52', soft: '#f4e3de' },
+    // Kräftige, klar unterscheidbare Personenfarben (Wunsch Noah, 16.11.2026): Gemeinsam grün, Noah blau, Charleen beere.
+    shared: { key: 'shared', name: 'Gemeinsam', color: '#2e7d4f', soft: '#dff0e5' },
+    person1: { key: 'person1', name: 'Person 1', color: '#1f6fc5', soft: '#dceafb' },
+    person2: { key: 'person2', name: 'Person 2', color: '#cc3d6a', soft: '#fbe1ea' },
   };
   const LABELS = {
     sage: { color: '#536b57', soft: '#e6ebe0' }, blue: { color: '#54778e', soft: '#e1eaf0' },
@@ -40,7 +41,8 @@
   function maxDate(a, b) { return a > b ? a : b; }
   function safeUrl(value) { try { const url = new URL(value); return ['http:', 'https:'].includes(url.protocol) ? url.href : ''; } catch { return ''; } }
   function calendarFor(event) { return state.calendars[event.calendarKey] || CALENDARS.shared; }
-  function colorsFor(event) { return event.labelColor && LABELS[event.labelColor] ? LABELS[event.labelColor] : calendarFor(event); }
+  // Die Person bestimmt immer die Farbe; eine Farbmarkierung erscheint nur noch als kleiner Punkt.
+  function colorsFor(event) { const calendar = CALENDARS[event.calendarKey] || CALENDARS.shared; return { ...calendar, label: event.labelColor && LABELS[event.labelColor] ? LABELS[event.labelColor].color : '' }; }
   function displayTime(event) { return event.allDay ? 'Ganztägig' : `${(event.startTime || '00:00').slice(0, 5)} Uhr`; }
   function dateLabel(value, options = { weekday: 'long', day: 'numeric', month: 'long' }) { return new Intl.DateTimeFormat('de-DE', options).format(dateFromIso(value)); }
   function monthLabel(value) { return new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric' }).format(value); }
@@ -223,8 +225,8 @@
   }
   function eventChip(event) {
     const chip = el('span', `event event-${event.calendarKey}${event.allDay ? ' all-day' : ' timed'}${event.status === 'cancelled' ? ' cancelled' : ''}`);
-    const colors = colorsFor(event); chip.style.setProperty('--event-color', colors.color); chip.style.setProperty('--event-soft', colors.soft);
-    chip.textContent = event.allDay ? event.title : `${event.startTime} ${event.title}`; return chip;
+    const colors = colorsFor(event); chip.style.setProperty('--event-color', colors.color); chip.style.setProperty('--event-soft', colors.soft); if (colors.label) { chip.classList.add('has-label'); chip.style.setProperty('--label-color', colors.label); }
+    if (!event.allDay) chip.append(el('span', 'event-time', `${event.startTime} `)); chip.append(document.createTextNode(event.title)); chip.title = event.allDay ? event.title : `${event.startTime} ${event.title}`; return chip;
   }
   function weekEventCard(event) {
     const button = el('button', `week-event event-${event.calendarKey}`); button.type = 'button'; const colors = colorsFor(event);
@@ -484,7 +486,7 @@
     ]);
     if (calendarResult.error) throw calendarResult.error;
     Object.values(CALENDARS).forEach(item => { state.calendars[item.key] = { ...item }; });
-    calendarResult.data.forEach(row => { state.calendars[row.calendar_key] = { key: row.calendar_key, id: row.id, name: row.name, color: row.color, soft: CALENDARS[row.calendar_key]?.soft || '#ecece7' }; });
+    calendarResult.data.forEach(row => { state.calendars[row.calendar_key] = { key: row.calendar_key, id: row.id, name: row.name, color: CALENDARS[row.calendar_key]?.color || row.color, soft: CALENDARS[row.calendar_key]?.soft || '#ecece7' }; });
     state.recurrences.clear(); (recurrenceResult.data || []).forEach(row => state.recurrences.set(row.event_id, { frequency: row.frequency, interval: row.interval_count, weekdays: row.weekdays || [], monthDay: row.month_day, endsOn: row.ends_on, rrule: row.rrule }));
     state.participants.clear(); (participantResult.data || []).forEach(row => { if (!state.participants.has(row.event_id)) state.participants.set(row.event_id, []); const member = state.members.find(item => item.user_id === row.user_id), key = memberKey(member); if (key) state.participants.get(row.event_id).push(key); });
     state.reminders.clear(); (reminderResult.data || []).forEach(row => { if (!state.reminders.has(row.event_id)) state.reminders.set(row.event_id, []); state.reminders.get(row.event_id).push(Number(row.minutes_before)); });
