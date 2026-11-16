@@ -13,3 +13,7 @@
 .ws-check-group{border:0;padding:0;margin:0;display:grid;gap:2px}.ws-check-group legend{font-weight:750;font-size:14px;color:#53604d;margin-bottom:4px}
 @media(max-width:760px){.calendar-titlebar{flex-wrap:wrap}.calendar-title-actions{width:100%}.calendar-title-actions>*{flex:1}}
 .calendar-title-actions>button{white-space:nowrap}@media(max-width:760px){.calendar-title-actions>button{padding:11px 8px;font-size:14px}}
+
+/* Aufräumen 11/2026: Platzhalter und Steuerbereich ausgeblendet (nichts gelöscht, Zeilen entfernen = wieder sichtbar) */
+.tax-shortcut,.more-feature.tax-feature,.more-feature[data-page="people"],.more-feature[data-detail="settings"],.household-module[data-detail="contracts"],.household-module[data-detail="pet"],#calendar>.plain-tip{display:none!important}
+.finance-settings .budget-summary{font:500 24px Georgia,serif;margin:6px 0 12px}.finance-settings:not(.collapsed) .budget-summary,.finance-settings:not(.collapsed) .budget-edit{display:none}.finance-settings.collapsed form,.finance-settings.collapsed [data-close-month]{display:none}.finance-settings .budget-edit{min-height:44px}

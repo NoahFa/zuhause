@@ -1,6 +1,6 @@
-const CACHE='zuhause-v14';
-const WORKSPACE_ASSETS=['./workspaces.css?v=14','./workspaces.js?v=14'];
-const ASSETS=['./','./index.html','./styles.css?v=14','./features.css?v=14','./calendar.js?v=14','./app.js?v=14','./features.js?v=14','./vendor/supabase.min.js?v=2.49.4','./manifest.webmanifest?v=14','./icon.svg?v=14','./apple-touch-icon.png?v=14','./icon-192.png?v=14','./icon-512.png?v=14','./icon-maskable-512.png?v=14'];
+const CACHE='zuhause-v15';
+const WORKSPACE_ASSETS=['./workspaces.css?v=15','./workspaces.js?v=15'];
+const ASSETS=['./','./index.html','./styles.css?v=15','./features.css?v=15','./calendar.js?v=15','./app.js?v=15','./features.js?v=15','./vendor/supabase.min.js?v=2.49.4','./manifest.webmanifest?v=15','./icon.svg?v=15','./apple-touch-icon.png?v=15','./icon-192.png?v=15','./icon-512.png?v=15','./icon-maskable-512.png?v=15'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll([...ASSETS,...WORKSPACE_ASSETS])).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{
@@ -11,7 +11,7 @@ self.addEventListener('fetch',event=>{
 self.addEventListener('push',event=>{
   let data={};try{data=event.data?.json()||{}}catch{data={body:event.data?.text()}}
   const title=data.title||'Zuhause';
-  event.waitUntil(self.registration.showNotification(title,{body:data.body||'Es gibt eine neue Erinnerung.',icon:'./icon-192.png?v=14',badge:'./icon-192.png?v=14',tag:data.tag||'zuhause-erinnerung',data:{url:data.url||'./?page=calendar'},renotify:false}));
+  event.waitUntil(self.registration.showNotification(title,{body:data.body||'Es gibt eine neue Erinnerung.',icon:'./icon-192.png?v=15',badge:'./icon-192.png?v=15',tag:data.tag||'zuhause-erinnerung',data:{url:data.url||'./?page=calendar'},renotify:false}));
 });
 self.addEventListener('notificationclick',event=>{
   event.notification.close();const target=new URL(event.notification.data?.url||'./?page=calendar',self.location.origin).href;
