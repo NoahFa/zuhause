@@ -16,6 +16,7 @@ Stand: 16. November 2026. Ergänzt `02-UMSETZUNGSSTAND.md`. Noah hat freigegeben
 | 17 | Kalender-Abgleich: Termine werden beim Zurückkehren in die App und spätestens alle 45 Sekunden neu geladen; abgerissene Live-Verbindung wird neu aufgebaut. Ursache: iPhone trennt die Live-Verbindung im Hintergrund, Kalender wurde sonst nur beim Neustart geladen. |
 | 18 | Hochschul-Kalender automatisch in Charleens Kalender (lila, mit Endzeit) und Morgen-Nachricht um 7 Uhr – siehe „Server“ unten. |
 | 19 | Kalender springt beim Eintragen/Ändern nicht mehr einen Monat zurück: Wischen zum Blättern zählt nur noch, wenn der Finger auf dem Kalender aufsetzt und waagerecht wischt (vorher löste auf dem iPhone das Loslassen nach „Speichern“ ein Zurückblättern aus). |
+| 20 | Lou-Bereich (`lou.js`, Seite über Haushalt und Mehr): nächster Tierarzttermin aus dem Kalender (Titel mit „Tierarzt“, „Lou“ oder 🐾), regelmäßige Pflege mit „Erledigt“ und automatisch berechneter nächster Fälligkeit, Vorschläge (Wurmkur, Floh-/Zeckenschutz, Impfung, Futter, Krallen), Steckbrief mit Tierarzt-Telefon, Futter auf die Einkaufsliste, Lous Dokumente. Fällige Pflege erscheint unter „Demnächst wichtig“ und in der Morgen-Nachricht. Daten in `state.lou`. |
 
 ## Offen / in Klärung
 
@@ -37,11 +38,10 @@ Claude hat über einen Supabase-Zugangsschlüssel von Noah (Access Token „Clau
 
 ## Geplant (Reihenfolge nach Nutzen)
 
-1. **Lou-Bereich**: wiederkehrende Erinnerungen (Wurmkur, Floh-/Zeckenschutz, Impfung, Futter), nächster Tierarzttermin, Lous Dokumente.
-2. **Einkaufsliste**: häufig gekaufte Artikel mit einem Tipp, Artikel nachträglich bearbeiten, schnellerer Abgleich beim gemeinsamen Einkaufen.
-3. **Montage ↔ Kalender**: vorbereiteter Auftrag erscheint am Montagetag im Kalender, optional mit Kundenadresse und Route.
-4. **Putzplan mit Wechsel** zwischen Noah und Charleen.
-5. Charleens Bereich erst nach Rücksprache mit ihr ausbauen.
+1. **Einkaufsliste**: häufig gekaufte Artikel mit einem Tipp, Artikel nachträglich bearbeiten, schnellerer Abgleich beim gemeinsamen Einkaufen.
+2. **Montage ↔ Kalender**: vorbereiteter Auftrag erscheint am Montagetag im Kalender, optional mit Kundenadresse und Route.
+3. **Putzplan mit Wechsel** zwischen Noah und Charleen.
+4. Charleens Bereich erst nach Rücksprache mit ihr ausbauen.
 
 ## Bekannte Grenzen der neuen Funktionen
 
