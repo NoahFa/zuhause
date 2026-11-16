@@ -17,7 +17,12 @@ Stand: 16. November 2026. Ergänzt `02-UMSETZUNGSSTAND.md`. Noah hat freigegeben
 
 ## Offen / in Klärung
 
-- **Abgleich zwischen den Handys:** Beide sind im selben Zuhause (kein Hinweis auf „Heute“). Mit Version 17 behoben, falls es um Kalendertermine ging; Rückmeldung von Noah steht aus.
+- Derzeit nichts.
+
+## Erledigt außerhalb des Codes
+
+- **16.11.2026 – Charleen ins gemeinsame Zuhause verschoben.** Ursache des fehlenden Abgleichs: Charleens Konto gehörte zu einem eigenen, zweiten Zuhause. Noah hat im Supabase-SQL-Editor ihre Mitgliedschaft in sein Zuhause verschoben (Rolle `member`). Sicherung vorher: `sicherung.household_members_20261116`. Ihr altes Zuhause existiert ohne Mitglieder weiter (Daten nicht gelöscht).
+- Für später sinnvoll: Knopf „Zuhause wechseln“ in der App, damit so etwas ohne SQL geht (braucht neue Datenbankfunktion).
 
 ## Geplant (Reihenfolge nach Nutzen)
 
