@@ -82,7 +82,7 @@ Prüfung vom 17.11.2026 umgesetzt (Versionen 32–34, siehe oben). Offen bzw. nu
 9. **Folgeaktionen anbieten** (nur auf Nachfrage): Rechnung mit Betrag/Fälligkeit → Aufgabe „bezahlen bis …“; Vertrag mit Kündigungsfrist → Kalender-Erinnerung; Tierarzt-Rechnung/Impfpass → bei Lou „Impfung erledigt am …“; Kassenbon → Ausgabe im Budget; Materialbeleg → Material mit Preis in Noahs Nebenjob-Auftrag; Lohnabrechnung Kauler Hof → Charleens Nebenjob (Abgleich Stunden/Auszahlung).
 10. **Scannen von dort, wo man gerade ist:** Knopf „Dokument scannen“ bei Lou, in Charleens Bereich, in Noahs Nebenjob-Auftrag – Ordner/Zuordnung vorausgewählt.
 
-**Phase 3 – Wiederfinden und Ansehen**
+**Phase 3 – Wiederfinden und Ansehen** – ✅ weitgehend erledigt am 17.11.2026 (v37, `documents-view.js`): Ordner-Kacheln mit Anzahl, „Zuletzt hinzugefügt“, Vorschaubilder (`<pfad>.thumb.jpg` neben dem PDF, Fotos zeigen sich selbst), Suche im erkannten Text mit markierter Fundstelle, Detailansicht mit Öffnen, Teilen/Drucken (iPhone-Teilen-Menü), Umbenennen, Ordner/Kategorie ändern, erkanntem Text und Löschen (inkl. Originalfotos). Offen: Seiten an ein bestehendes PDF anfügen und Text aus hochgeladenen (nicht gescannten) PDFs lesen – beides bräuchte eine weitere große Bibliothek (pdf.js/pdf-lib); erst angehen, wenn ihr es vermisst.
 11. Dokumentliste mit **Vorschaubild**, Ordner-Kacheln (Gemeinsam/Noah/Charleen/Lou) und „Zuletzt gescannt“; Suchtreffer mit hervorgehobener Fundstelle.
 12. **Durchsuchbares PDF** (unsichtbare Textebene), dadurch auch in anderen Apps durchsuchbar und kopierbar.
 13. **Teilen** über das iPhone-Teilen-Menü (Mail, WhatsApp, Drucken), Seiten nachträglich anfügen, Dokument umbenennen/verschieben.

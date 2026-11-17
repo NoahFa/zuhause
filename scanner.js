@@ -351,7 +351,8 @@
       progress.textContent = 'Wird gespeichert …';
       const finalName = name || `Scan ${new Date().toLocaleDateString('de-DE')}`;
       const blob = pdf.output('blob'), fileName = `${finalName.replace(/[^\wäöüÄÖÜß .-]+/g, '-')}.pdf`;
-      const meta = { folder, category, ocrText: text.trim(), name: finalName, originalFiles: pages.map(p => p.file) };
+      const thumb = await window.ZuhauseDocuments?.imageThumb?.(pages[0].result);
+      const meta = { folder, category, ocrText: text.trim(), name: finalName, originalFiles: pages.map(p => p.file), thumb };
       window.__pendingDocumentMeta = meta;
       const saved = await uploadDocument(new File([blob], fileName, { type: 'application/pdf' }));
       if (!saved) throw new Error('Upload fehlgeschlagen');

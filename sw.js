@@ -1,6 +1,6 @@
-const CACHE='zuhause-v36';
-const WORKSPACE_ASSETS=['./workspaces.css?v=36','./workspaces.js?v=36','./lou.js?v=36','./charleen.js?v=36','./noah-jobs.js?v=36','./scan-analyse.js?v=36','./scanner.js?v=36'];
-const ASSETS=['./','./index.html','./styles.css?v=36','./features.css?v=36','./calendar.js?v=36','./app.js?v=36','./features.js?v=36','./vendor/supabase.min.js?v=2.49.4','./manifest.webmanifest?v=36','./icon.svg?v=36','./apple-touch-icon.png?v=36','./icon-192.png?v=36','./icon-512.png?v=36','./icon-maskable-512.png?v=36'];
+const CACHE='zuhause-v37';
+const WORKSPACE_ASSETS=['./workspaces.css?v=37','./workspaces.js?v=37','./lou.js?v=37','./charleen.js?v=37','./noah-jobs.js?v=37','./scan-analyse.js?v=37','./scanner.js?v=37','./documents-view.js?v=37'];
+const ASSETS=['./','./index.html','./styles.css?v=37','./features.css?v=37','./calendar.js?v=37','./app.js?v=37','./features.js?v=37','./vendor/supabase.min.js?v=2.49.4','./manifest.webmanifest?v=37','./icon.svg?v=37','./apple-touch-icon.png?v=37','./icon-192.png?v=37','./icon-512.png?v=37','./icon-maskable-512.png?v=37'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll([...ASSETS,...WORKSPACE_ASSETS])).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{
@@ -11,7 +11,7 @@ self.addEventListener('fetch',event=>{
 self.addEventListener('push',event=>{
   let data={};try{data=event.data?.json()||{}}catch{data={body:event.data?.text()}}
   const title=data.title||'Zuhause';
-  event.waitUntil(self.registration.showNotification(title,{body:data.body||'Es gibt eine neue Erinnerung.',icon:'./icon-192.png?v=36',badge:'./icon-192.png?v=36',tag:data.tag||'zuhause-erinnerung',data:{url:data.url||'./?page=calendar'},renotify:false}));
+  event.waitUntil(self.registration.showNotification(title,{body:data.body||'Es gibt eine neue Erinnerung.',icon:'./icon-192.png?v=37',badge:'./icon-192.png?v=37',tag:data.tag||'zuhause-erinnerung',data:{url:data.url||'./?page=calendar'},renotify:false}));
 });
 self.addEventListener('notificationclick',event=>{
   event.notification.close();const target=new URL(event.notification.data?.url||'./?page=calendar',self.location.origin).href;

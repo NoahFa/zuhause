@@ -408,11 +408,12 @@ async function uploadDocument(file){
   }
   const {error:uploadError}=await cloud.storage.from('receipts').upload(path,file,{cacheControl:'3600',upsert:false,contentType:file.type});
   if(uploadError){if(originalPaths.length)await cloud.storage.from('receipts').remove(originalPaths);setSyncStatus('Upload fehlgeschlagen','error');toast('Die Datei konnte nicht hochgeladen werden');return false}
+  if(meta.thumb)await cloud.storage.from('receipts').upload(`${path}.thumb.jpg`,meta.thumb,{cacheControl:'3600',upsert:true,contentType:'image/jpeg'}).catch(()=>{});
   const record={household_id:currentHousehold.id,uploaded_by:currentUser.id,owner_user_id:currentUser.id,visibility,storage_path:path,file_name:meta.name||file.name,mime_type:file.type,size_bytes:file.size,category:meta.category||'Sonstige Dokumente',folder:meta.folder||'Gemeinsam',ocr_text:meta.ocrText||'',original_paths:originalPaths};
   let {error:metaError}=await cloud.from('documents').insert(record);
   if(metaError&&/folder|ocr_text|original_paths/i.test(metaError.message||'')){delete record.folder;delete record.ocr_text;delete record.original_paths;({error:metaError}=await cloud.from('documents').insert(record))}
   if(metaError){await cloud.storage.from('receipts').remove([path,...originalPaths]);setSyncStatus('Upload zurückgenommen','error');toast('Die Datei konnte nicht vollständig gespeichert werden');return false}
-  window.__pendingDocumentMeta=null;await loadDocuments();setSyncStatus('Sicher gespeichert','connected');toast('Dokument sicher abgelegt');return true;
+  window.__pendingDocumentMeta=null;await loadDocuments();setSyncStatus('Sicher gespeichert','connected');toast('Dokument sicher abgelegt');return path;
 }
 async function loadDocuments(){
   const list=$('#documentList');if(!list||!cloudReady||!currentHousehold)return;
