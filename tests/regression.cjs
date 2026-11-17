@@ -121,6 +121,23 @@ run(`state.householdTasks=[{id:'month',seriesId:'monthly',title:'Monatlich',pers
 assert.equal(run(`state.householdTasks.some(item=>item.dueOn==='2026-03-31')`), true, 'Monatsserien müssen nach Februar wieder zum ursprünglichen Tag zurückkehren');
 assert.equal(run(`state.householdTasks.some(item=>item.dueOn==='2026-03-28')`), false);
 console.log('Monatliche Aufgaben am Monatsende: OK');
+
+// Abgleich während ein Fenster offen ist: der Datenstand wird ersetzt (wie beim Holen vom anderen Handy).
+// Die Eingabe im Fenster darf dabei nicht verloren gehen (Charleens Schicht, Noahs Nebenjob-Zeit, Lous Pflege).
+const submitDialog = (selector, values) => { const f = w.document.querySelector(`${selector} form`); for (const [k, v] of Object.entries(values)) f.elements.namedItem(k).value = v; f.dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true })); };
+const resync = () => run('state = structuredClone(state)');
+run(`state.charleen={job:{name:'Test',rate:13.9,entries:[],adjustments:[]},modules:[],work:[],savings:[]};state.noahJobs={rate:35,orders:[{id:'o1',title:'Auftrag',status:'open',times:[],materials:[]}]};state.lou={care:[{id:'c1',title:'Wurmkur',every:3,unit:'months',nextDue:'2026-11-20'}],profile:{}};go('study');`);
+w.document.querySelector('[data-ch-tab="job"]').click(); w.document.querySelector('[data-ch-shift-new]').click(); resync();
+submitDialog('#charleenDialog', { date: '2026-11-10', start: '16:00', end: '22:00', pause: '0', tip: '5', rate: '13,90' });
+assert.equal(run('state.charleen.job.entries.length'), 1, 'Schicht nach Abgleich gespeichert');
+run(`go('nebenjob')`); run(`document.querySelector('[data-nj-open="o1"]').click()`); w.document.querySelector('[data-nj-time-new]').click(); resync();
+submitDialog('#noahJobDialog', { date: '2026-11-10', start: '08:00', end: '12:00', pause: '0', note: '' });
+assert.equal(run('state.noahJobs.orders[0].times.length'), 1, 'Nebenjob-Zeit nach Abgleich gespeichert');
+run(`go('lou')`); w.document.querySelector('[data-lou-care-edit="c1"]').click(); resync();
+submitDialog('#louDialog', { title: 'Wurmkur neu', every: '3', unit: 'months', nextDue: '2026-11-20' });
+assert.equal(run('state.lou.care[0].title'), 'Wurmkur neu', 'Lou-Pflege nach Abgleich gespeichert');
+assert.equal(run("(() => { const n = window.ZuhauseCharleen; return typeof n; })()"), 'object');
+console.log('Eingaben bleiben beim Abgleich erhalten: OK');
 await new Promise(resolve => setImmediate(resolve));
 dom.window.close();
 console.log('Alle Ablaufprüfungen bestanden.');

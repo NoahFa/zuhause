@@ -10,7 +10,7 @@
   const nowTime = () => { const d = new Date(); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
   const fromIso = v => new Date(`${v}T12:00:00`);
   const niceDate = (v, o = { weekday: 'short', day: 'numeric', month: 'short' }) => fromIso(v).toLocaleDateString('de-DE', o);
-  const num = v => { const n = Number(String(v ?? '').replace(',', '.')); return Number.isFinite(n) ? n : 0; };
+  const num = v => { let s = String(v ?? '').trim().replace(/[\s€]/g, ''); if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); else if (/^-?\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, ''); const n = Number(s); return Number.isFinite(n) ? n : 0; }; // deutsche Schreibweise: 1.250,50 → 1250.5
   const euro = n => money(Math.round((Number(n) || 0) * 100) / 100);
   const hours = m => `${(Math.round(m / 60 * 100) / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} h`;
   const STATUS = { open: 'In Arbeit', invoiced: 'Abgerechnet', paid: 'Bezahlt' };
@@ -72,7 +72,7 @@
         ${(order.materials || []).map(m => `<div class="nj-row"><div><strong>${h(m.name)}</strong><small>${h(String(m.qty).replace('.', ','))}${m.unit ? ` ${h(m.unit)}` : ''} × ${euro(m.price)}</small></div><b>${euro(num(m.qty) * num(m.price))}</b><button class="ws-van-edit" data-nj-material-edit="${h(order.id)}:${h(m.id)}" aria-label="Material bearbeiten">✎</button></div>`).join('') || '<p class="ws-muted">Noch kein Material.</p>'}
       </section>
       <section class="card ws-step nj-bill"><div class="ws-step-heading"><span>€</span><div><small>Abrechnung</small><h2>${euro(t.total)}</h2></div></div>
-        <div class="nj-bill-lines"><span>Arbeitszeit ${hours(t.minutes)} × ${euro(rateOf(order))}${order.rate ? ' (eigener Satz)' : ''}</span><b>${euro(t.labour)}</b><span>Material</span><b>${euro(t.material)}</b><span class="sum">Gesamt</span><b class="sum">${euro(t.total)}</b></div>
+        <div class="nj-bill-lines"><span>Arbeitszeit ${hours(t.minutes)} × ${euro(rateOf(order))}${order.rate ? (order.rateFixed ? ' (festgeschrieben)' : ' (eigener Satz)') : ''}</span><b>${euro(t.labour)}</b><span>Material</span><b>${euro(t.material)}</b><span class="sum">Gesamt</span><b class="sum">${euro(t.total)}</b></div>
         <div class="ch-clock-actions">${order.status !== 'invoiced' && order.status !== 'paid' ? `<button class="secondary" data-nj-status="${h(order.id)}:invoiced">Als abgerechnet markieren</button>` : ''}${order.status !== 'paid' ? `<button class="primary" data-nj-status="${h(order.id)}:paid">Bezahlt ✓</button>` : `<button class="secondary" data-nj-status="${h(order.id)}:open">Wieder öffnen</button>`}</div>
       </section>`;
   }
@@ -81,7 +81,7 @@
   function editRate() {
     const d = data();
     dialog('Standard-Stundensatz', `${field('Stundensatz in €', 'rate', d.rate ?? '', 'text', 'inputmode="decimal" required placeholder="z. B. 35"')}<p class="ws-help">Gilt für alle Aufträge ohne eigenen Satz. Einen abweichenden Satz legst du im Auftrag fest.</p>`,
-      f => { const rate = num(f.get('rate')); if (rate <= 0) return 'Bitte einen Stundensatz eintragen.'; d.rate = rate; save('Stundensatz gespeichert'); });
+      f => { const rate = num(f.get('rate')); if (rate <= 0) return 'Bitte einen Stundensatz eintragen.'; data().rate = rate; save('Stundensatz gespeichert'); });
   }
   function editOrder(id) {
     const d = data(), o = d.orders.find(x => x.id === id);
@@ -89,10 +89,12 @@
       f => {
         const values = { title: String(f.get('title')).trim(), customer: String(f.get('customer')).trim(), address: String(f.get('address')).trim(), rate: num(f.get('rate')) || null, notes: String(f.get('notes')).trim() };
         if (!values.title) return false;
+        // Frisch holen: beim Abgleich mit dem anderen Handy kann der Datenstand ersetzt worden sein.
+        const d = data(), o = id ? d.orders.find(x => x.id === id) : null;
         if (o) Object.assign(o, values); else { const id = uid(); d.orders.unshift({ id, ...values, status: 'open', times: [], materials: [], createdAt: new Date().toISOString() }); openOrderId = id; }
         save(o ? 'Gespeichert' : 'Auftrag angelegt');
       },
-      o ? { label: 'Auftrag löschen', run: () => { if (!confirm(`Auftrag „${o.title}“ mit allen Zeiten und Material löschen?`)) return false; d.orders = d.orders.filter(x => x.id !== o.id); if (d.running?.orderId === o.id) d.running = null; openOrderId = null; save('Auftrag gelöscht'); } } : null);
+      o ? { label: 'Auftrag löschen', run: () => { if (!confirm(`Auftrag „${o.title}“ mit allen Zeiten und Material löschen?`)) return false; const d = data(); d.orders = d.orders.filter(x => x.id !== id); if (d.running?.orderId === id) d.running = null; openOrderId = null; save('Auftrag gelöscht'); } } : null);
   }
   function editTime(orderId, timeId, preset) {
     const o = data().orders.find(x => x.id === orderId); if (!o) return; o.times ||= [];
@@ -101,17 +103,19 @@
       f => {
         const values = { date: String(f.get('date')), start: String(f.get('start')), end: String(f.get('end')), pause: num(f.get('pause')), note: String(f.get('note')).trim() };
         if (!values.date || !values.start || !values.end) return 'Bitte Datum, Beginn und Ende eintragen.';
+        const o = data().orders.find(x => x.id === orderId); if (!o) return 'Dieser Auftrag wurde inzwischen gelöscht.'; o.times ||= [];
+        const t = timeId ? o.times.find(x => x.id === timeId) : null;
         if (t) Object.assign(t, values); else o.times.push({ id: uid(), ...values });
         if (preset) data().running = null;
         save(`${hours(Math.max(0, minutesBetween(values.start, values.end) - values.pause))} gespeichert`);
       },
-      t ? { label: 'Zeit löschen', run: () => { if (!confirm('Diese Zeit löschen?')) return false; o.times = o.times.filter(x => x.id !== t.id); save('Gelöscht'); } } : preset ? { label: 'Einstempeln verwerfen', run: () => { if (!confirm('Einstempeln verwerfen, ohne zu speichern?')) return false; data().running = null; save(); } } : null);
+      t ? { label: 'Zeit löschen', run: () => { if (!confirm('Diese Zeit löschen?')) return false; const o = data().orders.find(x => x.id === orderId); if (o) o.times = (o.times || []).filter(x => x.id !== timeId); save('Gelöscht'); } } : preset ? { label: 'Einstempeln verwerfen', run: () => { if (!confirm('Einstempeln verwerfen, ohne zu speichern?')) return false; data().running = null; save(); } } : null);
   }
   function editMaterial(orderId, materialId) {
     const o = data().orders.find(x => x.id === orderId), m = o?.materials?.find(x => x.id === materialId); if (!m) return;
     dialog('Material bearbeiten', `${field('Material', 'name', m.name, 'text', 'required maxlength="120"')}<div class="lou-interval">${field('Menge', 'qty', String(m.qty).replace('.', ','), 'text', 'inputmode="decimal" required')}${field('Einheit', 'unit', m.unit || '', 'text', 'maxlength="20"')}</div>${field('Preis pro Einheit in €', 'price', String(m.price).replace('.', ','), 'text', 'inputmode="decimal" required')}`,
-      f => { const name = String(f.get('name')).trim(); if (!name) return false; Object.assign(m, { name, qty: num(f.get('qty')) || 1, unit: String(f.get('unit')).trim(), price: num(f.get('price')) }); save('Gespeichert'); },
-      { label: 'Material entfernen', run: () => { o.materials = o.materials.filter(x => x.id !== m.id); save('Entfernt'); } });
+      f => { const name = String(f.get('name')).trim(); if (!name) return false; const m = data().orders.find(x => x.id === orderId)?.materials?.find(x => x.id === materialId); if (!m) return 'Dieses Material wurde inzwischen entfernt.'; Object.assign(m, { name, qty: String(f.get('qty')).trim() === '' ? 1 : num(f.get('qty')), unit: String(f.get('unit')).trim(), price: num(f.get('price')) }); save('Gespeichert'); },
+      { label: 'Material entfernen', run: () => { const o = data().orders.find(x => x.id === orderId); if (o) o.materials = (o.materials || []).filter(x => x.id !== materialId); save('Entfernt'); } });
   }
 
   // ---------- Seite ----------
@@ -139,12 +143,12 @@
     if ('njTimeNew' in d) editTime(d.njTimeNew);
     if ('njTimeEdit' in d) { const [o, t] = d.njTimeEdit.split(':'); editTime(o, t); }
     if ('njMaterialEdit' in d) { const [o, m] = d.njMaterialEdit.split(':'); editMaterial(o, m); }
-    if ('njStatus' in d) { const [id, status] = d.njStatus.split(':'), o = data().orders.find(x => x.id === id); if (o) { o.status = status; save(STATUS[status]); } }
+    if ('njStatus' in d) { const [id, status] = d.njStatus.split(':'), o = data().orders.find(x => x.id === id); if (o) { if (status !== 'open' && !num(o.rate) && num(data().rate)) { o.rate = num(data().rate); o.rateFixed = true; } if (status === 'open' && o.rateFixed) { o.rate = null; o.rateFixed = false; } o.status = status; save(STATUS[status]); } }
   });
   document.addEventListener('submit', event => {
     const form = event.target.closest('[data-nj-material-form]'); if (!form) return; event.preventDefault();
     const o = data().orders.find(x => x.id === form.dataset.njMaterialForm), f = new FormData(form), name = String(f.get('name')).trim(); if (!o || !name) return;
-    (o.materials ||= []).push({ id: uid(), name, qty: num(f.get('qty')) || 1, unit: String(f.get('unit')).trim(), price: num(f.get('price')) });
+    (o.materials ||= []).push({ id: uid(), name, qty: String(f.get('qty')).trim() === '' ? 1 : num(f.get('qty')), unit: String(f.get('unit')).trim(), price: num(f.get('price')) });
     save('Material ergänzt'); document.querySelector('[data-nj-material-form] input[name=name]')?.focus();
   });
 

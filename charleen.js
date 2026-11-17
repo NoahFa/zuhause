@@ -12,7 +12,7 @@
   const daysUntil = v => Math.round((fromIso(v) - fromIso(todayIso())) / 86400000);
   const niceDate = (v, opts = { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) => fromIso(v).toLocaleDateString('de-DE', opts);
   const euro = n => money(Math.round((Number(n) || 0) * 100) / 100);
-  const num = v => { const n = Number(String(v ?? '').replace(',', '.')); return Number.isFinite(n) ? n : 0; };
+  const num = v => { let s = String(v ?? '').trim().replace(/[\s€]/g, ''); if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); else if (/^-?\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, ''); const n = Number(s); return Number.isFinite(n) ? n : 0; }; // deutsche Schreibweise: 1.250,50 → 1250.5
   const hm = minutes => `${Math.floor(minutes / 60)}:${pad(Math.round(minutes % 60))} h`;
   const nowTime = () => { const d = new Date(); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
   const EXAM_TYPES = ['Präsentation', 'Hausarbeit', 'Klausur', 'Referat', 'Portfolio', 'Mündliche Prüfung', 'Projektarbeit', 'Bericht'];
@@ -31,6 +31,9 @@
     if (!Array.isArray(c.savings)) c.savings = [];
     return c;
   }
+  // Wichtig: Beim Abgleich mit dem anderen Handy wird der ganze Datenstand ersetzt. Fenster dürfen deshalb nicht mit
+  // beim Öffnen gemerkten Objekten speichern, sondern holen sie beim Speichern über ihre ID neu (fresh*).
+  const freshModule = id => data().modules.find(x => x.id === id);
   function save(message) { persist(); render(); syncCalendar(); window.ZuhauseFeatures?.refresh?.(); if (message) toast(message); }
 
   // ---------- Hilfsdialog ----------
@@ -77,16 +80,16 @@
   function editModule(id, presetName) {
     const c = data(), m = c.modules.find(x => x.id === id);
     dialog(m ? 'Modul bearbeiten' : 'Modul hinzufügen', `${field('Modul', 'name', m?.name || presetName || '', 'text', 'required maxlength="120" placeholder="z. B. Embodiment"')}${field('Notiz (optional)', 'note', m?.note || '', 'text', 'maxlength="160" placeholder="z. B. Dozentin, Semester"')}`,
-      f => { const name = String(f.get('name')).trim(); if (!name) return false; if (m) Object.assign(m, { name, note: String(f.get('note')).trim() }); else c.modules.push({ id: uid(), name, note: String(f.get('note')).trim(), exams: [] }); save('Modul gespeichert'); },
-      m ? removeButton('Modul entfernen', `Modul „${m.name}“ mit allen Prüfungsleistungen entfernen?`, () => { c.modules = c.modules.filter(x => x.id !== m.id); save('Modul entfernt'); }) : null);
+      f => { const c = data(), m = id ? freshModule(id) : null; const name = String(f.get('name')).trim(); if (!name) return false; if (m) Object.assign(m, { name, note: String(f.get('note')).trim() }); else c.modules.push({ id: uid(), name, note: String(f.get('note')).trim(), exams: [] }); save('Modul gespeichert'); },
+      m ? removeButton('Modul entfernen', `Modul „${m.name}“ mit allen Prüfungsleistungen entfernen?`, () => { const c = data(); c.modules = c.modules.filter(x => x.id !== id); save('Modul entfernt'); }) : null);
   }
   function editExam(moduleId, examId) {
     const m = data().modules.find(x => x.id === moduleId); if (!m) return; m.exams ||= [];
     const e = m.exams.find(x => x.id === examId);
     dialog(e ? 'Prüfungsleistung bearbeiten' : `Prüfungsleistung · ${m.name}`,
       `<label class="ws-field"><span>Art</span><input name="type" list="chExamTypes" required maxlength="80" value="${h(e?.type || '')}" placeholder="z. B. Präsentation"><datalist id="chExamTypes">${EXAM_TYPES.map(t => `<option value="${t}">`).join('')}</datalist></label>${field('Datum', 'date', e?.date || '', 'date')}<label class="ws-field"><span>Stand</span><select name="status">${Object.entries(EXAM_STATUS).map(([k, v]) => `<option value="${k}" ${(e?.status || 'open') === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>${field('Note (optional)', 'grade', e?.grade || '', 'text', 'maxlength="10" inputmode="decimal" placeholder="z. B. 1,7"')}`,
-      f => { const values = { type: String(f.get('type')).trim(), date: String(f.get('date') || ''), status: String(f.get('status')), grade: String(f.get('grade')).trim() }; if (!values.type) return false; if (e) Object.assign(e, values); else m.exams.push({ id: uid(), ...values }); save('Prüfungsleistung gespeichert'); },
-      e ? removeButton('Prüfungsleistung entfernen', `„${e.type}“ entfernen?`, () => { m.exams = m.exams.filter(x => x.id !== e.id); save('Entfernt'); }) : null);
+      f => { const values = { type: String(f.get('type')).trim(), date: String(f.get('date') || ''), status: String(f.get('status')), grade: String(f.get('grade')).trim() }; if (!values.type) return false; const m = freshModule(moduleId); if (!m) return 'Das Modul wurde inzwischen entfernt.'; m.exams ||= []; const e = examId ? m.exams.find(x => x.id === examId) : null; if (e) Object.assign(e, values); else m.exams.push({ id: uid(), ...values }); save('Prüfungsleistung gespeichert'); },
+      e ? removeButton('Prüfungsleistung entfernen', `„${e.type}“ entfernen?`, () => { const m = freshModule(moduleId); if (m) m.exams = (m.exams || []).filter(x => x.id !== examId); save('Entfernt'); }) : null);
   }
 
   // ---------- Nebenjob ----------
@@ -95,9 +98,17 @@
   // Überstundenkonto: Monatsgrenze (Standard 43 h). Mehr Stunden gehen aufs Konto, weniger Stunden werden am
   // Monatsende vom Konto aufgefüllt (soweit vorhanden). Auszahlungen/Korrekturen werden im jeweiligen Monat zuerst verbucht.
   // Grenze: entweder Verdienstgrenze in € (z. B. 603 € beim Minijob → Stunden = Grenze ÷ Stundenlohn) oder feste Stunden.
-  const monthLimit = (job, month) => num(job.limitOverrides?.[month]) || (num(job.monthCap) && num(job.rate) ? num(job.monthCap) / num(job.rate) : num(job.monthLimit) || 43);
+  // Lohn eines Monats: aus den Schichten dieses Monats (nach Stunden gewichtet), sonst der letzte Lohn davor, sonst der aktuelle.
+  // So rechnet ein späterer neuer Stundenlohn vergangene Monate nicht um.
+  function rateForMonth(job, month) {
+    const inMonth = job.entries.filter(e => e.date?.startsWith(month) && num(e.rate));
+    if (inMonth.length) { let minutes = 0, sum = 0; inMonth.forEach(e => { const m = shift(e).minutes || 1; minutes += m; sum += m * num(e.rate); }); return sum / minutes; }
+    const before = job.entries.filter(e => e.date && e.date.slice(0, 7) < month && num(e.rate)).sort((a, b) => b.date.localeCompare(a.date))[0];
+    return before ? num(before.rate) : num(job.rate);
+  }
+  const monthLimit = (job, month) => num(job.limitOverrides?.[month]) || (num(job.monthCap) && rateForMonth(job, month) ? num(job.monthCap) / rateForMonth(job, month) : num(job.monthLimit) || 43);
   // Buchung in Stunden; Auszahlungen nur mit Betrag werden über den Stundenlohn in Stunden umgerechnet.
-  const adjustHours = (job, a) => (a.hours !== null && a.hours !== undefined && a.hours !== '') ? num(a.hours) : (num(job.rate) ? -num(a.amount) / num(job.rate) : 0);
+  const adjustHours = (job, a) => { if (a.hours !== null && a.hours !== undefined && a.hours !== '') return num(a.hours); const rate = rateForMonth(job, String(a.date || '').slice(0, 7)); return rate ? -num(a.amount) / rate : 0; };
   function ledger(job) {
     const current = todayIso().slice(0, 7), worked = {};
     job.entries.forEach(e => { if (e.date) worked[e.date.slice(0, 7)] = (worked[e.date.slice(0, 7)] || 0) + shift(e).minutes / 60; });
@@ -128,15 +139,16 @@
   function editAdjustment() {
     const job = data().job;
     dialog('Auszahlung oder Korrektur', `<label class="ws-field"><span>Art</span><select name="kind"><option value="payout">Überstunden ausgezahlt (wird abgezogen)</option><option value="plus">Korrektur: Stunden dazu</option><option value="minus">Korrektur: Stunden abziehen</option></select></label>${field('Betrag in €', 'amount', '', 'text', 'inputmode="decimal" placeholder="z. B. 450"')}${field('oder Stunden', 'hours', '', 'text', 'inputmode="decimal" placeholder="z. B. 16,25"')}<p class="ws-help">Bei einer Auszahlung reicht der Betrag – die App rechnet ihn mit deinem Stundenlohn (${job.rate ? euro(job.rate) : 'noch nicht festgelegt'}) in Stunden um.</p>${field('Datum', 'date', todayIso(), 'date', 'required')}${field('Notiz (optional)', 'note', '', 'text', 'maxlength="80"')}`,
-      f => { const kind = String(f.get('kind')), amount = Math.abs(num(f.get('amount'))), hoursIn = Math.abs(num(f.get('hours')));
-        if (!amount && !hoursIn) return 'Bitte einen Betrag oder Stunden eintragen.'; if (!hoursIn && !num(job.rate)) return 'Bitte zuerst den Stundenlohn festlegen oder Stunden eintragen.';
-        const hours = hoursIn ? (kind === 'plus' ? hoursIn : -hoursIn) : (kind === 'plus' ? amount / num(job.rate) : null);
+      f => { const job = data().job; const kind = String(f.get('kind')), amount = Math.abs(num(f.get('amount'))), hoursIn = Math.abs(num(f.get('hours')));
+        if (!amount && !hoursIn) return 'Bitte einen Betrag oder Stunden eintragen.'; if (!hoursIn && !num(job.rate) && !job.entries.length) return 'Bitte zuerst den Stundenlohn festlegen oder Stunden eintragen.';
+        const bookingRate = rateForMonth(job, String(f.get('date')).slice(0, 7)) || num(job.rate);
+        const hours = Math.round((hoursIn ? (kind === 'plus' ? hoursIn : -hoursIn) : (kind === 'plus' ? amount / bookingRate : -amount / bookingRate)) * 100) / 100;
         job.adjustments.push({ id: uid(), date: String(f.get('date')), hours, amount: amount || null, note: String(f.get('note')).trim() || (kind === 'payout' ? `Auszahlung${amount ? ` ${euro(amount)}` : ''}` : 'Korrektur') }); save('Gebucht'); });
   }
   function editLimit() {
     const job = data().job;
     dialog('Monatsgrenze', `${field('Verdienstgrenze in € pro Monat', 'cap', job.monthCap ?? '', 'text', 'inputmode="decimal" placeholder="z. B. 603"')}${field('oder feste Stunden pro Monat', 'limit', job.monthCap ? '' : (job.monthLimit ?? 43), 'text', 'inputmode="decimal"')}<p class="ws-help">Was über der Grenze liegt, wird nicht ausgezahlt und geht aufs Überstundenkonto. Arbeitest du in einem Monat weniger, wird am Monatsende vom Konto aufgefüllt.</p>`,
-      f => { const cap = num(f.get('cap')), limit = num(f.get('limit')); if (cap > 0) { job.monthCap = cap; } else if (limit > 0) { job.monthCap = null; job.monthLimit = limit; } else return 'Bitte eine Grenze eintragen.'; save('Gespeichert'); });
+      f => { const job = data().job; const cap = num(f.get('cap')), limit = num(f.get('limit')); if (cap > 0) { job.monthCap = cap; } else if (limit > 0) { job.monthCap = null; job.monthLimit = limit; } else return 'Bitte eine Grenze eintragen.'; save('Gespeichert'); });
   }
   function jobView() {
     const job = data().job, entries = job.entries.filter(e => e.date?.startsWith(jobMonth)).sort((a, b) => `${b.date}${b.start}`.localeCompare(`${a.date}${a.start}`));
@@ -158,7 +170,7 @@
   function jobSettings() {
     const job = data().job;
     dialog('Job & Stundenlohn', `${field('Name des Jobs', 'name', job.name || '', 'text', 'maxlength="80" placeholder="z. B. Café am Markt"')}${field('Stundenlohn in €', 'rate', job.rate ?? '', 'text', 'inputmode="decimal" required placeholder="z. B. 13,50"')}<p class="ws-help">Der Stundenlohn gilt für neue Schichten. Bereits eingetragene Schichten behalten ihren Lohn.</p>`,
-      f => { const rate = num(f.get('rate')); if (rate <= 0) return 'Bitte einen Stundenlohn eintragen.'; Object.assign(job, { name: String(f.get('name')).trim(), rate }); save('Gespeichert'); });
+      f => { const job = data().job; const rate = num(f.get('rate')); if (rate <= 0) return 'Bitte einen Stundenlohn eintragen.'; Object.assign(job, { name: String(f.get('name')).trim(), rate }); save('Gespeichert'); });
   }
   function editShift(id, preset) {
     const job = data().job, e = job.entries.find(x => x.id === id), v = e || preset || { date: todayIso(), start: '', end: '', pause: 0, tip: '', rate: job.rate };
@@ -168,11 +180,12 @@
         const values = { date: String(f.get('date')), start: String(f.get('start')), end: String(f.get('end')), pause: num(f.get('pause')), tip: num(f.get('tip')), rate: num(f.get('rate')) };
         if (!values.date || !values.start || !values.end) return 'Bitte Datum, Beginn und Ende eintragen.';
         if (values.rate <= 0) return 'Bitte einen Stundenlohn eintragen.';
+        const job = data().job, e = id ? job.entries.find(x => x.id === id) : null;
         if (e) Object.assign(e, values); else job.entries.push({ id: uid(), ...values });
         if (preset) job.running = null;
         jobMonth = values.date.slice(0, 7); const x = shift(values); save(`${hm(x.minutes)} · ${euro(x.total)} gespeichert`);
       },
-      e ? removeButton('Schicht entfernen', 'Diese Schicht entfernen?', () => { job.entries = job.entries.filter(x => x.id !== e.id); save('Schicht entfernt'); }) : preset ? { label: 'Einstempeln verwerfen', run: () => { if (!confirm('Einstempeln verwerfen, ohne zu speichern?')) return false; job.running = null; save(); } } : null);
+      e ? removeButton('Schicht entfernen', 'Diese Schicht entfernen?', () => { const job = data().job; job.entries = job.entries.filter(x => x.id !== id); save('Schicht entfernt'); }) : preset ? { label: 'Einstempeln verwerfen', run: () => { if (!confirm('Einstempeln verwerfen, ohne zu speichern?')) return false; data().job.running = null; save(); } } : null);
   }
 
   // ---------- Caritas ----------
@@ -187,7 +200,7 @@
   function editWork(id) {
     const t = data().work.find(x => x.id === id); if (!t) return;
     dialog('To-do ändern', `${field('Was?', 'title', t.title, 'text', 'required maxlength="200"')}${field('Fällig am', 'dueOn', t.dueOn || '', 'date')}${field('Notiz', 'note', t.note || '', 'text', 'maxlength="200"')}`,
-      f => { const title = String(f.get('title')).trim(); if (!title) return false; Object.assign(t, { title, dueOn: String(f.get('dueOn') || ''), note: String(f.get('note')).trim() }); save('Gespeichert'); });
+      f => { const t = data().work.find(x => x.id === id); if (!t) return 'Dieses To-do wurde inzwischen entfernt.'; const title = String(f.get('title')).trim(); if (!title) return false; Object.assign(t, { title, dueOn: String(f.get('dueOn') || ''), note: String(f.get('note')).trim() }); save('Gespeichert'); });
   }
 
   // ---------- Sparziele ----------
@@ -210,13 +223,13 @@
   function editGoal(id) {
     const c = data(), g = c.savings.find(x => x.id === id);
     dialog(g ? 'Sparziel bearbeiten' : 'Neues Sparziel', `${field('Wofür?', 'name', g?.name || '', 'text', 'required maxlength="80" placeholder="z. B. Urlaub"')}${field('Zielbetrag in €', 'target', g?.target ?? '', 'text', 'inputmode="decimal" required')}${field('Bis wann? (optional)', 'deadline', g?.deadline || '', 'date')}${g ? '' : field('Schon gespart in € (optional)', 'start', '', 'text', 'inputmode="decimal" placeholder="0"')}`,
-      f => { const name = String(f.get('name')).trim(), target = num(f.get('target')); if (!name || target <= 0) return 'Bitte Name und Zielbetrag eintragen.'; if (g) Object.assign(g, { name, target, deadline: String(f.get('deadline') || '') }); else { const start = num(f.get('start')); c.savings.push({ id: uid(), name, target, deadline: String(f.get('deadline') || ''), deposits: start ? [{ id: uid(), date: todayIso(), amount: start, note: 'Startbetrag' }] : [] }); } save('Sparziel gespeichert'); },
-      g ? removeButton('Sparziel entfernen', `Sparziel „${g.name}“ mit Verlauf entfernen?`, () => { c.savings = c.savings.filter(x => x.id !== g.id); save('Sparziel entfernt'); }) : null);
+      f => { const c = data(), g = id ? c.savings.find(x => x.id === id) : null; const name = String(f.get('name')).trim(), target = num(f.get('target')); if (!name || target <= 0) return 'Bitte Name und Zielbetrag eintragen.'; if (g) Object.assign(g, { name, target, deadline: String(f.get('deadline') || '') }); else { const start = num(f.get('start')); c.savings.push({ id: uid(), name, target, deadline: String(f.get('deadline') || ''), deposits: start ? [{ id: uid(), date: todayIso(), amount: start, note: 'Startbetrag' }] : [] }); } save('Sparziel gespeichert'); },
+      g ? removeButton('Sparziel entfernen', `Sparziel „${g.name}“ mit Verlauf entfernen?`, () => { const c = data(); c.savings = c.savings.filter(x => x.id !== id); save('Sparziel entfernt'); }) : null);
   }
   function deposit(id, sign) {
     const g = data().savings.find(x => x.id === id); if (!g) return;
     dialog(sign > 0 ? `Einzahlen · ${g.name}` : `Entnehmen · ${g.name}`, `${field('Betrag in €', 'amount', '', 'text', 'inputmode="decimal" required autofocus')}${field('Datum', 'date', todayIso(), 'date', 'required')}${field('Notiz (optional)', 'note', '', 'text', 'maxlength="80"')}`,
-      f => { const amount = Math.abs(num(f.get('amount'))); if (!amount) return 'Bitte einen Betrag eintragen.'; (g.deposits ||= []).push({ id: uid(), date: String(f.get('date')), amount: sign * amount, note: String(f.get('note')).trim() }); save(sign > 0 ? `${euro(amount)} eingezahlt` : `${euro(amount)} entnommen`); });
+      f => { const g = data().savings.find(x => x.id === id); if (!g) return 'Dieses Sparziel wurde inzwischen entfernt.'; const amount = Math.abs(num(f.get('amount'))); if (!amount) return 'Bitte einen Betrag eintragen.'; (g.deposits ||= []).push({ id: uid(), date: String(f.get('date')), amount: sign * amount, note: String(f.get('note')).trim() }); save(sign > 0 ? `${euro(amount)} eingezahlt` : `${euro(amount)} entnommen`); });
   }
 
   // ---------- Seite ----------

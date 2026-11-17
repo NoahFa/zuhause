@@ -135,10 +135,12 @@
       form => {
         const values = { title: String(form.get('title')).trim(), every: Math.max(1, Number(form.get('every')) || 1), unit: String(form.get('unit')), nextDue: String(form.get('nextDue')) };
         if (!values.title || !/^\d{4}-\d{2}-\d{2}$/.test(values.nextDue)) return false;
-        if (item) Object.assign(item, values); else lou.care.push({ id: uid(), ...values, lastDone: null, history: [] });
+        // Frisch holen: beim Abgleich mit dem anderen Handy kann der Datenstand ersetzt worden sein.
+        const freshLou = data(), freshItem = id ? freshLou.care.find(entry => entry.id === id) : null;
+        if (freshItem) Object.assign(freshItem, values); else freshLou.care.push({ id: uid(), ...values, lastDone: null, history: [] });
         save(); toast('Gespeichert');
       },
-      item ? d => { const b = document.createElement('button'); b.type = 'button'; b.className = 'ws-text-button'; b.textContent = 'Diesen Eintrag entfernen'; b.onclick = () => { if (confirm(`„${item.title}“ entfernen?`)) { lou.care = lou.care.filter(entry => entry.id !== item.id); save(); d.close(); } }; return b; } : null);
+      item ? d => { const b = document.createElement('button'); b.type = 'button'; b.className = 'ws-text-button'; b.textContent = 'Diesen Eintrag entfernen'; b.onclick = () => { if (confirm(`„${item.title}“ entfernen?`)) { const freshLou = data(); freshLou.care = freshLou.care.filter(entry => entry.id !== id); save(); d.close(); } }; return b; } : null);
   }
   function editProfile() {
     const p = data().profile;

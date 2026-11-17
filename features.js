@@ -325,7 +325,18 @@
 
   function monthKey(date = new Date()) { return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`; }
 
-  function expensesForMonth(key) { return state.expenses.filter(expense => String(expense.date || '').startsWith(key)); }
+  // Ausgaben eines Monats. Nachzügler (Datum in einem schon abgeschlossenen Monat, dort aber nicht verbucht)
+  // zählen im laufenden Monat – sonst würden sie nirgends vom Budget abgezogen.
+  function expenseMonth(expense) { return String(expense.date || '').slice(0, 7); }
+  function isLateExpense(expense, current = monthKey()) {
+    const month = expenseMonth(expense), closed = state.budget.closedMonths?.[month];
+    return month < current && !!closed && !(closed.expenseItems || []).some(item => item.id === expense.id);
+  }
+  function expensesForMonth(key) {
+    const own = state.expenses.filter(expense => expenseMonth(expense) === key);
+    if (key !== monthKey() || state.budget.closedMonths?.[key]) return own;
+    return [...own, ...state.expenses.filter(expense => isLateExpense(expense, key))];
+  }
 
   const roundMoney = value => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
   function previousMonth(key) { const [year, month] = key.split('-').map(Number); return monthKey(new Date(year, month - 2, 1)); }
@@ -384,7 +395,7 @@
   function renderFinanceExpenseList(filter = '') {
     const target = document.querySelector('#expenseListFeature'); if (!target) return;
     const key = financeMonth(); const list = (state.budget.closedMonths[key]?.expenseItems || expensesForMonth(key)).filter(expense => `${expense.title} ${expense.store || ''}`.toLowerCase().includes(filter.toLowerCase())).sort((a, b) => String(b.date).localeCompare(String(a.date)));
-    target.innerHTML = list.length ? list.map(expense => `<button class="expense-row" data-feature-expense="${escapeHtml(expense.id)}"><span class="expense-icon">${expense.receipt ? '▣' : '€'}</span><span><strong>${escapeHtml(expense.store || expense.title)}</strong><small>${displayDate(expense.date)}${expense.receiptItems?.length ? ` · ${expense.receiptItems.length} erkannte Artikel` : ''}</small></span><strong>${money(Number(expense.amount) || 0)}</strong><em class="tag">${expense.receipt ? 'Beleg' : 'Ausgabe'}</em></button>`).join('') : '<p>Noch keine Ausgabe in diesem Monat.</p>';
+    target.innerHTML = list.length ? list.map(expense => `<button class="expense-row" data-feature-expense="${escapeHtml(expense.id)}"><span class="expense-icon">${expense.receipt ? '▣' : '€'}</span><span><strong>${escapeHtml(expense.store || expense.title)}</strong><small>${displayDate(expense.date)}${isLateExpense(expense, key) ? ' · nachgetragen, zählt in diesem Monat' : ''}${expense.receiptItems?.length ? ` · ${expense.receiptItems.length} erkannte Artikel` : ''}</small></span><strong>${money(Number(expense.amount) || 0)}</strong><em class="tag">${expense.receipt ? 'Beleg' : 'Ausgabe'}</em></button>`).join('') : '<p>Noch keine Ausgabe in diesem Monat.</p>';
     target.querySelectorAll('[data-feature-expense]').forEach(button => button.addEventListener('click', () => {
       const expense = list.find(item => String(item.id) === button.dataset.featureExpense); if (!expense) return;
       openDetail(expense.store || expense.title, `<p><strong>${money(Number(expense.amount) || 0)}</strong> · ${displayDate(expense.date)}</p>${expense.receiptItems?.length ? `<ul class="detail-list">${expense.receiptItems.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>` : '<p>Manuell eingetragene Ausgabe.</p>'}`);

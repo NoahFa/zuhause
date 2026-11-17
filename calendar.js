@@ -43,7 +43,7 @@
   function calendarFor(event) { return state.calendars[event.calendarKey] || CALENDARS.shared; }
   // Die Person bestimmt immer die Farbe; eine Farbmarkierung erscheint nur noch als kleiner Punkt.
   function colorsFor(event) { const calendar = CALENDARS[event.calendarKey] || CALENDARS.shared; return { ...calendar, label: event.labelColor && LABELS[event.labelColor] ? LABELS[event.labelColor].color : '' }; }
-  function displayTime(event) { return event.allDay ? 'Ganztägig' : `${(event.startTime || '00:00').slice(0, 5)} Uhr`; }
+  function displayTime(event) { const base = event.allDay ? 'Ganztägig' : `${(event.startTime || '00:00').slice(0, 5)} Uhr`; return event.spanLength > 1 ? `${event.spanDay === 1 ? base : 'Fortsetzung'} · Tag ${event.spanDay} von ${event.spanLength}` : base; }
   function dateLabel(value, options = { weekday: 'long', day: 'numeric', month: 'long' }) { return new Intl.DateTimeFormat('de-DE', options).format(dateFromIso(value)); }
   function monthLabel(value) { return new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric' }).format(value); }
   function calendarKeyForPerson(person = '') { return person === 'person1' || person === 'person2' ? person : 'shared'; }
@@ -124,7 +124,9 @@
     const output = [];
     const allEvents = [...state.events, ...state.automatic, ...state.montage, ...Object.values(state.extra).flat()];
     for (const event of allEvents) {
-      const first = maxDate(rangeStart, event.startDate);
+      // Mehrtägige Termine: auch Vorkommen berücksichtigen, die vor dem Zeitraum beginnen und in ihn hineinreichen.
+      const duration = Math.max(0, daysBetween(event.startDate, event.endDate || event.startDate));
+      const first = maxDate(isoDate(addDays(rangeStart, -duration)), event.startDate);
       const last = minDate(rangeEnd, event.recurrence?.endsOn || rangeEnd);
       for (let cursor = dateFromIso(first), guard = 0; isoDate(cursor) <= last && guard < 800; cursor = addDays(cursor, 1), guard += 1) {
         const occurrenceDate = isoDate(cursor);
@@ -132,8 +134,11 @@
         const exception = state.exceptions.get(`${event.id}:${occurrenceDate}`);
         if (exception?.action === 'skip') continue;
         const shown = exception?.replacement || event;
-        const duration = Math.max(0, daysBetween(event.startDate, event.endDate));
-        output.push({ ...shown, title: birthdayTitle(shown, occurrenceDate), occurrenceDate, occurrenceEndDate: isoDate(addDays(occurrenceDate, duration)), seriesId: event.recurrence ? event.id : null });
+        // Jeder Tag eines mehrtägigen Termins erscheint (dayDate = angezeigter Tag); occurrenceDate bleibt der Beginn (fürs Bearbeiten).
+        for (let day = 0; day <= duration; day += 1) {
+          const dayDate = isoDate(addDays(occurrenceDate, day)); if (dayDate < rangeStart || dayDate > rangeEnd) continue;
+          output.push({ ...shown, title: birthdayTitle(shown, occurrenceDate), occurrenceDate, dayDate, spanDay: day + 1, spanLength: duration + 1, occurrenceEndDate: isoDate(addDays(occurrenceDate, duration)), seriesId: event.recurrence ? event.id : null });
+        }
       }
     }
     return output.filter(matchesFilters).sort(sortOccurrences);
@@ -145,7 +150,7 @@
     const age = Number(occurrenceDate.slice(0, 4)) - Number(event.startDate.slice(0, 4));
     return age >= 1 ? `${event.title} wird ${age}` : event.title;
   }
-  function sortOccurrences(a, b) { return `${a.occurrenceDate}${a.allDay ? '00:00' : a.startTime}`.localeCompare(`${b.occurrenceDate}${b.allDay ? '00:00' : b.startTime}`) || a.title.localeCompare(b.title, 'de'); }
+  function sortOccurrences(a, b) { return `${a.dayDate || a.occurrenceDate}${a.allDay || a.spanDay > 1 ? '00:00' : a.startTime}`.localeCompare(`${b.dayDate || b.occurrenceDate}${b.allDay || b.spanDay > 1 ? '00:00' : b.startTime}`) || a.title.localeCompare(b.title, 'de'); }
   function matchesFilters(event) {
     if (!state.filters.has(event.calendarKey)) return false;
     if (!state.search) return true;
@@ -185,7 +190,7 @@
     const first = startOfMonth(state.cursor), offset = (first.getDay() + 6) % 7, start = addDays(first, -offset), end = addDays(start, 41);
     const occurrences = occurrencesInRange(isoDate(start), isoDate(end));
     for (let index = 0; index < 42; index += 1) {
-      const date = addDays(start, index), dateIso = isoDate(date), dayEvents = occurrences.filter(item => item.occurrenceDate === dateIso);
+      const date = addDays(start, index), dateIso = isoDate(date), dayEvents = occurrences.filter(item => (item.dayDate || item.occurrenceDate) === dateIso);
       const button = el('button', 'cal-day'); button.type = 'button'; button.dataset.calendarDay = dateIso;
       if (date.getMonth() !== state.cursor.getMonth()) button.classList.add('outside');
       if (dateIso === isoDate(new Date())) button.classList.add('today');
@@ -207,7 +212,7 @@
       const header = el('button', 'calendar-week-day-head'); header.type = 'button';
       header.append(el('span', '', dateLabel(dateIso, { weekday: 'short' })), el('strong', dateIso === isoDate(new Date()) ? 'today-number' : '', date.getDate()));
       header.addEventListener('click', () => selectDay(dateIso, true)); column.append(header);
-      const dayEvents = occurrences.filter(item => item.occurrenceDate === dateIso);
+      const dayEvents = occurrences.filter(item => (item.dayDate || item.occurrenceDate) === dateIso);
       if (!dayEvents.length) column.append(el('p', 'calendar-empty-day', 'Keine Termine'));
       dayEvents.forEach(event => column.append(weekEventCard(event))); grid.append(column);
     }
@@ -216,7 +221,7 @@
     const grid = qs('#calendarGrid'); grid.replaceChildren(); grid.className = 'calendar-agenda';
     const start = state.selectedDate, end = isoDate(addDays(start, 120)), occurrences = occurrencesInRange(start, end);
     if (!occurrences.length) { grid.append(emptyState('Keine passenden Termine gefunden.')); return; }
-    const groups = new Map(); occurrences.forEach(item => { if (!groups.has(item.occurrenceDate)) groups.set(item.occurrenceDate, []); groups.get(item.occurrenceDate).push(item); });
+    const groups = new Map(); occurrences.forEach(item => { const day = item.dayDate || item.occurrenceDate; if (!groups.has(day)) groups.set(day, []); groups.get(day).push(item); });
     groups.forEach((items, date) => {
       const section = el('section', 'agenda-day'); const heading = el('button', 'agenda-day-heading'); heading.type = 'button';
       heading.append(el('b', '', dateFromIso(date).getDate()), el('span', '', dateLabel(date))); heading.addEventListener('click', () => selectDay(date, true)); section.append(heading);
@@ -226,7 +231,7 @@
   function eventChip(event) {
     const chip = el('span', `event event-${event.calendarKey}${event.allDay ? ' all-day' : ' timed'}${event.status === 'cancelled' ? ' cancelled' : ''}`);
     const colors = colorsFor(event); chip.style.setProperty('--event-color', colors.color); chip.style.setProperty('--event-soft', colors.soft); if (colors.label) { chip.classList.add('has-label'); chip.style.setProperty('--label-color', colors.label); }
-    if (!event.allDay) chip.append(el('span', 'event-time', `${event.startTime} `)); chip.append(document.createTextNode(event.title)); chip.title = event.allDay ? event.title : `${event.startTime} ${event.title}`; return chip;
+    if (!event.allDay && !(event.spanDay > 1)) chip.append(el('span', 'event-time', `${event.startTime} `)); chip.append(document.createTextNode(event.title)); chip.title = event.allDay ? event.title : `${event.startTime} ${event.title}`; return chip;
   }
   function weekEventCard(event) {
     const button = el('button', `week-event event-${event.calendarKey}`); button.type = 'button'; const colors = colorsFor(event);
@@ -261,7 +266,7 @@
       const button = el('button', 'timeline-item'); button.type = 'button';
       button.append(el('time', '', event.allDay ? 'Ganztägig' : event.startTime), el('span', 'timeline-line'));
       const body = el('span'); body.append(el('strong', '', event.title), el('small', '', calendarFor(event).name)); button.append(body);
-      button.addEventListener('click', () => { state.callbacks.go?.('calendar'); selectDay(event.occurrenceDate, true); }); timeline.append(button);
+      button.addEventListener('click', () => { state.callbacks.go?.('calendar'); selectDay(event.dayDate || event.occurrenceDate, true); }); timeline.append(button);
     });
   }
 
