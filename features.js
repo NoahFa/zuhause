@@ -490,9 +490,9 @@
   async function recogniseImage(file, progressTarget) {
     try {
       if ('TextDetector' in window) { const bitmap = await createImageBitmap(file); const blocks = await new TextDetector().detect(bitmap); bitmap.close(); return blocks.map(block => block.rawValue).join('\n'); }
-      await loadExternalScript('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js');
-      const result = await window.Tesseract.recognize(file, 'deu', { logger: message => { if (progressTarget && message.progress) progressTarget.textContent = `Texterkennung ${Math.round(message.progress * 100)} %`; } });
-      return result.data?.text || '';
+      if (!window.ZuhauseScanner) return '';
+      const result = await window.ZuhauseScanner.recognise(file, message => { if (progressTarget && message.progress) progressTarget.textContent = `Texterkennung ${Math.round(message.progress * 100)} %`; });
+      return result.text || '';
     } catch { return ''; }
   }
 
@@ -542,7 +542,7 @@
   function injectDocuments() {
     const page = document.querySelector('#documents'); if (!page || page.dataset.featured) return; page.dataset.featured = '1';
     const title = page.querySelector('.page-title');
-    title.innerHTML = `<div><p class="eyebrow">Dokumente</p><h1>Gemeinsam sicher ablegen.</h1><p>Beide sehen alle Bereiche. Ordner und Kategorien dienen nur der Übersicht.</p></div><div class="document-actions"><button class="secondary" id="multiScan">▣ Mehrseitig scannen</button><button class="primary" id="fakeUploadFeature">↑ Datei hochladen</button></div>`;
+    title.innerHTML = `<div><p class="eyebrow">Dokumente</p><h1>Gemeinsam sicher ablegen.</h1><p>Beide sehen alle Bereiche. Ordner und Kategorien dienen nur der Übersicht.</p></div><div class="document-actions"><button class="secondary" id="multiScan">▣ Dokument scannen</button><button class="primary" id="fakeUploadFeature">↑ Datei hochladen</button></div>`;
     page.querySelector('.people-docs')?.remove();
     const card = page.querySelector('.document-card');
     card.insertAdjacentHTML('beforebegin', `<article class="card document-controls"><div class="document-filter-grid"><label>Ablageordner<select id="documentFolder"><option>Gemeinsam</option><option>Noah</option><option>Charleen</option><option>Lou</option></select></label><label>Kategorie<select id="documentCategory"></select></label><label>Dokumentname<input id="documentName" placeholder="wird aus dem Dateinamen übernommen"></label><label>Suche<input id="documentSearch" type="search" placeholder="Name oder erkannter Text"></label><label>Suchbereich<select id="documentSearchScope"><option value="all">Alle Dokumente</option><option value="category">Aktueller Ordner und Kategorie</option></select></label></div><form id="documentCategoryForm" class="inline-form"><input name="category" placeholder="Neue Kategorie" required><button class="secondary" type="submit">Kategorie anlegen</button></form><div id="documentCategoryList" class="category-manager"></div><p class="privacy-note">OCR läuft möglichst lokal im Browser. Die Originalfotos bleiben zusätzlich zum PDF geschützt erhalten.</p></article><input id="multiScanInput" type="file" accept="image/*" capture="environment" multiple hidden>`);
@@ -603,7 +603,7 @@
   async function createScannedPdf(files) {
     const dialog = openFeatureDialog('Dokument wird zusammengesetzt', '<p id="scanProgress">Seiten werden vorbereitet …</p>', '');
     try {
-      await loadExternalScript('https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js');
+      await loadExternalScript('vendor/jspdf.umd.min.js');
       const { jsPDF } = window.jspdf; const pdf = new jsPDF({ unit: 'mm', format: 'a4', compress: true }); let ocrText = '';
       for (let index = 0; index < files.length; index += 1) {
         document.querySelector('#scanProgress').textContent = `Seite ${index + 1} von ${files.length} · Texterkennung …`;
@@ -713,7 +713,7 @@
   async function generatePacklistPdf() {
     const pack = currentPacklist();
     try {
-      await loadExternalScript('https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js');
+      await loadExternalScript('vendor/jspdf.umd.min.js');
       const { jsPDF } = window.jspdf; const pdf = new jsPDF(); let y = 18;
       const write = (text, size = 11, gap = 7) => {
         pdf.setFontSize(size); const lines = pdf.splitTextToSize(String(text), 175);

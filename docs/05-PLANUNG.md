@@ -64,11 +64,11 @@ Prüfung vom 17.11.2026 umgesetzt (Versionen 32–34, siehe oben). Offen bzw. nu
 - **Prüfung auf geleakte Passwörter** ist erst im kostenpflichtigen Supabase-Tarif möglich.
 - Nächste Prüfung: `/pruefen`.
 
-### Dokumentenscanner perfektionieren (Plan vom 17.11.2026, Entscheidungen von Noah offen)
+### Dokumentenscanner perfektionieren (Plan vom 17.11.2026)
 
 **Ist-Stand (geprüft im Code):** „Mehrseitig scannen“ öffnet die Kamera mit `capture="environment" multiple` – am iPhone nimmt die Kamera damit aber nur **ein** Foto auf; mehrere Seiten gehen nur über die Fotoauswahl. Zuschnitt (`prepareScanImage` in `features.js`) sucht nur einen hellen Rand und schneidet gerade ab – keine Ecken, keine Entzerrung, keine Drehung, keine Schattenentfernung. Texterkennung (Tesseract, Deutsch) und PDF (jsPDF) werden bei Bedarf aus dem Internet geladen. Ordner, Kategorie und Name müssen vor dem Scannen oben auf der Seite eingestellt werden. Das PDF enthält nur Bilder (Text nicht markier-/kopierbar). Speicher: Supabase-Gratistarif 1 GB, belegt ~1 MB.
 
-**Phase 1 – Scannen am iPhone (Kern)**
+**Phase 1 – Scannen am iPhone (Kern)** – ✅ erledigt am 17.11.2026 (v35, `scanner.js`): eigene Scan-Ansicht, Ecken-Erkennung mit Lupe, Entzerren, Drehen, Modi Dokument/Farbe/Original, Warnung bei unscharf/dunkel, Seitenübersicht, durchsuchbares PDF (Phase-3-Punkt 12 gleich mit erledigt), Tesseract und jsPDF unter `vendor/`. Texterkennung läuft immer auf der Schwarz-Weiß-Fassung (besser lesbar).
 1. Eigene Scan-Ansicht: Seite fotografieren → Vorschau mit automatisch gefundenen **vier Ecken** (mit dem Finger verschiebbar, Lupe beim Ziehen) → „Übernehmen“ / „Neu aufnehmen“ → „＋ Nächste Seite“ → Seitenübersicht (Reihenfolge ändern, drehen, löschen) → „Fertig“.
 2. **Kantenerkennung** (eigene schlanke Umsetzung ohne große Bibliothek): Dokumentkontur suchen; bei Unsicherheit Ecken auf den Bildrand legen – nie Inhalt abschneiden (Festlegung).
 3. **Entzerren** (Perspektivkorrektur auf DIN-A4-Verhältnis bzw. Kassenbon-Format) und **automatisch drehen** (Hoch/Quer).
@@ -92,7 +92,7 @@ Prüfung vom 17.11.2026 umgesetzt (Versionen 32–34, siehe oben). Offen bzw. nu
 15. Scans ohne Netz zwischenspeichern und später automatisch hochladen; Fortschritt und Abbrechen; Seitengröße ~200–400 KB (1 GB reicht für einige Tausend Seiten).
 16. **Testsammlung** mit typischen Fällen (schräg, Schatten, Holztisch, Querformat, langer Kassenbon, Impfpass, zerknittert) – automatische Prüfung von Ecken, Entzerrung und Texterkennung; neuer Prüfschritt für `pruefer-fehler`/`pruefer-oberflaeche`.
 
-**Vor dem Start mit Noah klären:** (a) Fotografieren über die normale iPhone-Kamera (zuverlässig, ein Tipp mehr pro Seite) oder eigene Live-Kamera mit Rahmen und automatischem Auslösen (komfortabler, am iPhone in der Home-Bildschirm-App aufwendiger)? (b) Welche Dokumente scannt ihr am häufigsten? (c) Folgeaktionen aus Phase 2 gewünscht – welche?
+**Entscheidungen von Noah (17.11.2026):** normale iPhone-Kamera; alle Dokumentarten; alle Folgeaktionen gewünscht. Ursprüngliche Fragen: (a) Fotografieren über die normale iPhone-Kamera (zuverlässig, ein Tipp mehr pro Seite) oder eigene Live-Kamera mit Rahmen und automatischem Auslösen (komfortabler, am iPhone in der Home-Bildschirm-App aufwendiger)? (b) Welche Dokumente scannt ihr am häufigsten? (c) Folgeaktionen aus Phase 2 gewünscht – welche?
 
 ## Bewusst verworfen
 

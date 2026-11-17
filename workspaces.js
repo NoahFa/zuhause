@@ -142,7 +142,7 @@
   async function jobPdf() {
     const item=job();if(!item)return;
     try {
-      if(!window.jspdf)await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js';script.onload=resolve;script.onerror=reject;document.head.append(script);});
+      if(!window.jspdf)await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='vendor/jspdf.umd.min.js';script.onload=resolve;script.onerror=reject;document.head.append(script);});
       const pdf=new window.jspdf.jsPDF();let y=20;
       const line=(text,size=11)=>{pdf.setFontSize(size);for(const part of pdf.splitTextToSize(String(text),178)){if(y>278){pdf.addPage();y=20;}pdf.text(part,16,y);y+=size===18?11:7;}};
       line(item.title,18);line(`Montage am ${dateLabel(item.date)}`);y+=5;
