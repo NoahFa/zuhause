@@ -183,17 +183,17 @@
     try {
       const source = await loadImage(file), found = detectCorners(source);
       const page = { id: uid(), file, source, corners: found.corners, sure: found.sure, mode: 'document', rotation: 0, quality: quality(source) };
-      processPage(page); pages.push(page);
+      processPage(page); pages.push(page); analysis = null;
       if (edit) { editIndex = pages.length - 1; view = 'edit'; } render();
     } catch { toast('Das Foto konnte nicht gelesen werden'); render(); }
   }
   function close() {
     if (pages.length && !confirm('Scan verwerfen? Die aufgenommenen Seiten gehen verloren.')) return;
-    pages = []; editIndex = -1; view = 'pages'; dialog().close();
+    pages = []; analysis = null; ocrRun++; editIndex = -1; view = 'pages'; dialog().close();
   }
   function open(options = {}) {
-    context = { folder: options.folder || document.querySelector('#documentFolder')?.value || 'Gemeinsam', category: options.category || document.querySelector('#documentCategory')?.value || '', name: options.name || '', onSaved: options.onSaved };
-    pages = []; editIndex = -1; view = 'pages'; render(); dialog().showModal();
+    context = { folder: options.folder || document.querySelector('#documentFolder')?.value || 'Gemeinsam', fixedFolder: !!options.folder, category: options.category || document.querySelector('#documentCategory')?.value || '', name: options.name || '', actions: options.actions || [], orderId: options.orderId || null, onSaved: options.onSaved };
+    analysis = null; ocrRun++; pages = []; editIndex = -1; view = 'pages'; render(); dialog().showModal();
     if (options.startCamera !== false) setTimeout(() => pickFiles(false), 60);
   }
 
@@ -243,32 +243,102 @@
     });
   }
 
+  // ---------- Speichern mit Vorschlägen (Phase 2) ----------
+  const A = () => window.ZuhauseScanAnalyse;
+  const euro = n => Number(n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+  const ocrKey = page => `${page.corners.flat().map(v => v.toFixed(3)).join(',')}|${page.rotation}`;
+  let analysis = null, ocrRun = 0;
+  function ocrCanvasOf(page) { return page.mode === 'document' ? page.result : rotate(enhance(warp(page.source, page.corners), 'document'), page.rotation); }
+  async function ocrAll(progress) {
+    for (let i = 0; i < pages.length; i++) {
+      const page = pages[i]; if (page.ocr && page.ocrKey === ocrKey(page)) continue;
+      progress?.(`Seite ${i + 1} von ${pages.length}: Text wird gelesen …`);
+      page.ocr = await recognise(ocrCanvasOf(page), m => { if (m.status === 'recognizing text') progress?.(`Seite ${i + 1} von ${pages.length}: Text wird gelesen … ${Math.round(m.progress * 100)} %`); }); page.ocrKey = ocrKey(page);
+    }
+    return pages.map(p => p.ocr?.text || '').join('\n');
+  }
+  function openOrders() { return (state.noahJobs?.orders || []).filter(o => o.status === 'open'); }
+  function plusDays(days) { const t = new Date(); t.setDate(t.getDate() + days); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`; }
+
+  // Mögliche Folgeaktionen zum erkannten Dokument – nur mit Häkchen (vorausgewählt nur, wenn aus einem Bereich heraus gescannt)
+  function suggestions(a) {
+    const list = [], who = a.sender || a.label, preset = context.actions || [];
+    const on = key => preset.includes(key);
+    if (a.kind === 'invoice' || (a.due && a.kind !== 'receipt')) list.push({ key: 'task', checked: on('task'), title: 'Aufgabe „bezahlen“ anlegen', fields: `<input name="taskTitle" value="${h(`${who} bezahlen${a.total ? ` (${euro(a.total)})` : ''}`)}" aria-label="Titel der Aufgabe"><input name="taskDue" type="date" value="${a.due || plusDays(14)}" aria-label="Fällig am">` });
+    if (a.kind === 'receipt' || on('expense')) list.push({ key: 'expense', checked: on('expense'), title: 'Als Ausgabe ins Budget', fields: `<input name="expenseTitle" value="${h(a.sender || 'Einkauf')}" aria-label="Wofür"><input name="expenseAmount" inputmode="decimal" value="${a.total ? String(a.total.toFixed(2)).replace('.', ',') : ''}" placeholder="Betrag in €" aria-label="Betrag"><input name="expenseDate" type="date" value="${a.docDate || plusDays(0)}" aria-label="Datum"><select name="expenseCategory" aria-label="Bereich">${['Gemeinsamer Haushalt', 'Persönlich', 'Nebengewerbe', 'Noch unklar'].map(c => `<option ${c === (a.diy ? 'Nebengewerbe' : 'Gemeinsamer Haushalt') ? 'selected' : ''}>${c}</option>`).join('')}</select>` });
+    if (a.reminder) list.push({ key: 'reminder', checked: on('reminder'), title: 'Erinnerung im Kalender', note: a.reminderNote, fields: `<input name="reminderTitle" value="${h(`${who}: Vertrag prüfen / kündigen?`)}" aria-label="Titel"><input name="reminderDate" type="date" value="${a.reminder}" aria-label="Datum">` });
+    if (a.vaccination || on('lou')) list.push({ key: 'lou', checked: on('lou'), title: 'Bei Lou: Impfung erledigt', fields: `<input name="louDate" type="date" value="${a.docDate || plusDays(0)}" aria-label="Geimpft am">` });
+    const orders = openOrders();
+    if (orders.length && (a.diy || on('material'))) list.push({ key: 'material', checked: on('material'), title: 'Als Material in Nebenjob-Auftrag', fields: `<select name="materialOrder" aria-label="Auftrag">${orders.map(o => `<option value="${h(o.id)}" ${o.id === context.orderId ? 'selected' : ''}>${h(o.title || 'Auftrag')}</option>`).join('')}</select><input name="materialName" value="${h(`${a.sender || 'Material'}${a.docDate ? ` ${A().german(a.docDate)}` : ''}`)}" aria-label="Bezeichnung"><input name="materialPrice" inputmode="decimal" value="${a.total ? String(a.total.toFixed(2)).replace('.', ',') : ''}" placeholder="Preis in €" aria-label="Preis">` });
+    if (a.kind === 'payslip' || on('payslip')) list.push({ key: 'payslip', checked: on('payslip'), title: 'Danach Charleens Nebenjob öffnen', note: a.total ? `Auszahlung laut Abrechnung: ${euro(a.total)} – Stunden dort vergleichen.` : 'Stunden mit der Abrechnung vergleichen.', fields: '' });
+    return list;
+  }
+  function renderSuggestions(d) {
+    const box = d.querySelector('.scanner-suggest'); if (!box || !analysis) return;
+    const list = suggestions(analysis);
+    box.innerHTML = `${analysis.kind !== 'other' || analysis.sender ? `<p class="scanner-found">Erkannt: <b>${h(analysis.label)}</b>${analysis.sender ? ` von ${h(analysis.sender)}` : ''}${analysis.docDate ? ` · ${h(A().german(analysis.docDate))}` : ''}${analysis.total ? ` · ${h(euro(analysis.total))}` : ''}${analysis.learned ? ' · <span>Ordner gemerkt</span>' : ''}</p>` : '<p class="scanner-found">Kein bekannter Dokumenttyp erkannt – bitte Name und Ordner selbst wählen.</p>'}
+      ${list.length ? `<p class="scanner-sub">Gleich mit erledigen?</p>${list.map(s => `<div class="scanner-action"><label><input type="checkbox" data-sc-action="${s.key}" ${s.checked ? 'checked' : ''}><span>${h(s.title)}</span></label>${s.note ? `<small>${h(s.note)}</small>` : ''}${s.fields ? `<div class="scanner-action-fields">${s.fields}</div>` : ''}</div>`).join('')}` : ''}`;
+  }
+  function fillFields(d) {
+    if (!analysis) return;
+    const set = (name, value) => { const el = d.querySelector(`[name=${name}]`); if (!el || el.dataset.touched || !value) return; if (el.tagName === 'SELECT' && ![...el.options].some(o => o.value === value)) return; el.value = value; el.classList.add('scanner-suggested'); };
+    set('name', analysis.name); if (!context.fixedFolder) set('folder', analysis.folder); set('category', analysis.category);
+  }
+
   function renderSave(d) {
     const categories = state.customCategories?.documents || ['Sonstige Dokumente'];
     const folderOptions = ['Gemeinsam', 'Noah', 'Charleen', 'Lou'].map(f => `<option ${f === context.folder ? 'selected' : ''}>${f}</option>`).join('');
     d.innerHTML = `<div class="scanner-head"><button class="scanner-text" data-sc-back>← Seiten</button><strong>Speichern</strong><span>${pages.length} ${pages.length === 1 ? 'Seite' : 'Seiten'}</span></div>
       <div class="scanner-save"><div class="scanner-save-thumbs">${pages.slice(0, 4).map(p => `<img src="${p.thumb}" alt="">`).join('')}</div>
+        <p class="scanner-progress" aria-live="polite"></p>
         <label class="ws-field"><span>Name</span><input name="name" maxlength="120" value="${h(context.name || '')}" placeholder="z. B. Rechnung Tierarzt November"></label>
         <label class="ws-field"><span>Ordner</span><select name="folder">${folderOptions}</select></label>
         <label class="ws-field"><span>Kategorie</span><select name="category">${categories.map(c => `<option ${c === context.category ? 'selected' : ''}>${h(c)}</option>`).join('')}</select></label>
-        <p class="ws-help">Der Text wird auf dem Handy erkannt – das Dokument ist danach über die Suche auffindbar, und der Text lässt sich im PDF markieren.</p>
-        <p class="scanner-progress" aria-live="polite"></p></div>
+        <div class="scanner-suggest"></div></div>
       <div class="scanner-foot"><button class="secondary" data-sc-back>Zurück</button><button class="primary" data-sc-save>PDF speichern</button></div>`;
+    d.querySelectorAll('.scanner-save > label input, .scanner-save > label select').forEach(el => el.addEventListener('input', () => { el.dataset.touched = '1'; el.classList.remove('scanner-suggested'); }));
+    if (analysis) { fillFields(d); renderSuggestions(d); return; }
+    const run = ++ocrRun, progress = d.querySelector('.scanner-progress');
+    ocrAll(text => { if (run === ocrRun) progress.textContent = text; }).then(text => {
+      if (run !== ocrRun || view !== 'save') return;
+      analysis = A()?.analyse(text, state.customCategories?.documents || [], state.scanRules || {}) || null;
+      progress.textContent = ''; fillFields(d); renderSuggestions(d);
+    });
+  }
+
+  function runActions(d, a, meta) {
+    const done = [], value = name => d.querySelector(`[name=${name}]`)?.value?.trim() || '';
+    const checked = key => d.querySelector(`[data-sc-action="${key}"]`)?.checked;
+    const amount = name => { let s = value(name).replace(/[\s€]/g, ''); if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); const n = Number(s); return Number.isFinite(n) && n > 0 ? n : 0; };
+    if (checked('task')) { const due = value('taskDue') || plusDays(14); state.householdTasks.unshift({ id: crypto.randomUUID(), seriesId: null, title: value('taskTitle') || 'Rechnung bezahlen', description: `Dokument: ${meta.name}`, person: 'Gemeinsam', dueOn: due, due, recurrenceAnchor: due, done: false, completedAt: null, recurrence: 'none', recurrenceInterval: 1, recurrenceUnit: 'weeks', alternate: false, createdAt: new Date().toISOString() }); done.push('Aufgabe'); }
+    if (checked('expense') && amount('expenseAmount')) { const category = value('expenseCategory') || 'Gemeinsamer Haushalt'; state.expenses.unshift({ id: crypto.randomUUID(), title: value('expenseTitle') || 'Einkauf', store: value('expenseTitle'), date: value('expenseDate') || plusDays(0), amount: amount('expenseAmount'), person: 'Gemeinsam', category, receipt: true, review: ['Nebengewerbe', 'Noch unklar'].includes(category), receiptOcrText: meta.ocrText.slice(0, 4000), createdAt: new Date().toISOString(), icon: '▣' }); done.push('Ausgabe'); }
+    if (checked('lou')) {
+      if (!state.lou || typeof state.lou !== 'object') state.lou = {}; if (!Array.isArray(state.lou.care)) state.lou.care = [];
+      const date = value('louDate') || plusDays(0); let item = state.lou.care.find(x => /impf/i.test(x.title));
+      if (!item) { item = { id: crypto.randomUUID(), title: 'Impfung auffrischen', every: 1, unit: 'years', nextDue: date, lastDone: null, history: [] }; state.lou.care.push(item); }
+      item.lastDone = date; item.history = [date, ...(item.history || []).filter(x => x !== date)].slice(0, 10); item.nextDue = window.ZuhauseLou?.addInterval?.(date, item.every, item.unit) || date; done.push('Lou');
+    }
+    if (checked('material')) { const order = (state.noahJobs?.orders || []).find(o => o.id === value('materialOrder')); if (order) { (order.materials ||= []).push({ id: crypto.randomUUID(), name: value('materialName') || 'Material', qty: 1, unit: '', price: amount('materialPrice') }); done.push('Material'); } }
+    if (done.length) { persist(); try { renderAll(); } catch {} window.ZuhauseLou?.render?.(); window.ZuhauseNoahJobs?.render?.(); window.ZuhauseFeatures?.refresh?.(); }
+    if (checked('reminder')) setTimeout(() => {
+      window.ZuhauseCalendar?.openCreate?.(value('reminderDate') || plusDays(330)); const form = document.querySelector('#calendarEventForm'); if (!form) return;
+      form.elements.title.value = value('reminderTitle'); form.elements.allDay.checked = true; form.elements.allDay.dispatchEvent(new Event('change', { bubbles: true }));
+      if (form.elements.notes) form.elements.notes.value = `${a?.reminderNote || ''}\nDokument: ${meta.name}`.trim();
+    }, 150);
+    if (checked('payslip')) { go('study'); setTimeout(() => document.querySelector('[data-ch-tab=job]')?.click(), 100); }
+    return done;
   }
 
   async function save() {
     const d = dialog(), name = d.querySelector('[name=name]').value.trim(), folder = d.querySelector('[name=folder]').value, category = d.querySelector('[name=category]').value, progress = d.querySelector('.scanner-progress');
-    d.querySelectorAll('button').forEach(b => { b.disabled = true; });
+    d.querySelectorAll('button, input, select').forEach(b => { b.disabled = true; });
     try {
-      progress.textContent = 'PDF wird vorbereitet …';
+      ocrRun++; const text = await ocrAll(t => { progress.textContent = t; });
+      progress.textContent = 'PDF wird erstellt …';
       await loadScript(VENDOR + 'jspdf.umd.min.js');
-      const { jsPDF } = window.jspdf; let pdf = null, text = '';
-      for (let i = 0; i < pages.length; i++) {
-        const page = pages[i], canvas = page.result;
-        progress.textContent = `Seite ${i + 1} von ${pages.length}: Text wird erkannt …`;
-        const ocrCanvas = page.mode === 'document' ? canvas : rotate(enhance(warp(page.source, page.corners), 'document'), page.rotation);
-        const ocr = await recognise(ocrCanvas, m => { if (m.status === 'recognizing text') progress.textContent = `Seite ${i + 1} von ${pages.length}: Text wird erkannt … ${Math.round(m.progress * 100)} %`; });
-        text += `\n${ocr.text}`;
+      const { jsPDF } = window.jspdf; let pdf = null;
+      for (const page of pages) {
+        const canvas = page.result, words = page.ocr?.words || [];
         // Seitenformat: A4 (hoch/quer) oder passend zum Blatt (z. B. lange Kassenbons)
         const ratio = canvas.height / canvas.width, a4 = Math.abs(ratio - A4) / A4 < 0.02, a4q = Math.abs(1 / ratio - A4) / A4 < 0.02;
         const pw = a4 ? 210 : a4q ? 297 : 210, ph = a4 ? 297 : a4q ? 210 : Math.min(5000, 210 * ratio);
@@ -276,15 +346,20 @@
         pdf.addImage(canvas.toDataURL('image/jpeg', page.mode === 'document' ? 0.8 : 0.85), 'JPEG', 0, 0, pw, ph, undefined, 'FAST');
         // unsichtbare Textebene: macht das PDF durchsuchbar und den Text markierbar
         const sx = pw / canvas.width, sy = ph / canvas.height;
-        for (const word of ocr.words) { const { x0, y0, x1, y1 } = word.bbox, height = (y1 - y0) * sy; if (height <= 0) continue; pdf.setFontSize(Math.max(2, height * 2.6)); try { pdf.text(word.text, x0 * sx, y1 * sy, { renderingMode: 'invisible', maxWidth: (x1 - x0) * sx * 1.2 }); } catch {} }
+        for (const word of words) { const { x0, y0, x1, y1 } = word.bbox, height = (y1 - y0) * sy; if (height <= 0) continue; pdf.setFontSize(Math.max(2, height * 2.6)); try { pdf.text(word.text, x0 * sx, y1 * sy, { renderingMode: 'invisible', maxWidth: (x1 - x0) * sx * 1.2 }); } catch {} }
       }
       progress.textContent = 'Wird gespeichert …';
-      const blob = pdf.output('blob'), fileName = `${(name || `Scan ${todayIso()}`).replace(/[^\wäöüÄÖÜß .-]+/g, '-')}.pdf`;
-      window.__pendingDocumentMeta = { folder, category, ocrText: text.trim(), name: name || `Scan ${new Date().toLocaleDateString('de-DE')}`, originalFiles: pages.map(p => p.file) };
+      const finalName = name || `Scan ${new Date().toLocaleDateString('de-DE')}`;
+      const blob = pdf.output('blob'), fileName = `${finalName.replace(/[^\wäöüÄÖÜß .-]+/g, '-')}.pdf`;
+      const meta = { folder, category, ocrText: text.trim(), name: finalName, originalFiles: pages.map(p => p.file) };
+      window.__pendingDocumentMeta = meta;
       const saved = await uploadDocument(new File([blob], fileName, { type: 'application/pdf' }));
       if (!saved) throw new Error('Upload fehlgeschlagen');
-      const done = context.onSaved; pages = []; d.close(); toast('Dokument gespeichert'); done?.({ name, folder, category, text });
-    } catch { progress.textContent = 'Das Speichern hat nicht geklappt. Bitte noch einmal versuchen.'; d.querySelectorAll('button').forEach(b => { b.disabled = false; }); }
+      if (analysis?.senderKey) { A()?.learn(analysis.senderKey, folder, category); persist(); }
+      const a = analysis, actions = runActions(d, a, meta), callback = context.onSaved;
+      pages = []; analysis = null; d.close();
+      toast(actions.length ? `Gespeichert · ${actions.join(', ')} angelegt` : 'Dokument gespeichert'); callback?.({ name: finalName, folder, category, text });
+    } catch { progress.textContent = 'Das Speichern hat nicht geklappt. Bitte noch einmal versuchen.'; d.querySelectorAll('button, input, select').forEach(b => { b.disabled = false; }); }
   }
 
   document.addEventListener('click', event => {
@@ -294,14 +369,14 @@
     if ('scPhotos' in ds) pickFiles(true);
     if ('scEdit' in ds) { editIndex = +ds.scEdit; view = 'edit'; render(); }
     if ('scMove' in ds) { const [i, step] = ds.scMove.split(':').map(Number); const j = i + step; if (pages[j]) { [pages[i], pages[j]] = [pages[j], pages[i]]; render(); } }
-    if ('scDelete' in ds) { pages.splice(+ds.scDelete, 1); render(); }
+    if ('scDelete' in ds) { pages.splice(+ds.scDelete, 1); analysis = null; render(); }
     if ('scNext' in ds) { view = 'save'; render(); }
     if ('scBack' in ds) { view = 'pages'; render(); }
     if ('scSave' in ds) save();
     const page = pages[editIndex];
     if (!page || view !== 'edit') return;
     if ('scRetake' in ds) { pages.splice(editIndex, 1); view = 'pages'; render(); pickFiles(false); }
-    if ('scAccept' in ds) { processPage(page); view = 'pages'; render(); }
+    if ('scAccept' in ds) { processPage(page); analysis = null; view = 'pages'; render(); }
     if ('scMode' in ds) { page.mode = ds.scMode; renderEdit(dialog(), page); }
     if ('scRotate' in ds) { page.rotation = (page.rotation + 1) % 4; renderEdit(dialog(), page); }
     if ('scFull' in ds) { page.corners = [[0, 0], [1, 0], [1, 1], [0, 1]]; renderEdit(dialog(), page); }
@@ -313,5 +388,11 @@
     const button = event.target.closest('#multiScan, #scanDocument'); if (!button) return;
     event.preventDefault(); event.stopImmediatePropagation(); open();
   }, true);
+  // „Dokument scannen“ aus einem Bereich heraus (Lou, Charleen, Nebenjob-Auftrag): Ordner und Aktion vorausgewählt
+  document.addEventListener('click', event => {
+    const button = event.target.closest('[data-scan-here]'); if (!button) return;
+    event.preventDefault(); const ds = button.dataset;
+    open({ folder: ds.scanFolder, actions: (ds.scanActions || '').split(',').filter(Boolean), orderId: ds.scanOrder || null });
+  });
   window.ZuhauseScanner = { open, detectCorners, warp, enhance, quality, recognise };
 })();

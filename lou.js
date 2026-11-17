@@ -70,6 +70,7 @@
         </article>
         <article class="card lou-quick"><span class="kicker">Schnell erledigt</span><h2>Für Lou</h2>
           <button class="secondary lou-wide" data-lou-food>🛒 Futter auf die Einkaufsliste</button>
+          <button class="secondary lou-wide" data-scan-here data-scan-folder="Lou">📄 Dokument scannen (Impfpass, Rechnung)</button>
           <button class="secondary lou-wide" data-lou-docs>▤ Lous Dokumente öffnen</button>
         </article>
       </div>

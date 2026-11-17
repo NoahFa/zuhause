@@ -104,3 +104,17 @@
 .scanner-dialog button.secondary{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.18)}
 .scanner-dialog button.primary{background:#7fd19b;color:#173022;border:0}
 .scanner-dialog button.primary:disabled{opacity:.4}
+.scanner-suggested{box-shadow:0 0 0 2px #7fd19b}
+.scanner-suggest{display:grid;gap:10px}
+.scanner-found{margin:4px 0 0;color:#e8ede4;font-size:14px;line-height:1.5}
+.scanner-found span{color:#7fd19b}
+.scanner-sub{margin:6px 0 0;font-weight:750;color:#cfd6cb}
+.scanner-action{background:rgba(255,255,255,.08);border-radius:12px;padding:10px 12px;display:grid;gap:8px}
+.scanner-action label{display:flex;gap:10px;align-items:center;min-height:32px;font-weight:700}
+.scanner-action input[type=checkbox]{appearance:auto;width:22px;height:22px;accent-color:#7fd19b;flex:none}
+.scanner-action small{color:#cfd6cb}
+.scanner-action-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.scanner-action-fields>:first-child{grid-column:1/-1}
+.scanner-action-fields input,.scanner-action-fields select{min-height:44px;border-radius:10px;border:1px solid var(--line);padding:8px 10px;font:inherit;font-size:16px;min-width:0;width:100%}
+.scanner-action:has(input[type=checkbox]:not(:checked)) .scanner-action-fields{display:none}
+.scan-here{white-space:nowrap}
