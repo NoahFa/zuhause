@@ -38,3 +38,25 @@
 @media(max-width:760px){.cal-day .event .event-time{display:none}}
 .noah-avatar{background:#dceafb!important;color:#1f6fc5!important}.charleen-avatar{background:#fbe1ea!important;color:#cc3d6a!important}
 @media(max-width:760px){.cal-day .event.has-label::before{display:none}}
+.calendar-search-head{font-weight:750;color:#53604d;margin:4px 2px 10px}.calendar-search-group{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#7e8677;margin:14px 2px 6px}
+.timeline-heading{margin:14px 0 4px;font-size:12px;font-weight:750;text-transform:uppercase;letter-spacing:.08em;color:#7e8677}button.upcoming-row{width:100%;border:0;background:transparent;font:inherit;color:inherit;text-align:left;cursor:pointer;padding-left:0;padding-right:0}button.upcoming-row:hover strong{text-decoration:underline}
+.toast.with-action{pointer-events:auto;display:flex;align-items:center;gap:14px;padding:8px 8px 8px 18px}.toast-undo{border:0;border-radius:999px;background:#e6ebe0;color:#26352b;font:inherit;font-weight:800;padding:9px 14px;min-height:40px;cursor:pointer}.choose-option{width:100%;min-height:52px;margin-top:8px}
+/* Prüfung 17.11.2026: Darstellung */
+@media(min-width:761px){.more-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}.more-feature{min-width:0}.more-feature strong{overflow-wrap:anywhere}
+@media(max-width:1050px){.ws-tabs:not(.ch-tabs){display:grid;grid-template-columns:1fr 1fr}}
+.finance-settings,.fixed-costs,.savings-card,.document-controls{padding:22px}
+.finance-settings h2,.fixed-costs h2,.savings-card h2{font-family:Georgia,serif;font-weight:500}
+.feature-task>span:nth-of-type(2) strong,.feature-task>span:nth-of-type(2) small{display:block}
+.row-delete,.check-row .row-edit{min-width:40px;min-height:40px;display:inline-grid;place-items:center}
+.round-add{min-width:40px;min-height:40px}
+#calendarPanelClose{min-width:40px;min-height:40px}
+.calendar-more{border:1px solid #e5e4dc;border-radius:14px;padding:4px 14px;background:#fbfcf8}.calendar-more summary{cursor:pointer;font-weight:700;color:#536b57;padding:12px 0;min-height:44px}.calendar-more-body{display:grid;gap:12px;padding-bottom:12px}
+.expense-more summary{cursor:pointer;font-weight:700;color:#536b57;padding:10px 0}
+.ch-overtime .kicker{text-transform:none;letter-spacing:.02em}
+@media(max-width:760px){
+  .mobile-nav button{font-size:10.5px;color:#5f655c}
+  #study .ws-intro{display:none}
+  .calendar-title-actions>button{padding:11px 6px}
+}
+.clock-warning{color:#a54d43!important;font-weight:700;margin:6px 0 0}
+[data-close-month]{pointer-events:none;color:#72786e!important;font-weight:500!important;background:none!important;text-decoration:none!important}

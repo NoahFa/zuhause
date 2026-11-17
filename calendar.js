@@ -109,7 +109,8 @@
     if (recurrence.frequency === 'monthly') {
       const start = dateFromIso(event.startDate), current = dateFromIso(candidate);
       const monthDelta = (current.getFullYear() - start.getFullYear()) * 12 + current.getMonth() - start.getMonth();
-      return monthDelta >= 0 && monthDelta % interval === 0 && current.getDate() === (recurrence.monthDay || start.getDate());
+      const wanted = recurrence.monthDay || start.getDate(), lastDay = new Date(current.getFullYear(), current.getMonth() + 1, 0).getDate();
+      return monthDelta >= 0 && monthDelta % interval === 0 && current.getDate() === Math.min(wanted, lastDay);
     }
     if (recurrence.frequency === 'yearly') {
       const start = dateFromIso(event.startDate), current = dateFromIso(candidate);
@@ -161,9 +162,10 @@
   function render() {
     if (!qs('#calendarGrid')) return;
     updateControls();
-    if (state.view === 'month') renderMonth();
-    if (state.view === 'week') renderWeek();
-    if (state.view === 'agenda') renderAgenda();
+    if (state.search) renderSearch();
+    else if (state.view === 'month') renderMonth();
+    else if (state.view === 'week') renderWeek();
+    else if (state.view === 'agenda') renderAgenda();
     renderDayPanel();
     renderHomeTimeline();
   }
@@ -239,6 +241,15 @@
     button.append(el('small', '', displayTime(event)), el('strong', '', event.title));
     button.addEventListener('click', () => openEdit(event.id, event.occurrenceDate)); return button;
   }
+  // Suche über alle Monate (ein Jahr zurück, gut ein Jahr voraus) statt nur im angezeigten Monat.
+  function renderSearch() {
+    const grid = qs('#calendarGrid'); grid.replaceChildren(); grid.className = 'calendar-agenda calendar-search-results';
+    const today = isoDate(new Date()), occurrences = occurrencesInRange(isoDate(addDays(today, -366)), isoDate(addDays(today, 400))).filter(item => (item.spanDay || 1) === 1);
+    const upcoming = occurrences.filter(item => item.occurrenceDate >= today), past = occurrences.filter(item => item.occurrenceDate < today).reverse();
+    const head = el('p', 'calendar-search-head', occurrences.length ? `${occurrences.length} ${occurrences.length === 1 ? 'Treffer' : 'Treffer'} für „${state.search}“` : `Keine Termine mit „${state.search}“ gefunden.`); grid.append(head);
+    const section = (title, items) => { if (!items.length) return; const box = el('section', 'agenda-day'); box.append(el('h3', 'calendar-search-group', title)); items.slice(0, 40).forEach(item => { const row = agendaEventRow(item); row.querySelector('small').textContent = `${dateLabel(item.occurrenceDate, { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' })} · ${row.querySelector('small').textContent}`; box.append(row); }); grid.append(box); };
+    section('Kommende', upcoming); section('Vergangene', past);
+  }
   function agendaEventRow(event) {
     const button = el('button', 'agenda-event-row'); button.type = 'button'; const colors = colorsFor(event);
     const marker = el('i', 'agenda-event-color'); marker.style.background = colors.color;
@@ -260,14 +271,18 @@
   }
   function renderHomeTimeline() {
     const timeline = qs('#todayTimeline'); if (!timeline) return; timeline.replaceChildren();
-    const events = occurrencesInRange(isoDate(new Date()), isoDate(new Date()));
-    if (!events.length) { timeline.append(el('p', '', 'Heute steht noch nichts im Kalender.')); return; }
-    events.slice(0, 6).forEach(event => {
+    const today = isoDate(new Date()), tomorrow = isoDate(addDays(today, 1));
+    const item = event => {
       const button = el('button', 'timeline-item'); button.type = 'button';
-      button.append(el('time', '', event.allDay ? 'Ganztägig' : event.startTime), el('span', 'timeline-line'));
-      const body = el('span'); body.append(el('strong', '', event.title), el('small', '', calendarFor(event).name)); button.append(body);
-      button.addEventListener('click', () => { state.callbacks.go?.('calendar'); selectDay(event.dayDate || event.occurrenceDate, true); }); timeline.append(button);
-    });
+      button.append(el('time', '', event.allDay || event.spanDay > 1 ? 'Ganztägig' : event.startTime), el('span', 'timeline-line'));
+      const body = el('span'); body.append(el('strong', '', event.title), el('small', '', event.spanLength > 1 ? `${calendarFor(event).name} · Tag ${event.spanDay} von ${event.spanLength}` : calendarFor(event).name)); button.append(body);
+      button.addEventListener('click', () => { state.callbacks.go?.('calendar'); selectDay(event.dayDate || event.occurrenceDate, true); }); return button;
+    };
+    const events = occurrencesInRange(today, today), next = occurrencesInRange(tomorrow, tomorrow);
+    if (!events.length) timeline.append(el('p', '', 'Heute steht nichts im Kalender.'));
+    events.slice(0, 6).forEach(event => timeline.append(item(event)));
+    // Ein Blick auf morgen (Wunsch aus der Bedienbarkeits-Prüfung).
+    if (next.length) { timeline.append(el('p', 'timeline-heading', 'Morgen')); next.slice(0, 4).forEach(event => timeline.append(item(event))); }
   }
 
   function navigate(direction) {
@@ -289,6 +304,7 @@
     form.reset(); form.elements.startDate.value = date; form.elements.endDate.value = date; form.elements.startTime.value = '09:00'; form.elements.endTime.value = '10:00'; form.elements.calendarKey.value = 'shared';
     qsa('[name="participant"]', form).forEach(input => { input.checked = true; });
     qs('#calendarEventDialogTitle').textContent = 'Termin eintragen'; qs('#calendarEventDialogKicker').textContent = 'Kalender'; qs('#calendarDeleteButton').hidden = true; qs('#calendarCopyButton').hidden = true; qs('#calendarFormMessage').textContent = '';
+    form.querySelector('.calendar-more')?.removeAttribute('open');
     updateFormVisibility(); dialog.showModal(); form.elements.title.focus();
   }
   function openEdit(eventId, occurrenceDate) {
@@ -303,6 +319,7 @@
     qsa('[name="participant"]', form).forEach(input => { input.checked = event.participantKeys.includes(input.value); });
     qsa('[name="reminder"]', form).forEach(input => { input.checked = event.reminderMinutes.includes(Number(input.value)); });
     qs('#calendarEventDialogTitle').textContent = 'Termin bearbeiten'; qs('#calendarEventDialogKicker').textContent = calendarFor(event).name; qs('#calendarDeleteButton').hidden = false; qs('#calendarCopyButton').hidden = false; qs('#calendarFormMessage').textContent = '';
+    form.querySelector('.calendar-more')?.toggleAttribute('open', !!(event.location || event.url || event.notes || event.reminderMinutes?.length || (event.labelColor && event.labelColor !== 'calendar')));
     updateFormVisibility(); qs('#calendarEventDialog').showModal();
   }
   function showAutomaticDetail(event, occurrenceDate) {
@@ -735,6 +752,38 @@
     qs('#calendarPanelClose')?.addEventListener('click', () => qs('#calendarDayPanel').classList.remove('open'));
     qsa('[data-calendar-cancel]').forEach(button => button.addEventListener('click', () => qs('#calendarEventDialog').close()));
     qs('#calendarEventForm')?.addEventListener('submit', saveFromForm); qs('#calendarDeleteButton')?.addEventListener('click', deleteCurrent); qs('#calendarCopyButton')?.addEventListener('click', copyCurrent);
+    const eventForm = qs('#calendarEventForm');
+    // Termin-Fenster kürzer: oben Titel, Wer, Tag/Uhrzeit, Wiederholung; der Rest unter „Mehr Optionen“.
+    if (eventForm && !eventForm.querySelector('.calendar-more')) {
+      const labelOf = name => eventForm.elements[name]?.closest('label');
+      const span = name => labelOf(name)?.querySelector('span');
+      if (span('calendarKey')) span('calendarKey').textContent = 'Wer?';
+      if (span('labelColor')) span('labelColor').textContent = 'Farbmarkierung (Punkt)';
+      const more = document.createElement('details'); more.className = 'calendar-more field full'; more.innerHTML = '<summary>Mehr Optionen: Erinnerung, Ort, Link, Notiz, Teilnehmer, Farbe</summary><div class="calendar-more-body"></div>';
+      const body = more.querySelector('.calendar-more-body');
+      const anchor = eventForm.querySelector('.calendar-recurrence-end') || labelOf('recurrence');
+      anchor?.after(more);
+      [eventForm.querySelector('.calendar-reminders'), labelOf('location'), labelOf('url'), labelOf('notes'), eventForm.querySelector('.calendar-participants'), labelOf('labelColor')].filter(Boolean).forEach(node => body.append(node));
+    }
+    if (eventForm) {
+      const remember = () => { eventForm.dataset.prevStartDate = eventForm.elements.startDate.value; eventForm.dataset.prevStartTime = eventForm.elements.startTime.value; };
+      eventForm.addEventListener('focusin', event => { if (event.target.name === 'startDate' || event.target.name === 'startTime') remember(); });
+      eventForm.elements.startDate?.addEventListener('change', () => {
+        const before = eventForm.dataset.prevStartDate, now = eventForm.elements.startDate.value, end = eventForm.elements.endDate;
+        if (!now) return;
+        if (before && end.value && end.value >= before) end.value = isoDate(addDays(end.value, daysBetween(before, now))); else if (!end.value || end.value < now) end.value = now;
+        if (end.value < now) end.value = now; remember();
+      });
+      eventForm.elements.startTime?.addEventListener('change', () => {
+        const before = eventForm.dataset.prevStartTime, now = eventForm.elements.startTime.value, end = eventForm.elements.endTime;
+        if (!now) return;
+        const toMin = t => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; };
+        const duration = before && end.value ? toMin(end.value) - toMin(before) : 60;
+        const target = toMin(now) + (duration > 0 ? duration : 60), sameDay = eventForm.elements.startDate.value === eventForm.elements.endDate.value;
+        if (sameDay && target >= 1440) { end.value = '23:59'; } else { end.value = `${String(Math.floor(target / 60) % 24).padStart(2, '0')}:${String(target % 60).padStart(2, '0')}`; }
+        remember();
+      });
+    }
     qs('#calendarEventForm [name="allDay"]')?.addEventListener('change', updateFormVisibility); qs('#calendarEventForm [name="recurrence"]')?.addEventListener('change', updateFormVisibility);
     qs('#calendarEventForm [name="calendarKey"]')?.addEventListener('change', event => { const key = event.target.value; qsa('[name="participant"]', qs('#calendarEventForm')).forEach(input => { input.checked = key === 'shared' || input.value === key; }); });
     const grid = qs('#calendarGrid'); let swipe = null;

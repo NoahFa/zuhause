@@ -112,13 +112,44 @@
 
   function taskRow(task, history = false) {
     const overdue = !task.done && task.dueOn < todayIso();
-    return `<label class="check-row feature-task ${task.done ? 'done' : ''} ${overdue ? 'overdue' : ''}"><input type="checkbox" data-task-id="${escapeHtml(task.id)}" ${task.done ? 'checked' : ''}><span class="check-dot"></span><span><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(displayPerson(task.person))} · ${escapeHtml(formatDue(task))}${task.recurrence !== 'none' ? (task.alternate ? ' · ⇄ abwechselnd' : ' · ↻') : ''}</small>${task.description ? `<em>${escapeHtml(task.description)}</em>` : ''}</span>${history ? '<button type="button" class="row-delete" data-delete-task aria-label="Aufgabe löschen">×</button>' : ''}</label>`;
+    return `<label class="check-row feature-task ${task.done ? 'done' : ''} ${overdue ? 'overdue' : ''}"><input type="checkbox" data-task-id="${escapeHtml(task.id)}" ${task.done ? 'checked' : ''}><span class="check-dot"></span><span><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(displayPerson(task.person))} · ${escapeHtml(formatDue(task))}${task.recurrence !== 'none' ? (task.alternate ? ' · ⇄ abwechselnd' : ' · ↻') : ''}</small>${task.description ? `<em>${escapeHtml(task.description)}</em>` : ''}</span>${history ? `<button type="button" class="row-edit" data-edit-task="${escapeHtml(task.id)}" aria-label="Aufgabe ändern">✎</button><button type="button" class="row-delete" data-delete-task aria-label="Aufgabe löschen">×</button>` : ''}</label>`;
+  }
+
+  // Auswahl mit mehreren Möglichkeiten (z. B. „nur diese Runde“ / „ganze Serie“). Ergebnis: Index oder -1 für Abbrechen.
+  function chooseAction(title, text, options) {
+    return new Promise(resolve => {
+      let dialog = document.querySelector('#chooseDialog');
+      if (!dialog) { dialog = document.createElement('dialog'); dialog.id = 'chooseDialog'; dialog.className = 'calendar-event-dialog'; document.body.append(dialog); }
+      dialog.innerHTML = `<div class="dialog-head"><div><span class="kicker">Rückfrage</span><h2>${escapeHtml(title)}</h2></div></div><div class="ws-dialog-fields"><p class="ws-help">${escapeHtml(text)}</p>${options.map((option, index) => `<button class="${index === 0 ? 'primary' : 'secondary'} choose-option" type="button" data-choose="${index}">${escapeHtml(option.label)}</button>`).join('')}<button class="ws-text-button" type="button" data-choose="-1">Abbrechen</button></div>`;
+      let answered = false;
+      dialog.querySelectorAll('[data-choose]').forEach(button => button.addEventListener('click', () => { answered = true; dialog.close(); resolve(Number(button.dataset.choose)); }));
+      dialog.addEventListener('close', () => { if (!answered) resolve(-1); }, { once: true });
+      dialog.showModal();
+    });
+  }
+  // Aufgabe nachträglich ändern; bei Wiederholungen auf Wunsch auch für die kommenden Runden.
+  function editTask(id) {
+    const task = state.householdTasks.find(item => String(item.id) === String(id)); if (!task) return;
+    let dialog = document.querySelector('#taskEditDialog');
+    if (!dialog) { dialog = document.createElement('dialog'); dialog.id = 'taskEditDialog'; dialog.className = 'calendar-event-dialog'; document.body.append(dialog); }
+    const option = (value, label) => `<option value="${value}" ${(task.person || 'Gemeinsam') === value ? 'selected' : ''}>${escapeHtml(label)}</option>`;
+    dialog.innerHTML = `<form><div class="dialog-head"><div><span class="kicker">Haushalt</span><h2>Aufgabe ändern</h2></div><button class="close" type="button" data-close-task-edit aria-label="Schließen">×</button></div><div class="ws-dialog-fields"><label class="ws-field"><span>Was?</span><input name="title" required maxlength="160" value="${escapeHtml(task.title)}"></label><label class="ws-field"><span>Beschreibung (optional)</span><input name="description" maxlength="300" value="${escapeHtml(task.description || '')}"></label><label class="ws-field"><span>Wer?</span><select name="person">${option('Gemeinsam', 'Beide')}${option('person1', displayPerson('person1'))}${option('person2', displayPerson('person2'))}</select></label><label class="ws-field"><span>Fällig am</span><input name="dueOn" type="date" required value="${escapeHtml(task.dueOn || '')}"></label>${task.seriesId && task.recurrence !== 'none' ? '<label class="ws-check"><input type="checkbox" name="future" checked> <span>Titel, Beschreibung und Person auch für die nächsten Runden übernehmen</span></label>' : ''}</div><div class="dialog-actions"><button class="secondary" type="button" data-close-task-edit>Abbrechen</button><button class="primary" type="submit">Speichern</button></div></form>`;
+    dialog.querySelectorAll('[data-close-task-edit]').forEach(button => { button.onclick = () => dialog.close(); });
+    dialog.querySelector('form').onsubmit = event => {
+      event.preventDefault(); const data = new FormData(event.currentTarget), title = String(data.get('title')).trim(); if (!title) return;
+      const current = state.householdTasks.find(item => String(item.id) === String(id)); if (!current) { dialog.close(); toast('Diese Aufgabe wurde inzwischen gelöscht'); return; }
+      const shared = { title, description: String(data.get('description')).trim(), person: String(data.get('person')) };
+      Object.assign(current, shared, { dueOn: String(data.get('dueOn')), due: String(data.get('dueOn')) });
+      if (data.get('future') && current.seriesId) state.householdTasks.filter(item => item.seriesId === current.seriesId && item.dueOn >= current.dueOn).forEach(item => Object.assign(item, shared));
+      persist(); renderTasksEnhanced(); dialog.close(); toast('Aufgabe geändert');
+    };
+    dialog.showModal();
   }
 
   function renderTasksEnhanced() {
     ensureFeatureState();
-    const home = state.householdTasks.filter(taskVisibleOnHome).sort((a, b) => a.dueOn.localeCompare(b.dueOn));
-    const all = [...state.householdTasks].sort((a, b) => (a.done - b.done) || a.dueOn.localeCompare(b.dueOn));
+    const home = state.householdTasks.filter(task => !task.skipped && taskVisibleOnHome(task)).sort((a, b) => a.dueOn.localeCompare(b.dueOn));
+    const all = state.householdTasks.filter(task => !task.skipped).sort((a, b) => (a.done - b.done) || a.dueOn.localeCompare(b.dueOn));
     const homeTarget = document.querySelector('#homeTaskList');
     const allTarget = document.querySelector('#householdTaskList');
     if (homeTarget) homeTarget.innerHTML = home.length ? home.map(task => taskRow(task)).join('') : '<p>Für heute ist alles erledigt.</p>';
@@ -133,12 +164,23 @@
       renderUpcoming();
       toast(input.checked ? 'Aufgabe erledigt' : 'Aufgabe wieder geöffnet');
     }));
-    document.querySelectorAll('[data-delete-task]').forEach(button => button.addEventListener('click', event => {
+    document.querySelectorAll('[data-delete-task]').forEach(button => button.addEventListener('click', async event => {
       event.preventDefault();
       const id = button.closest('.check-row')?.querySelector('[data-task-id]')?.dataset.taskId;
-      state.householdTasks = state.householdTasks.filter(task => String(task.id) !== id);
-      persist(); renderTasksEnhanced(); toast('Aufgabe gelöscht');
+      const task = state.householdTasks.find(item => String(item.id) === id); if (!task) return;
+      const snapshot = structuredClone(state.householdTasks.filter(item => item.id === task.id || (task.seriesId && item.seriesId === task.seriesId)));
+      const restore = () => { const ids = new Set(snapshot.map(item => item.id)); state.householdTasks = [...state.householdTasks.filter(item => !ids.has(item.id)), ...snapshot]; persist(); renderTasksEnhanced(); renderUpcoming(); };
+      if (task.seriesId && task.recurrence !== 'none') {
+        const choice = await chooseAction('Wiederkehrende Aufgabe', `„${task.title}“ wiederholt sich. Was soll gelöscht werden?`, [{ label: 'Nur diese Runde' }, { label: 'Ganze Serie beenden' }]);
+        if (choice === 0) { const current = state.householdTasks.find(item => item.id === task.id); if (current) Object.assign(current, { skipped: true, done: true, completedAt: null }); }
+        else if (choice === 1) { state.householdTasks = state.householdTasks.filter(item => !(item.seriesId === task.seriesId && !item.done && item.dueOn >= task.dueOn)).map(item => item.seriesId === task.seriesId ? { ...item, recurrence: 'none' } : item); }
+        else return;
+        persist(); renderTasksEnhanced(); renderUpcoming(); toastUndo(choice === 0 ? 'Diese Runde gelöscht' : 'Serie beendet', restore); return;
+      }
+      state.householdTasks = state.householdTasks.filter(item => String(item.id) !== id);
+      persist(); renderTasksEnhanced(); renderUpcoming(); toastUndo('Aufgabe gelöscht', restore);
     }));
+    document.querySelectorAll('[data-edit-task]').forEach(button => button.addEventListener('click', event => { event.preventDefault(); editTask(button.dataset.editTask); }));
   }
 
   function parseShoppingItem(rawValue) {
@@ -206,7 +248,8 @@
     }));
     document.querySelectorAll('[data-delete-shopping]').forEach(button => button.addEventListener('click', event => {
       event.preventDefault(); const id = button.closest('.check-row')?.querySelector('[data-shopping-id]')?.dataset.shoppingId;
-      state.shopping = state.shopping.filter(item => String(item.id) !== id); persist(); renderShoppingEnhanced(); toast('Artikel entfernt');
+      const removed = state.shopping.find(item => String(item.id) === id); state.shopping = state.shopping.filter(item => String(item.id) !== id); persist(); renderShoppingEnhanced();
+      toastUndo(`${removed?.title || 'Artikel'} entfernt`, () => { if (removed && !state.shopping.some(item => item.id === removed.id)) state.shopping.unshift(removed); persist(); renderShoppingEnhanced(); });
     }));
   }
 
@@ -267,7 +310,7 @@
     const weatherCard = document.createElement('article'); weatherCard.id = 'weatherCard'; weatherCard.className = 'card weather-card';
     weatherCard.innerHTML = '<div class="card-head"><div><span class="kicker">Wetter</span><h2>Bergisch Gladbach</h2></div><span class="weather-symbol" id="weatherSymbol">⌁</span></div><div id="weatherContent"><p>Wetter wird geladen …</p></div>';
     const wasteCard = document.createElement('article'); wasteCard.id = 'wasteCard'; wasteCard.className = 'card waste-card';
-    wasteCard.innerHTML = '<div class="card-head"><div><span class="kicker">Müllabfuhr</span><h2>Nächste Abholung</h2></div><span class="waste-badge">2a2</span></div><div id="wasteContent"><p>Termine werden geladen …</p></div>';
+    wasteCard.innerHTML = '<div class="card-head"><div><span class="kicker">Müllabfuhr</span><h2>Nächste Abholung</h2></div></div><div id="wasteContent"><p>Termine werden geladen …</p></div>';
     const upcoming = document.createElement('article'); upcoming.id = 'upcomingCard'; upcoming.className = 'card upcoming-card';
     upcoming.innerHTML = '<div class="card-head"><div><span class="kicker">Demnächst wichtig</span><h2>Die nächsten Tage</h2></div></div><div id="upcomingContent"></div>';
     grid.replaceChildren(day, weatherCard, tasks, shopping, wasteCard, upcoming);
@@ -276,7 +319,7 @@
     if (actions) {
       const expense = actions.querySelector('[data-open="expense"]');
       if (expense) expense.outerHTML = '<button data-feature-page="montage"><span class="action-icon blue">▣</span><strong>Montage</strong><small>Packliste erstellen</small></button>';
-      actions.insertAdjacentHTML('beforeend', '<button data-feature-page="study"><span class="action-icon coral">◎</span><strong>Charleen</strong><small>Studium & Persönliches</small></button>');
+      actions.insertAdjacentHTML('beforeend', '<button data-feature-page="study"><span class="action-icon coral">◎</span><strong>Charleen</strong><small>Studium, Job & mehr</small></button><button data-ws-route="lou"><span class="action-icon gold">🐾</span><strong>Lou</strong><small>Pflege & Tierarzt</small></button>');
     }
   }
 
@@ -313,14 +356,17 @@
   function renderUpcoming() {
     const target = document.querySelector('#upcomingContent'); if (!target) return;
     const today = todayIso(); const limit = addDays(today, 14);
+    // Alles aus dem Kalender (Termine, Geburtstage, Müll, Fußball, Hochschule, Montage, Prüfungen) ab morgen, dazu Lou und Caritas.
+    // Aufgaben stehen schon in „Offene Aufgaben“ und werden hier nicht doppelt gezeigt.
     const entries = [];
-    state.householdTasks.filter(task => !task.done && task.dueOn > today && task.dueOn <= limit).forEach(task => entries.push({ date: task.dueOn, title: task.title, type: 'Aufgabe' }));
-    wasteEvents.filter(event => event.date > today && event.date <= limit).forEach(event => entries.push({ date: event.date, title: event.title, type: 'Müll' }));
-    (automaticEvents || []).filter(event => event.kind !== 'waste' && event.date > today && event.date <= limit).forEach(event => entries.push({ date: event.date, title: event.title, type: 'Termin' }));
-    (window.ZuhauseLou?.upcomingEntries?.(today, limit) || []).forEach(entry => entries.push(entry));
-    (window.ZuhauseCharleen?.upcomingEntries?.(today, limit) || []).forEach(entry => entries.push(entry));
+    const calendar = window.ZuhauseCalendar?.occurrencesInRange?.(addDays(today, 1), limit) || [];
+    calendar.filter(event => (event.spanDay || 1) === 1).forEach(event => entries.push({ date: event.occurrenceDate, title: event.title, type: event.kind === 'waste' || /müll|tonne|papier/i.test(event.source || '') ? 'Müll' : event.allDay ? 'Ganztägig' : `${event.startTime} Uhr`, route: 'calendar' }));
+    (window.ZuhauseLou?.upcomingEntries?.(today, limit) || []).forEach(entry => entries.push({ ...entry, route: 'lou' }));
+    (window.ZuhauseCharleen?.upcomingEntries?.(today, limit) || []).filter(entry => entry.type === 'Caritas').forEach(entry => entries.push({ ...entry, route: 'study' }));
     entries.sort((a, b) => a.date.localeCompare(b.date));
-    target.innerHTML = entries.length ? entries.slice(0, 6).map(entry => `<div class="upcoming-row"><time>${displayDate(entry.date)}</time><span><strong>${escapeHtml(entry.title)}</strong><small>${entry.type}</small></span></div>`).join('') : '<p>In den nächsten 14 Tagen ist nichts Zusätzliches offen.</p>';
+    const friendly = date => date === today ? 'Heute' : date === addDays(today, 1) ? 'Morgen' : new Date(`${date}T12:00:00`).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'numeric' });
+    target.innerHTML = entries.length ? entries.slice(0, 8).map(entry => `<button type="button" class="upcoming-row" data-upcoming-route="${escapeHtml(entry.route)}" data-upcoming-date="${escapeHtml(entry.date)}"><time>${escapeHtml(friendly(entry.date))}</time><span><strong>${escapeHtml(entry.title)}</strong><small>${escapeHtml(entry.type)}</small></span></button>`).join('') : '<p>In den nächsten 14 Tagen ist nichts Zusätzliches geplant.</p>';
+    target.querySelectorAll('[data-upcoming-route]').forEach(button => button.addEventListener('click', () => { const route = button.dataset.upcomingRoute; go(route); if (route === 'calendar') window.ZuhauseCalendar?.selectDate?.(button.dataset.upcomingDate); }));
   }
 
   function monthKey(date = new Date()) { return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`; }
@@ -601,7 +647,7 @@
     const main = document.querySelector('main.main'); if (!main || document.querySelector('#montage')) return;
     main.insertAdjacentHTML('beforeend', `<section class="page" id="montage"><div class="section-back"><button data-feature-page="today">← Heute</button></div><div class="page-title"><div><p class="eyebrow">Noahs Montagebereich</p><h1>In zwei Minuten startklar.</h1><p>Vorlage wählen, Besonderheiten ergänzen und Packliste erzeugen.</p></div><button class="primary" data-generate-packlist>PDF-Packliste</button></div><div class="montage-grid"><article class="card"><span class="kicker">Vorbereitung</span><h2>Montage auswählen</h2><label class="field"><span>Vorlage</span><select id="montageTemplateSelect"></select></label><label class="refill-toggle full-equipment"><input id="montageShowAll" type="checkbox"> vollständige Ausrüstung anzeigen</label><label class="field"><span>Notiz für morgen</span><textarea id="montageNote" rows="3" placeholder="z. B. 3. Etage, lange Leiter"></textarea></label><div id="packPreview"></div></article><article class="card"><span class="kicker">Maschinen</span><h2>Ausrüstung verwalten</h2><form id="machineForm" class="stack-form"><input name="name" placeholder="Maschine" required><input name="category" placeholder="Kategorie" value="Werkzeug"><select name="placement"><option value="van">Immer im Montagewagen</option><option value="extra">Extra einpacken</option></select><button class="secondary" type="submit">Maschine hinzufügen</button></form><div id="machineList"></div></article><article class="card"><span class="kicker">Verbrauchsmaterial</span><h2>Material & Nachfüllen</h2><form id="materialForm" class="stack-form"><input name="name" placeholder="Material" required><input name="category" placeholder="Kategorie" value="Montagematerial"><input name="quantity" placeholder="Menge" value="1"><button class="secondary" type="submit">Material hinzufügen</button></form><div id="materialList"></div></article><article class="card"><span class="kicker">Wiederverwendbar</span><h2>Vorlagen</h2><form id="templateForm" class="stack-form"><input name="name" placeholder="z. B. Fenstermontage" required><textarea name="notes" rows="2" placeholder="Hinweise"></textarea><button class="primary" type="submit">Vorlage aus aktuellem Bestand</button></form><div id="templateList"></div></article></div></section><section class="page" id="study"><div class="section-back"><button data-feature-page="today">← Heute</button></div><div class="page-title"><div><p class="eyebrow">Charleens Bereich</p><h1>Studium und Persönliches.</h1><p>Eigene Kategorien, Aufgaben und Dokumentzugriffe – für euch beide einsehbar.</p></div></div><div class="study-grid"><article class="card"><span class="kicker">Neuer Eintrag</span><h2>Aufgabe oder Notiz</h2><form id="studyForm" class="stack-form"><input name="title" placeholder="Titel" required><input name="category" list="studyCategories" placeholder="Kategorie" value="Studium"><datalist id="studyCategories"></datalist><input name="dueOn" type="date"><textarea name="notes" rows="3" placeholder="Notiz"></textarea><button class="primary" type="submit">Speichern</button></form></article><article class="card"><div class="card-head"><div><span class="kicker">Charleen</span><h2>Offene Punkte</h2></div></div><div id="studyList"></div></article><article class="card"><span class="kicker">Ohne Programmierung</span><h2>Eigene Kategorien</h2><form id="studyCategoryForm" class="inline-form"><input name="category" placeholder="Neue Kategorie" required><button class="secondary" type="submit">Hinzufügen</button></form><div id="studyCategoryList" class="category-manager"></div></article><button class="card household-module" data-feature-page="documents"><span class="module-symbol">▤</span><span><small>Charleen</small><strong>Dokumente öffnen</strong><p>Im Dokumentenbereich den Hauptordner Charleen wählen.</p></span><em>→</em></button><button class="card household-module" data-feature-page="calendar"><span class="module-symbol">▦</span><span><small>Persönlich</small><strong>Kalender öffnen</strong><p>Charleens Termine filtern oder ergänzen.</p></span><em>→</em></button></div></section>`);
     const moreGrid = document.querySelector('#more .more-grid');
-    moreGrid?.insertAdjacentHTML('afterbegin', '<button class="more-feature" data-feature-page="montage"><span class="large-icon">▣</span><span><small>Noah</small><strong>Montagevorbereitung</strong><p>Maschinen, Material, Vorlagen und PDF-Packliste.</p></span><em>→</em></button><button class="more-feature" data-feature-page="study"><span class="large-icon people-icon">◎</span><span><small>Charleen</small><strong>Studium & Persönliches</strong><p>Aufgaben, Kategorien, Termine und Dokumente.</p></span><em>→</em></button>');
+    moreGrid?.insertAdjacentHTML('afterbegin', '<button class="more-feature" data-feature-page="montage"><span class="large-icon">▣</span><span><small>Noah</small><strong>Montagevorbereitung</strong><p>Maschinen, Material, Vorlagen und PDF-Packliste.</p></span><em>→</em></button><button class="more-feature" data-ws-route="nebenjob"><span class="large-icon">€</span><span><small>Noah</small><strong>Nebenjobs</strong><p>Aufträge, Stempeluhr, Material und Abrechnung.</p></span><em>→</em></button><button class="more-feature" data-feature-page="study"><span class="large-icon people-icon">◎</span><span><small>Charleen</small><strong>Charleens Bereich</strong><p>Studium, Nebenjob, Caritas, Sparziele und Aufgaben.</p></span><em>→</em></button>');
     bindFeatureNavigation(); bindMontage(); bindStudy(); seedPersonalData(); renderMontage(); renderStudy();
   }
 
@@ -701,7 +747,7 @@
     const studyCategoryBox = document.querySelector('#studyCategoryList'); if (studyCategoryBox) studyCategoryBox.innerHTML = state.customCategories.study.map(value => `<span>${escapeHtml(value)}<button type="button" data-rename-study-category="${escapeHtml(value)}" aria-label="Kategorie ${escapeHtml(value)} umbenennen">✎</button></span>`).join('') || '<small>Noch keine eigene Kategorie.</small>';
     list.innerHTML = state.studyItems.map(item => `<label class="check-row ${item.done ? 'done' : ''}"><input type="checkbox" data-study-id="${item.id}" ${item.done ? 'checked' : ''}><span class="check-dot"></span><span><strong>${escapeHtml(item.title)}</strong>${item.dueOn ? `<small>${displayDate(item.dueOn)}</small>` : ''}${item.notes ? `<em>${escapeHtml(item.notes)}</em>` : ''}</span><button type="button" class="row-delete" data-delete-study>×</button></label>`).join('') || '<p>Noch kein Eintrag.</p>';
     document.querySelectorAll('[data-study-id]').forEach(input => input.addEventListener('change', () => { const item = state.studyItems.find(entry => entry.id === input.dataset.studyId); item.done = input.checked; persist(); renderStudy(); }));
-    document.querySelectorAll('[data-delete-study]').forEach(button => button.addEventListener('click', event => { event.preventDefault(); const id = button.closest('.check-row')?.querySelector('[data-study-id]')?.dataset.studyId; state.studyItems = state.studyItems.filter(item => item.id !== id); persist(); renderStudy(); }));
+    document.querySelectorAll('[data-delete-study]').forEach(button => button.addEventListener('click', event => { event.preventDefault(); const id = button.closest('.check-row')?.querySelector('[data-study-id]')?.dataset.studyId; const removed = state.studyItems.find(item => item.id === id); state.studyItems = state.studyItems.filter(item => item.id !== id); persist(); renderStudy(); toastUndo(`${removed?.title || 'Eintrag'} gelöscht`, () => { if (removed && !state.studyItems.some(item => item.id === removed.id)) state.studyItems.unshift(removed); persist(); renderStudy(); }); }));
     document.querySelectorAll('[data-rename-study-category]').forEach(button => button.addEventListener('click', () => renameStudyCategory(button.dataset.renameStudyCategory)));
   }
 

@@ -13,7 +13,7 @@
   const niceDate = (v, opts = { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) => fromIso(v).toLocaleDateString('de-DE', opts);
   const euro = n => money(Math.round((Number(n) || 0) * 100) / 100);
   const num = v => { let s = String(v ?? '').trim().replace(/[\s€]/g, ''); if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); else if (/^-?\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, ''); const n = Number(s); return Number.isFinite(n) ? n : 0; }; // deutsche Schreibweise: 1.250,50 → 1250.5
-  const hm = minutes => `${Math.floor(minutes / 60)}:${pad(Math.round(minutes % 60))} h`;
+  const hm = minutes => `${Math.floor(minutes / 60)}:${pad(Math.round(minutes % 60))}\u00a0h`;
   const nowTime = () => { const d = new Date(); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
   const EXAM_TYPES = ['Präsentation', 'Hausarbeit', 'Klausur', 'Referat', 'Portfolio', 'Mündliche Prüfung', 'Projektarbeit', 'Bericht'];
   const EXAM_STATUS = { open: 'offen', submitted: 'abgegeben', passed: 'bestanden', failed: 'nicht bestanden' };
@@ -126,11 +126,11 @@
     const currentAdjust = job.adjustments.filter(a => String(a.date).startsWith(current)).reduce((sum, a) => sum + adjustHours(job, a), 0);
     return { rows, balance: balance + currentAdjust, current: { month: current, hours: worked[current] || 0, limit: monthLimit(job, current), adjust: currentAdjust } };
   }
-  const hDec = n => `${(Math.round(n * 100) / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} h`;
+  const hDec = n => `${(Math.abs(n) < 0.005 ? 0 : Math.round(n * 100) / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\u00a0h`;
   const monthName = m => new Date(`${m}-15T12:00:00`).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
   function overtimeView(job) {
     const l = ledger(job), c = l.current, rest = c.limit - c.hours, lastRow = l.rows[l.rows.length - 1];
-    return `<article class="card ch-overtime"><div class="ch-module-head"><div><span class="kicker">Überstundenkonto · Grenze ${num(job.monthCap) ? `${euro(job.monthCap)} ≈ ${hDec(monthLimit(job, c.month))}` : hDec(monthLimit(job, c.month)).replace(',00', '')} pro Monat</span><h2>${hDec(l.balance)}</h2><small>Stand ${lastRow ? `Ende ${h(monthName(lastRow.month))}` : 'jetzt'}${c.adjust ? ' inkl. Buchungen in diesem Monat' : ''}</small></div></div>
+    return `<article class="card ch-overtime"><div class="ch-module-head"><div><span class="kicker">Überstundenkonto · Grenze ${num(job.monthCap) ? `${euro(job.monthCap)} ≈ ${hDec(monthLimit(job, c.month))}` : hDec(monthLimit(job, c.month)).replace(',00', '')} pro Monat</span><h2>${hDec(l.balance)}</h2><small>Stand ${lastRow ? `Ende ${h(monthName(lastRow.month))}` : 'jetzt'}${c.adjust ? ' inkl. Buchungen in diesem Monat' : ''}</small><p class="ws-help">Was über der Grenze liegt, kommt am Monatsende aufs Konto; fehlende Stunden werden dann vom Konto aufgefüllt.</p></div></div>
       <p class="ch-overtime-now">${h(monthName(c.month))} bisher: <b>${hDec(c.hours)}</b> von ${hDec(c.limit)} · ${rest > 0 ? `noch ${hDec(rest)} bis zur Grenze${l.balance > 0 ? ` – fehlende Stunden werden am Monatsende vom Konto genommen` : ''}` : `<b>${hDec(-rest)} über der Grenze</b> – gehen am Monatsende aufs Konto`}</p>
       <div class="ch-clock-actions"><button class="secondary" data-ch-adjust-new>Auszahlung / Korrektur</button><button class="secondary" data-ch-limit>Monatsgrenze</button></div>
       ${l.rows.length ? `<details class="ws-history"><summary>Verlauf nach Monaten</summary><div class="ch-ledger"><div class="head"><span>Monat</span><span>Gearbeitet</span><span>Konto ±</span><span>Stand</span></div>${l.rows.map(r => `<div><span>${h(monthName(r.month))}${Math.abs(r.limit - monthLimit(job, '0000-00')) > 0.001 ? ` <small>(Grenze ${hDec(r.limit)})</small>` : ''}${r.adjust.map(a => `<small>${h(a.note || (adjustHours(job, a) < 0 ? 'Auszahlung' : 'Korrektur'))}: ${adjustHours(job, a) > 0 ? '+' : ''}${hDec(adjustHours(job, a))} <button class="row-delete" data-ch-adjust-delete="${h(a.id)}" aria-label="Buchung löschen">×</button></small>`).join('')}</span><span>${hDec(r.hours)}</span><span class="${r.change < -0.004 ? 'neg' : 'pos'}">${r.change > 0.004 ? '+' : ''}${hDec(Math.abs(r.change) < 0.005 ? 0 : r.change)}</span><b>${hDec(r.balance)}</b></div>`).join('')}</div></details>` : ''}
@@ -158,7 +158,7 @@
     const running = job.running;
     return `
       <article class="card ch-clock ${running ? 'running' : ''}"><div><span class="kicker">${h(job.name || 'Nebenjob')} · Stempeluhr</span>
-        ${running ? `<h2>Eingestempelt seit ${h(running.start)} Uhr</h2><p class="ch-elapsed" data-ch-elapsed>${h(hm(minutesBetween(running.start, nowTime())))}</p>` : `<h2>Nicht eingestempelt</h2><p class="ws-muted">Stundenlohn: ${job.rate ? euro(job.rate) : '<b>noch nicht festgelegt</b>'}</p>`}</div>
+        ${running ? `<h2>Eingestempelt seit ${h(running.start)} Uhr${running.date && running.date !== todayIso() ? ` (${h(niceDate(running.date, { weekday: 'short', day: 'numeric', month: 'short' }))})` : ''}</h2><p class="ch-elapsed" data-ch-elapsed>${h(hm(minutesBetween(running.start, nowTime())))}</p>${(running.date && running.date < todayIso()) || minutesBetween(running.start, nowTime()) > 720 ? '<p class="clock-warning">Läuft seit über 12 Stunden – vielleicht vergessen auszustempeln? Beim Ausstempeln kannst du die richtige Endzeit eintragen.</p>' : ''}` : `<h2>Nicht eingestempelt</h2><p class="ws-muted">Stundenlohn: ${job.rate ? euro(job.rate) : '<b>noch nicht festgelegt</b>'}</p>`}</div>
         <div class="ch-clock-actions">${running ? '<button class="primary ws-large" data-ch-clock-out>Ausstempeln</button>' : '<button class="primary ws-large" data-ch-clock-in>Einstempeln</button>'}<button class="secondary" data-ch-shift-new>＋ Schicht nachtragen</button><button class="secondary" data-ch-job-settings>Job & Stundenlohn</button></div>
       </article>
       ${overtimeView(job)}
@@ -235,7 +235,8 @@
   // ---------- Seite ----------
   function install() {
     const page = document.querySelector('#study'); if (!page || page.querySelector('.ch-tabs')) return;
-    const anchor = page.querySelector('.ws-intro') || page.querySelector('.page-title');
+    // Reiter direkt unter den Namen (am Handy sonst erst nach dem Scrollen sichtbar).
+    const anchor = page.querySelector('.page-title');
     [...page.children].forEach(child => { if (!child.matches('.page-title,.ws-intro,.section-back')) child.dataset.chNotes = '1'; });
     anchor.insertAdjacentHTML('afterend', '<nav class="ws-tabs ch-tabs" aria-label="Charleens Bereiche"><button data-ch-tab="study">🎓 Studium</button><button data-ch-tab="job">⏱ Nebenjob</button><button data-ch-tab="work">🤝 Caritas</button><button data-ch-tab="savings">💶 Sparziele</button><button data-ch-tab="notes">✓ Aufgaben</button></nav><div id="charleenPanel"></div>');
     const intro = page.querySelector('.ws-intro p'); if (intro) intro.textContent = 'Studium, Nebenjob, Caritas und Sparziele – alles an einem Ort. Termine und Dokumente bleiben mit eurem gemeinsamen Zuhause verbunden.';
@@ -281,7 +282,7 @@
     if ('chShiftEdit' in d) editShift(d.chShiftEdit);
     if ('chMonth' in d) { const [y, m] = jobMonth.split('-').map(Number), dt = new Date(y, m - 1 + Number(d.chMonth), 15); jobMonth = iso(dt).slice(0, 7); render(); }
     if ('chWorkEdit' in d) { event.preventDefault(); editWork(d.chWorkEdit); }
-    if ('chWorkDelete' in d) { event.preventDefault(); const c = data(); c.work = c.work.filter(t => t.id !== d.chWorkDelete); save('Entfernt'); }
+    if ('chWorkDelete' in d) { event.preventDefault(); const c = data(), removed = c.work.find(t => t.id === d.chWorkDelete); c.work = c.work.filter(t => t.id !== d.chWorkDelete); save(); toastUndo(`${removed?.title || 'To-do'} gelöscht`, () => { const fresh = data(); if (removed && !fresh.work.some(t => t.id === removed.id)) fresh.work.push(removed); save(); }); }
     if ('chGoalNew' in d) editGoal();
     if ('chGoalEdit' in d) editGoal(d.chGoalEdit);
     if ('chDeposit' in d) deposit(d.chDeposit, 1);
