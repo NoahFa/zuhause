@@ -30,7 +30,7 @@
     let { data, error } = await cloud.from('documents').select(columns).eq('household_id', currentHousehold.id).order('created_at', { ascending: false });
     if (error && /folder|ocr_text|original_paths/i.test(error.message || '')) ({ data, error } = await cloud.from('documents').select('id,file_name,mime_type,size_bytes,storage_path,created_at,category,visibility,owner_user_id,uploaded_by').eq('household_id', currentHousehold.id).order('created_at', { ascending: false }));
     if (error) { list.innerHTML = '<p>Dateien konnten gerade nicht geladen werden.</p>'; return; }
-    docs = data || []; render(); loadThumbs();
+    docs = data || []; render(); loadThumbs(); window.ZuhauseScanner?.showQueue?.();
   }
   async function loadThumbs() {
     if (!docs.length || !cloud) return;

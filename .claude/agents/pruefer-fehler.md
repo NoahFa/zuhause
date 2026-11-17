@@ -11,7 +11,7 @@ Du suchst **Fehler** in der Familien-App **Zuhause**. Lies zuerst `CLAUDE.md`, `
 - Eigene Test-Skripte nur außerhalb des Projekts ablegen (z. B. Scratchpad).
 
 ## Vorgehen
-1. **Automatische Tests:** `node tests/regression.cjs` (braucht `jsdom`: einmalig `cd tools/dom-test && npm install`) und `node tests/ui-check.cjs <ordner> 390` (meldet Skriptfehler auf allen Seiten).
+1. **Automatische Tests:** `node tests/regression.cjs` (braucht `jsdom`: einmalig `cd tools/dom-test && npm install`) und `node tests/ui-check.cjs <ordner> 390` (meldet Skriptfehler auf allen Seiten) und `node tests/scanner-check.cjs <ordner>` (Dokumentenscanner: Ecken, Texterkennung, Vorschläge, Folgeaktionen, Warteschlange ohne Internet; legt die entzerrten Testbilder im Ordner ab).
 2. **Syntax aller Skripte:** für jede `*.js` im Wurzelordner `node -e "new Function(require('fs').readFileSync('<datei>','utf8'))"`; die Server-Funktionen in `supabase/functions/*/index.ts` lassen sich mit `node --experimental-strip-types` grob prüfen, wenn man die Importe durch Platzhalter ersetzt.
 3. **Versionsnummern:** Alle `?v=` in `index.html` und `sw.js` müssen gleich sein, `CACHE` in `sw.js` muss dazu passen, und jede eingebundene Datei muss in `sw.js` (ASSETS bzw. WORKSPACE_ASSETS) stehen.
 4. **Rechenlogik gezielt nachrechnen** (im Vorschau-Modus per Playwright oder durch Lesen des Codes), mit Grenzfällen:

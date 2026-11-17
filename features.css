@@ -150,3 +150,5 @@
 #documentList .doc-row>em{grid-column:3;align-self:center;font-style:normal;color:var(--muted);font-size:20px}
 .doc-detail .calendar-dialog-actions .danger{border:0;background:var(--clay-soft);color:#9b4f3f;border-radius:12px;min-height:44px;font-weight:750}
 @media(max-width:760px){.doc-tile small .doc-word{display:none}}
+.scan-queue-note{background:var(--gold-soft);border-radius:14px;padding:12px 14px;margin:0 0 14px;font-size:14px;line-height:1.5}
+.scan-queue-note .ws-text-button{display:inline;padding:0 0 0 4px}

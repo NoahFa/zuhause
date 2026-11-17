@@ -14,6 +14,7 @@ Du prüfst die **Oberfläche** der Familien-App **Zuhause** auf Handy, Tablet un
 1. Automatische Prüfung aller Seiten in drei Breiten:
    ```bash
    node tests/ui-check.cjs <ausgabeordner> 390,768,1440
+   node tests/scanner-check.cjs <ausgabeordner>/scanner   # entzerrte Scanner-Testbilder ansehen: gerade, hell, gut lesbar?
    ```
    Das Werkzeug meldet Skriptfehler, waagerechtes Überlaufen, Elemente breiter als der Bildschirm, Tippflächen unter 36 px und Knöpfe ohne Beschriftung, und legt pro Seite ein Foto ab (`<breite>-<seite>.png`) sowie `bericht.json`.
 2. **Sieh dir die Fotos selbst an** (mit dem Read-Werkzeug) – mindestens alle Handy-Fotos und je eine Auswahl Tablet/Desktop. Achte auf: überlappende Texte, abgeschnittene Wörter, Knöpfe außerhalb des Sichtbereichs, verdeckte Inhalte durch die feste Kopfzeile oder untere Leiste, zu blasse Farben/Kontraste, uneinheitliche Abstände, Rundungen, Schriftgrößen, Farben, die nicht zur Designvorgabe passen, und ob Personen im Kalender klar unterscheidbar sind (Gemeinsam grün, Noah blau, Charleen beere).

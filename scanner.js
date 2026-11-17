@@ -329,38 +329,88 @@
     return done;
   }
 
+  // ---------- Warteschlange ohne Netz (Phase 4) ----------
+  // Scans, die nicht hochgeladen werden konnten, liegen im Handy-Speicher (IndexedDB) und gehen automatisch hoch, sobald Netz da ist.
+  const DB = 'zuhause-scan-queue';
+  function idb() { return new Promise((resolve, reject) => { const r = indexedDB.open(DB, 1); r.onupgradeneeded = () => r.result.createObjectStore('items', { keyPath: 'id' }); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); }); }
+  async function queueOp(mode, fn) { const db = await idb(); return new Promise((resolve, reject) => { const tx = db.transaction('items', mode), store = tx.objectStore('items'), req = fn(store); tx.oncomplete = () => { db.close(); resolve(req?.result); }; tx.onerror = () => { db.close(); reject(tx.error); }; }); }
+  const queueAll = () => queueOp('readonly', s => s.getAll()).catch(() => []);
+  const queueAdd = item => queueOp('readwrite', s => s.put(item));
+  const queueDelete = id => queueOp('readwrite', s => s.delete(id)).catch(() => {});
+  let flushing = false;
+  async function flushQueue(manual = false) {
+    if (flushing || !navigator.onLine || typeof cloudReady === 'undefined' || !cloudReady || !currentHousehold) { if (manual === true) toast('Gerade keine Verbindung – später noch einmal versuchen'); return; }
+    flushing = true;
+    try {
+      // automatisch höchstens 5 Versuche je Scan (sonst käme alle zwei Minuten eine Fehlermeldung); „Jetzt versuchen“ geht immer
+      const items = (await queueAll()).filter(item => manual === true || (item.attempts || 0) < 5); let sent = 0;
+      for (const item of items) {
+        window.__pendingDocumentMeta = item.meta;
+        if (await uploadDocument(new File([item.pdf], item.fileName, { type: 'application/pdf' }))) { await queueDelete(item.id); sent++; }
+        else { item.attempts = (item.attempts || 0) + 1; await queueAdd(item).catch(() => {}); break; }
+      }
+      if (sent) toast(sent === 1 ? 'Wartender Scan wurde hochgeladen' : `${sent} wartende Scans wurden hochgeladen`);
+    } finally { flushing = false; showQueue(); }
+  }
+  async function showQueue() {
+    const items = await queueAll(), tiles = document.querySelector('#docFolderTiles'); let note = document.querySelector('#scanQueueNote');
+    if (!items.length) { note?.remove(); return; }
+    if (!note && tiles) { note = document.createElement('p'); note.id = 'scanQueueNote'; note.className = 'scan-queue-note'; tiles.before(note); }
+    if (note) note.innerHTML = `⏳ ${items.length === 1 ? '1 Scan wartet' : `${items.length} Scans warten`} auf Internet und wird automatisch hochgeladen. <button class="ws-text-button" data-scan-flush>Jetzt versuchen</button>`;
+  }
+  window.addEventListener('online', () => setTimeout(flushQueue, 1500));
+  setInterval(flushQueue, 120000); setTimeout(flushQueue, 8000);
+  document.addEventListener('click', event => { if (event.target.closest('[data-scan-flush]')) flushQueue(true); });
+
+  const toFile = (canvas, name, quality) => new Promise(resolve => canvas.toBlob(blob => resolve(new File([blob], name, { type: 'image/jpeg' })), 'image/jpeg', quality));
+  let cancelled = false;
   async function save() {
     const d = dialog(), name = d.querySelector('[name=name]').value.trim(), folder = d.querySelector('[name=folder]').value, category = d.querySelector('[name=category]').value, progress = d.querySelector('.scanner-progress');
-    d.querySelectorAll('button, input, select').forEach(b => { b.disabled = true; });
+    const enable = on => d.querySelectorAll('button, input, select').forEach(b => { if (!b.matches('[data-sc-cancel-save]')) b.disabled = !on; });
+    enable(false); cancelled = false;
+    const saveButton = d.querySelector('[data-sc-save]'); saveButton.insertAdjacentHTML('beforebegin', '<button class="secondary" data-sc-cancel-save>Abbrechen</button>');
+    const stop = () => { if (cancelled) throw new Error('abgebrochen'); };
     try {
-      ocrRun++; const text = await ocrAll(t => { progress.textContent = t; });
+      ocrRun++; const text = await ocrAll(t => { if (!cancelled) progress.textContent = t; }); stop();
       progress.textContent = 'PDF wird erstellt …';
       await loadScript(VENDOR + 'jspdf.umd.min.js');
       const { jsPDF } = window.jspdf; let pdf = null;
+      const quality = pages.length > 12 ? 0.62 : 0.8; // viele Seiten: kleiner, damit das PDF unter 10 MB bleibt
       for (const page of pages) {
         const canvas = page.result, words = page.ocr?.words || [];
         // Seitenformat: A4 (hoch/quer) oder passend zum Blatt (z. B. lange Kassenbons)
         const ratio = canvas.height / canvas.width, a4 = Math.abs(ratio - A4) / A4 < 0.02, a4q = Math.abs(1 / ratio - A4) / A4 < 0.02;
         const pw = a4 ? 210 : a4q ? 297 : 210, ph = a4 ? 297 : a4q ? 210 : Math.min(5000, 210 * ratio);
         if (!pdf) pdf = new jsPDF({ unit: 'mm', format: [pw, ph], orientation: pw > ph ? 'landscape' : 'portrait', compress: true }); else pdf.addPage([pw, ph], pw > ph ? 'landscape' : 'portrait');
-        pdf.addImage(canvas.toDataURL('image/jpeg', page.mode === 'document' ? 0.8 : 0.85), 'JPEG', 0, 0, pw, ph, undefined, 'FAST');
+        pdf.addImage(canvas.toDataURL('image/jpeg', page.mode === 'document' ? quality : quality + 0.05), 'JPEG', 0, 0, pw, ph, undefined, 'FAST');
         // unsichtbare Textebene: macht das PDF durchsuchbar und den Text markierbar
         const sx = pw / canvas.width, sy = ph / canvas.height;
         for (const word of words) { const { x0, y0, x1, y1 } = word.bbox, height = (y1 - y0) * sy; if (height <= 0) continue; pdf.setFontSize(Math.max(2, height * 2.6)); try { pdf.text(word.text, x0 * sx, y1 * sy, { renderingMode: 'invisible', maxWidth: (x1 - x0) * sx * 1.2 }); } catch {} }
       }
-      progress.textContent = 'Wird gespeichert …';
+      stop();
       const finalName = name || `Scan ${new Date().toLocaleDateString('de-DE')}`;
       const blob = pdf.output('blob'), fileName = `${finalName.replace(/[^\wäöüÄÖÜß .-]+/g, '-')}.pdf`;
+      if (blob.size > 10485760) { progress.textContent = 'Das PDF ist zu groß (über 10 MB). Bitte auf zwei Scans aufteilen.'; enable(true); d.querySelector('[data-sc-cancel-save]')?.remove(); return; }
+      // Originalfotos als JPEG in Arbeitsgröße sichern (iPhone-Fotos können sonst zu groß oder im falschen Format sein)
+      const originalFiles = await Promise.all(pages.map((p, i) => toFile(p.source, `original-${i + 1}.jpg`, 0.82)));
       const thumb = await window.ZuhauseDocuments?.imageThumb?.(pages[0].result);
-      const meta = { folder, category, ocrText: text.trim(), name: finalName, originalFiles: pages.map(p => p.file), thumb };
-      window.__pendingDocumentMeta = meta;
-      const saved = await uploadDocument(new File([blob], fileName, { type: 'application/pdf' }));
-      if (!saved) throw new Error('Upload fehlgeschlagen');
+      const meta = { folder, category, ocrText: text.trim(), name: finalName, originalFiles, thumb };
+      stop(); d.querySelector('[data-sc-cancel-save]')?.remove(); progress.textContent = 'Wird gespeichert …';
+      let queued = false;
+      if (navigator.onLine && typeof cloudReady !== 'undefined' && cloudReady) { window.__pendingDocumentMeta = meta; queued = !(await uploadDocument(new File([blob], fileName, { type: 'application/pdf' }))); } else queued = true;
+      if (queued) {
+        try { await queueAdd({ id: crypto.randomUUID(), pdf: blob, fileName, meta, createdAt: new Date().toISOString() }); }
+        catch { throw new Error('Zwischenspeichern fehlgeschlagen'); }
+      }
       if (analysis?.senderKey) { A()?.learn(analysis.senderKey, folder, category); persist(); }
       const a = analysis, actions = runActions(d, a, meta), callback = context.onSaved;
-      pages = []; analysis = null; d.close();
-      toast(actions.length ? `Gespeichert · ${actions.join(', ')} angelegt` : 'Dokument gespeichert'); callback?.({ name: finalName, folder, category, text });
-    } catch { progress.textContent = 'Das Speichern hat nicht geklappt. Bitte noch einmal versuchen.'; d.querySelectorAll('button, input, select').forEach(b => { b.disabled = false; }); }
+      pages = []; analysis = null; d.close(); showQueue();
+      toast(queued ? 'Kein Internet – der Scan ist auf dem Handy gesichert und wird später automatisch hochgeladen' : actions.length ? `Gespeichert · ${actions.join(', ')} angelegt` : 'Dokument gespeichert');
+      callback?.({ name: finalName, folder, category, text });
+    } catch (error) {
+      d.querySelector('[data-sc-cancel-save]')?.remove(); enable(true);
+      progress.textContent = cancelled ? 'Abgebrochen – nichts gespeichert.' : 'Das Speichern hat nicht geklappt. Bitte noch einmal versuchen.';
+    }
   }
 
   document.addEventListener('click', event => {
@@ -374,6 +424,7 @@
     if ('scNext' in ds) { view = 'save'; render(); }
     if ('scBack' in ds) { view = 'pages'; render(); }
     if ('scSave' in ds) save();
+    if ('scCancelSave' in ds) { cancelled = true; b.disabled = true; b.textContent = 'Wird abgebrochen …'; }
     const page = pages[editIndex];
     if (!page || view !== 'edit') return;
     if ('scRetake' in ds) { pages.splice(editIndex, 1); view = 'pages'; render(); pickFiles(false); }
@@ -395,5 +446,5 @@
     event.preventDefault(); const ds = button.dataset;
     open({ folder: ds.scanFolder, actions: (ds.scanActions || '').split(',').filter(Boolean), orderId: ds.scanOrder || null });
   });
-  window.ZuhauseScanner = { open, detectCorners, warp, enhance, quality, recognise };
+  window.ZuhauseScanner = { open, flushQueue, queueAll, showQueue, detectCorners, warp, enhance, quality, recognise };
 })();

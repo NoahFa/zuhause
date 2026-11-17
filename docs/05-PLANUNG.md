@@ -88,7 +88,7 @@ Prüfung vom 17.11.2026 umgesetzt (Versionen 32–34, siehe oben). Offen bzw. nu
 13. **Teilen** über das iPhone-Teilen-Menü (Mail, WhatsApp, Drucken), Seiten nachträglich anfügen, Dokument umbenennen/verschieben.
 14. Bereits hochgeladene PDFs ebenfalls durchsuchbar machen (Text aus dem PDF auslesen).
 
-**Phase 4 – Zuverlässigkeit und Prüfung**
+**Phase 4 – Zuverlässigkeit und Prüfung** – ✅ erledigt am 17.11.2026 (v38): Scans ohne Internet werden im Handy-Speicher (IndexedDB) gesichert und automatisch hochgeladen (Hinweis auf der Dokumente-Seite, „Jetzt versuchen“; automatisch höchstens 5 Versuche je Scan); Speichern lässt sich abbrechen; Originalfotos werden als verkleinertes JPEG gesichert (iPhone-Fotos waren sonst evtl. zu groß/falsches Format); viele Seiten → geringere Bildqualität, damit das PDF unter 10 MB bleibt (eine Seite ≈ 60–150 KB). Testsammlung `tests/scanner-check.cjs` (37 Prüfungen) und Einbindung in `pruefer-fehler`/`pruefer-oberflaeche`.
 15. Scans ohne Netz zwischenspeichern und später automatisch hochladen; Fortschritt und Abbrechen; Seitengröße ~200–400 KB (1 GB reicht für einige Tausend Seiten).
 16. **Testsammlung** mit typischen Fällen (schräg, Schatten, Holztisch, Querformat, langer Kassenbon, Impfpass, zerknittert) – automatische Prüfung von Ecken, Entzerrung und Texterkennung; neuer Prüfschritt für `pruefer-fehler`/`pruefer-oberflaeche`.
 
