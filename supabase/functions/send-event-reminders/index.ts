@@ -41,7 +41,9 @@ function repeatsOn(event: any, recurrence: any, candidate: string) {
   const start = new Date(`${event.start_date}T12:00:00Z`), current = new Date(`${candidate}T12:00:00Z`)
   if (recurrence.frequency === 'monthly') {
     const months = (current.getUTCFullYear() - start.getUTCFullYear()) * 12 + current.getUTCMonth() - start.getUTCMonth()
-    return months >= 0 && months % interval === 0 && current.getUTCDate() === Number(recurrence.month_day || start.getUTCDate())
+    // Monatlich am 31. → in kürzeren Monaten am Monatsletzten (wie in der App).
+    const lastDay = new Date(Date.UTC(current.getUTCFullYear(), current.getUTCMonth() + 1, 0)).getUTCDate()
+    return months >= 0 && months % interval === 0 && current.getUTCDate() === Math.min(Number(recurrence.month_day || start.getUTCDate()), lastDay)
   }
   if (recurrence.frequency !== 'yearly' || (current.getUTCFullYear() - start.getUTCFullYear()) % interval !== 0 || current.getUTCMonth() !== start.getUTCMonth()) return false
   // Geburtstag am 29. Februar: in Nicht-Schaltjahren am 28. Februar erinnern.

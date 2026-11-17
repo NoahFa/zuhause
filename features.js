@@ -349,7 +349,7 @@
     }
     const nextDate = wasteEvents[0]?.date;
     const next = wasteEvents.filter(event => event.date === nextDate);
-    target.innerHTML = next.length ? `<div class="waste-next"><strong>${displayDate(nextDate)}</strong><span>${next.map(event => `<i style="--bin:${WASTE_COLORS[event.title] || '#6f7568'}"></i>${escapeHtml(event.title)}`).join(' ')}</span><small>${state.settings.wasteStreetLabel} · automatisch aktualisiert</small></div>` : '<p>Noch kein kommender Termin gefunden.</p>';
+    target.innerHTML = next.length ? `<div class="waste-next"><strong>${displayDate(nextDate)}</strong><span>${next.map(event => `<i style="--bin:${WASTE_COLORS[event.title] || '#6f7568'}"></i>${escapeHtml(event.title)}`).join(' ')}</span><small>${escapeHtml(state.settings.wasteStreetLabel || '')} · automatisch aktualisiert</small></div>` : '<p>Noch kein kommender Termin gefunden.</p>';
     renderUpcoming();
   }
 

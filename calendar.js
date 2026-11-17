@@ -4,8 +4,8 @@
   const CALENDARS = {
     // Kräftige, klar unterscheidbare Personenfarben (Wunsch Noah, 16.11.2026): Gemeinsam grün, Noah blau, Charleen beere.
     shared: { key: 'shared', name: 'Gemeinsam', color: '#2e7d4f', soft: '#dff0e5' },
-    person1: { key: 'person1', name: 'Person 1', color: '#1f6fc5', soft: '#dceafb' },
-    person2: { key: 'person2', name: 'Person 2', color: '#cc3d6a', soft: '#fbe1ea' },
+    person1: { key: 'person1', name: 'Noah', color: '#1f6fc5', soft: '#dceafb' },
+    person2: { key: 'person2', name: 'Charleen', color: '#cc3d6a', soft: '#fbe1ea' },
   };
   const LABELS = {
     sage: { color: '#536b57', soft: '#e6ebe0' }, blue: { color: '#54778e', soft: '#e1eaf0' },
@@ -523,7 +523,7 @@
   async function connect(options) {
     state.client = options.cloud; state.household = options.household; state.user = options.user; state.members = options.members || []; state.callbacks = { ...state.callbacks, ...options.callbacks };
     const owner = state.members.find(member => member.role === 'owner'), second = state.members.find(member => member.user_id !== owner?.user_id);
-    CALENDARS.person1.name = owner?.display_name?.trim() || 'Person 1'; CALENDARS.person2.name = second?.display_name?.trim() || 'Person 2';
+    CALENDARS.person1.name = owner?.display_name?.trim() || 'Noah'; CALENDARS.person2.name = second?.display_name?.trim() || 'Charleen';
     if (options.legacyAppointments) state.events = options.legacyAppointments.map(legacyEvent);
     setAutomaticEvents(options.automaticEvents || state.automatic);
     try { await ensureCalendars(); await loadCloudData(); subscribeRealtime(); await flushQueue(); }

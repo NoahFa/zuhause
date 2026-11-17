@@ -28,6 +28,9 @@ Stand: 16. November 2026. Ergänzt `02-UMSETZUNGSSTAND.md`. Noah hat freigegeben
 | 29 | Charleens Nebenjob: Überstundenkonto. Monatsgrenze (Standard 43 h, je Monat überschreibbar über `job.limitOverrides`), Mehrstunden aufs Konto, fehlende Stunden werden am Monatsende vom Konto aufgefüllt; Auszahlungen/Korrekturen (`job.adjustments`) werden im Monat zuerst verbucht; Verlauf nach Monaten. Charleens Kauler-Hof-Schichten April–November 2026 nachgetragen (April Grenze 21,5 h, da Start am 24.4.; Auszahlung Okt. 32 h / 450 €). |
 | 30 | Noahs Nebenjobs (`noah-jobs.js`, Daten in `state.noahJobs`, Seite `#nebenjob`, Karte auf Noahs Startseite): Aufträge mit Kunde/Adresse/Route und Stand (In Arbeit, Abgerechnet, Bezahlt), Stempeluhr je Auftrag (Ein-/Ausstempeln, Zeiten nachtragen, Pause, Notiz), Material mit Menge, Einheit und Preis, Standard-Stundensatz plus eigener Satz je Auftrag, Abrechnung (Stunden × Satz + Material) und Übersicht (Stunden/Lohn im Monat, noch nicht bezahlt). |
 | 31 | Charleens Überstundenkonto auf ihre Regel umgestellt: Grenze ist die Minijob-Verdienstgrenze **603 €/Monat** (`job.monthCap`; Stunden = 603 € ÷ Stundenlohn 13,90 € ≈ 43,38 h), keine halbe Grenze im April. Auszahlungen werden in Euro gebucht und über den Stundenlohn in Stunden umgerechnet (450 € ≈ 32,37 h). Ergebnis aus den Uhrzeiten: Konto Ende Oktober 0,00 h. Sicherungen: `sicherung.app_state_20261116_kauler`, `…_kauler2`. |
+| 32 | Prüfung Teil A: Eingaben in Fenstern (Charleen, Lou, Noahs Nebenjobs) gehen beim Abgleich mit dem anderen Handy nicht mehr verloren (Test in `regression.cjs`); Zahlen mit Tausenderpunkt; Überstundenkonto rechnet mit dem Lohn des jeweiligen Monats, Auszahlungen in Stunden festgeschrieben; Noahs Stundensatz wird beim Abrechnen festgeschrieben; mehrtägige Termine an jedem Tag; Nachträge für abgeschlossene Budget-Monate zählen im laufenden Monat. |
+| 33 | Prüfung Teil B: Termin-Ende zieht mit, „Mehr Optionen“ im Termin-Fenster, Suche über alle Monate; Startseite mit „Morgen“ und klickbarem „Demnächst“ (Kalender, Geburtstage, Lou, Caritas); Löschen mit „Rückgängig“, Aufgaben ändern, „nur diese Runde / ganze Serie“; Ausgabe-Fenster ohne Steuer-Reste; Tablet-Überlauf, Karten-Abstände, Tippflächen, Leiste; Charleens Reiter oben; Texte, Lou-Kachel, Nebenjobs unter „Mehr“; Monatsletzter bei „monatlich am 31.“; erneutes Speichern nach Fehler. |
+| 34 | Prüfung Teil C/D: Registrierung geschlossen, Passwort mind. 8 Zeichen, nur noch die neue Adresse für Anmelde-Links; Datenbank-Funktionen nur für Angemeldete; engere Speicher-Regeln (`supabase/migrations-claude/2026-11-17-sicherheit.sql`); Straßenname maskiert, Link der „Guten Nachricht“ geprüft; Sperr-Test um 3 Tabellen erweitert; „Noah“/„Charleen“ statt „Person 1/2“; Server-Erinnerungen am Monatsletzten. |
 
 ## Offen / in Klärung
 
@@ -55,38 +58,11 @@ Claude hat über einen Supabase-Zugangsschlüssel von Noah (Access Token „Clau
 
 ## Geplant (Reihenfolge nach Nutzen)
 
-Ergebnis der ersten Prüfung durch die vier Prüf-Agenten (17.11.2026). Noch nichts davon umgesetzt – Noah entscheidet.
-
-**A. Dringend (Eingaben gehen verloren / falsche Beträge)**
-1. Fenster in Charleens Bereich (Schicht, Ausstempeln, Auszahlung, Grenze, Sparziel), bei Lou (Pflege) und in Noahs Nebenjobs (Zeit, Material) schreiben in einen veralteten Datenstand, wenn das andere Handy währenddessen speichert → Eingabe weg. Beim Speichern Daten neu holen statt beim Öffnen gemerkten Stand verwenden (`charleen.js`, `lou.js`, `noah-jobs.js`; Ursache `app.js` ersetzt `state` beim Abgleich). Testfall in `tests/regression.cjs` ergänzen.
-2. Beträge mit Tausenderpunkt werden falsch gelesen („1.200“ → 1,20 €) – `num()` in `charleen.js` und `noah-jobs.js`.
-3. Lohnänderungen rechnen die Vergangenheit um: Charleens Überstundenkonto (Grenze und Euro-Auszahlungen mit aktuellem Stundenlohn; Okt.-Auszahlung einmalig mit 32,37 h festschreiben) und Noahs Nebenjobs (Standardsatz ändert abgerechnete/bezahlte Aufträge; Satz beim Abrechnen festschreiben).
-4. Mehrtägige Termine erscheinen nur am ersten Tag (`calendar.js`).
-5. Budget: nachträglich erfasste Ausgabe für einen bereits abgeschlossenen Monat zählt nirgends (`features.js`) – relevant, sobald das Budget genutzt wird.
-
-**B. Wichtig (Bedienung und Darstellung)**
-6. Termin für einen anderen Tag: Ende-Datum/-Uhrzeit beim Ändern des Beginns mitziehen (sonst Fehlermeldung).
-7. Startseite: Termine von morgen und Kalendertermine/Geburtstage in „Demnächst wichtig“ zeigen; Einträge antippbar; keine doppelte Aufgabe in „Offene Aufgaben“ und „Demnächst“.
-8. Kalendersuche findet nur im angezeigten Monat → Trefferliste über alle Monate.
-9. Löschen per „×“ ohne Rückfrage/Rückgängig (Aufgaben, Einkauf, Caritas, Charleens Aufgaben) → „Gelöscht – Rückgängig“; Aufgaben nachträglich ändern (✎); gelöschte Runde einer Wiederholung kommt zurück → „nur diese Runde / ganze Serie“.
-10. Tablet (768 px): „Mehr“ und Montage-Reiter laufen über; Wochenansicht am Handy breiter als der Bildschirm.
-11. Karten ohne Innenabstand: Finanzen (Budget, Fixkosten, Sparanalyse) und Dokumente-Filter; Aufgaben-Titel klebt an der Zusatzzeile.
-12. „+ Ausgabe“ enthält noch Steuer-Reste („Wer hat bezahlt?“, Bereich Beruf/Hochschule/Nebengewerbe) → vereinfachen.
-13. Charleens Bereich am Handy: Reiter erst weit unten → direkt unter den Namen; Überstundenkonto-Hinweis „Mehrstunden kommen am Monatsende aufs Konto“.
-14. Termin-Fenster sehr lang → Titel/Wer/Zeit oben, Rest unter „Mehr Optionen“; „Farblabel“ umbenennen.
-
-**C. Sicherheit (kein akutes Risiko)**
-15. Registrierung abschalten (beide Konten existieren), Mindestpasswort 8–10 Zeichen, ggf. Prüfung auf geleakte Passwörter.
-16. Alte Seite `zuhause-familienapp.pages.dev` (Version 6, gleiche Datenbank) abschalten und aus den erlaubten Weiterleitungen nehmen.
-17. Kleinigkeiten: Straßenname in `features.js` maskieren, Link der „Guten Nachricht“ über `safeUrl`, Ausführungsrecht der Datenbankfunktionen für nicht angemeldete Besucher entziehen, Storage-Regel für „unbekannte“ Ordner aufräumen, Sperr-Test um 3 Tabellen ergänzen.
-18. Noahs private E-Mail-Adresse steht als Autor in alten Commits → bei GitHub „E-Mail-Adresse privat halten“ einschalten (macht Noah); Verlauf nur auf ausdrücklichen Wunsch umschreiben.
-- Hinweis: Der Fund „private Dokumente für beide sichtbar“ ist laut Festlegungen gewollt (keine Geheimhaltung zwischen Noah und Charleen) – kein Handlungsbedarf.
-
-**D. Klein**
-19. Größere Tippflächen für ×, ✎, runde ＋ (mind. 40–44 px); untere Leiste am Handy größere/dunklere Beschriftung.
-20. Texte: „Kategorien“-Rest bei Charleen (Mehr, Schnellwahl), Noahs Nebenjobs unter „Mehr“, „Stundenkonto“ → „Arbeitszeit“ im Nebenjob-Auftrag, „€ / Stk“ → „€ je Einheit“, Müll-Abzeichen „2a2“ weglassen, Datum in „Demnächst“ als „Heute/Morgen/Do., 19.11.“, Großbuchstaben-„H“ beim Überstundenkonto, geschütztes Leerzeichen vor „h“/„€“.
-21. Montage: Vorlagenwahl als erstes Feld, zuletzt benutzte vorauswählen; einheitlicher Name für „Auftrag vorbereiten“; Reiter kürzer („Auto (1)“).
-22. Kalender „monatlich am 31.“ in kürzeren Monaten auf den Monatsletzten; Speichern nach Fehler automatisch erneut versuchen; Stempeluhr-Hinweis nach 12 h; Material-Menge 0 nicht zu 1 machen; „Bezahlt ✓“ nicht als großer Hauptknopf während der Auftrag läuft; Lou direkt von der Startseite erreichbar.
+Prüfung vom 17.11.2026 umgesetzt (Versionen 32–34, siehe oben). Offen bzw. nur von Noah erledigbar:
+- **E-Mail-Adresse im Git-Verlauf:** Noah schaltet bei GitHub unter Settings → Emails „Keep my email addresses private“ ein. Den alten Verlauf umzuschreiben ist aufwendig und nur auf ausdrücklichen Wunsch.
+- **Alte Seite `zuhause-familienapp.pages.dev`** (Version 6) läuft noch bei Cloudflare – Noah kann sie dort löschen. Anmelde-Links führen seit 17.11. nicht mehr dorthin.
+- **Prüfung auf geleakte Passwörter** ist erst im kostenpflichtigen Supabase-Tarif möglich.
+- Nächste Prüfung: `/pruefen`.
 
 ## Bewusst verworfen
 
