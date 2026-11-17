@@ -64,6 +64,36 @@ Prüfung vom 17.11.2026 umgesetzt (Versionen 32–34, siehe oben). Offen bzw. nu
 - **Prüfung auf geleakte Passwörter** ist erst im kostenpflichtigen Supabase-Tarif möglich.
 - Nächste Prüfung: `/pruefen`.
 
+### Dokumentenscanner perfektionieren (Plan vom 17.11.2026, Entscheidungen von Noah offen)
+
+**Ist-Stand (geprüft im Code):** „Mehrseitig scannen“ öffnet die Kamera mit `capture="environment" multiple` – am iPhone nimmt die Kamera damit aber nur **ein** Foto auf; mehrere Seiten gehen nur über die Fotoauswahl. Zuschnitt (`prepareScanImage` in `features.js`) sucht nur einen hellen Rand und schneidet gerade ab – keine Ecken, keine Entzerrung, keine Drehung, keine Schattenentfernung. Texterkennung (Tesseract, Deutsch) und PDF (jsPDF) werden bei Bedarf aus dem Internet geladen. Ordner, Kategorie und Name müssen vor dem Scannen oben auf der Seite eingestellt werden. Das PDF enthält nur Bilder (Text nicht markier-/kopierbar). Speicher: Supabase-Gratistarif 1 GB, belegt ~1 MB.
+
+**Phase 1 – Scannen am iPhone (Kern)**
+1. Eigene Scan-Ansicht: Seite fotografieren → Vorschau mit automatisch gefundenen **vier Ecken** (mit dem Finger verschiebbar, Lupe beim Ziehen) → „Übernehmen“ / „Neu aufnehmen“ → „＋ Nächste Seite“ → Seitenübersicht (Reihenfolge ändern, drehen, löschen) → „Fertig“.
+2. **Kantenerkennung** (eigene schlanke Umsetzung ohne große Bibliothek): Dokumentkontur suchen; bei Unsicherheit Ecken auf den Bildrand legen – nie Inhalt abschneiden (Festlegung).
+3. **Entzerren** (Perspektivkorrektur auf DIN-A4-Verhältnis bzw. Kassenbon-Format) und **automatisch drehen** (Hoch/Quer).
+4. **Bildmodus** je Seite: „Dokument“ (heller Hintergrund, Schatten entfernt, gestochen scharfer Text), „Farbe“ (Impfpass-Stempel, Ausweise), „Original“.
+5. **Qualitätswarnung** bei unscharfem oder zu dunklem Foto („Nochmal aufnehmen?“).
+6. Texterkennung und PDF-Bibliotheken unter `vendor/` selbst ablegen (schneller, offline, behebt den CDN-Hinweis der Sicherheitsprüfung); Texterkennung läuft weiterhin nur auf dem Handy.
+
+**Phase 2 – Auf euch abgestimmt (Einordnen ohne Tippen)**
+7. **Vorschläge nach dem Scannen** aus dem erkannten Text: Ordner (Lou: Tierarzt/Deveci/Lassie/Chipnummer · Charleen: Kolping, Caritas, Kauler Hof · Noah · Gemeinsam: Vermieter, Strom, Internet), Kategorie (Rechnung, Versicherung, Vertrag, Lohn/Steuer, Studium …), **Name** wie „Rechnung Tierarztpraxis Deveci – 12.11.2026“ und Dokumentdatum. Ein Tipp bestätigt, alles bleibt änderbar.
+8. **Lernt mit:** ändert ihr einen Vorschlag, merkt sich die App Absender → Ordner/Kategorie.
+9. **Folgeaktionen anbieten** (nur auf Nachfrage): Rechnung mit Betrag/Fälligkeit → Aufgabe „bezahlen bis …“; Vertrag mit Kündigungsfrist → Kalender-Erinnerung; Tierarzt-Rechnung/Impfpass → bei Lou „Impfung erledigt am …“; Kassenbon → Ausgabe im Budget; Materialbeleg → Material mit Preis in Noahs Nebenjob-Auftrag; Lohnabrechnung Kauler Hof → Charleens Nebenjob (Abgleich Stunden/Auszahlung).
+10. **Scannen von dort, wo man gerade ist:** Knopf „Dokument scannen“ bei Lou, in Charleens Bereich, in Noahs Nebenjob-Auftrag – Ordner/Zuordnung vorausgewählt.
+
+**Phase 3 – Wiederfinden und Ansehen**
+11. Dokumentliste mit **Vorschaubild**, Ordner-Kacheln (Gemeinsam/Noah/Charleen/Lou) und „Zuletzt gescannt“; Suchtreffer mit hervorgehobener Fundstelle.
+12. **Durchsuchbares PDF** (unsichtbare Textebene), dadurch auch in anderen Apps durchsuchbar und kopierbar.
+13. **Teilen** über das iPhone-Teilen-Menü (Mail, WhatsApp, Drucken), Seiten nachträglich anfügen, Dokument umbenennen/verschieben.
+14. Bereits hochgeladene PDFs ebenfalls durchsuchbar machen (Text aus dem PDF auslesen).
+
+**Phase 4 – Zuverlässigkeit und Prüfung**
+15. Scans ohne Netz zwischenspeichern und später automatisch hochladen; Fortschritt und Abbrechen; Seitengröße ~200–400 KB (1 GB reicht für einige Tausend Seiten).
+16. **Testsammlung** mit typischen Fällen (schräg, Schatten, Holztisch, Querformat, langer Kassenbon, Impfpass, zerknittert) – automatische Prüfung von Ecken, Entzerrung und Texterkennung; neuer Prüfschritt für `pruefer-fehler`/`pruefer-oberflaeche`.
+
+**Vor dem Start mit Noah klären:** (a) Fotografieren über die normale iPhone-Kamera (zuverlässig, ein Tipp mehr pro Seite) oder eigene Live-Kamera mit Rahmen und automatischem Auslösen (komfortabler, am iPhone in der Home-Bildschirm-App aufwendiger)? (b) Welche Dokumente scannt ihr am häufigsten? (c) Folgeaktionen aus Phase 2 gewünscht – welche?
+
 ## Bewusst verworfen
 
 - **Home-Bildschirm-Widget wie bei TimeTree** (16.11.2026): Für Web-Apps auf dem iPhone nicht möglich. Alternative wäre ein Kalender-Abo-Link für den Apple-Kalender (dessen Widgets) gewesen – Noah hat sich dagegen entschieden.
