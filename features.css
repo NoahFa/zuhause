@@ -152,3 +152,9 @@
 @media(max-width:760px){.doc-tile small .doc-word{display:none}}
 .scan-queue-note{background:var(--gold-soft);border-radius:14px;padding:12px 14px;margin:0 0 14px;font-size:14px;line-height:1.5}
 .scan-queue-note .ws-text-button{display:inline;padding:0 0 0 4px}
+.doc-storage{display:grid;gap:8px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:14px}
+.doc-storage>div{display:grid;gap:2px}.doc-storage strong{font-size:14px}.doc-storage small{color:var(--muted);font-size:12px;line-height:1.45}
+.doc-storage-bar{display:block;height:8px;border-radius:99px;background:var(--sage-soft);overflow:hidden}
+.doc-storage-bar i{display:block;height:100%;background:var(--sage-dark);border-radius:99px}
+.doc-storage.warn{background:var(--gold-soft);border-color:#e6d2ad}.doc-storage.warn .doc-storage-bar i{background:var(--gold)}
+.doc-storage.full{background:var(--clay-soft);border-color:#e4c4bb}.doc-storage.full .doc-storage-bar i{background:var(--clay)}

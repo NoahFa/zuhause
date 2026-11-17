@@ -30,7 +30,7 @@
     let { data, error } = await cloud.from('documents').select(columns).eq('household_id', currentHousehold.id).order('created_at', { ascending: false });
     if (error && /folder|ocr_text|original_paths/i.test(error.message || '')) ({ data, error } = await cloud.from('documents').select('id,file_name,mime_type,size_bytes,storage_path,created_at,category,visibility,owner_user_id,uploaded_by').eq('household_id', currentHousehold.id).order('created_at', { ascending: false }));
     if (error) { list.innerHTML = '<p>Dateien konnten gerade nicht geladen werden.</p>'; return; }
-    docs = data || []; render(); loadThumbs(); window.ZuhauseScanner?.showQueue?.();
+    docs = data || []; render(); loadThumbs(); window.ZuhauseScanner?.showQueue?.(); usage(true);
   }
   async function loadThumbs() {
     if (!docs.length || !cloud) return;
@@ -42,6 +42,40 @@
     const { data } = await cloud.storage.from('receipts').createSignedUrls(paths, 3600).catch(() => ({ data: null }));
     missing.forEach((d, i) => thumbs.set(d.storage_path, data?.[i]?.signedUrl || ''));
     document.querySelectorAll('[data-doc-thumb]').forEach(img => { const url = thumbs.get(img.dataset.docThumb); if (url) { img.src = url; img.hidden = false; img.nextElementSibling?.setAttribute('hidden', ''); } });
+  }
+
+  // ---------- Speicherplatz ----------
+  // Gratis-Tarif von Supabase: 1 GB für alle Dateien. Gezählt wird alles im Ordner des Haushalts (PDFs, Originale, Vorschaubilder, Lou-Fotos).
+  const LIMIT = 1024 ** 3, PER_PAGE = 0.35 * 1024 ** 2; // grob je gescannter Seite: PDF + Original + Vorschaubild
+  let usageCache = null;
+  async function sizeOf(prefix, depth = 0) {
+    let total = 0, offset = 0;
+    for (;;) {
+      const { data, error } = await cloud.storage.from('receipts').list(prefix, { limit: 1000, offset });
+      if (error || !data) throw error || new Error('Liste fehlt');
+      for (const item of data) {
+        if (item.id === null && depth < 5) total += await sizeOf(`${prefix}/${item.name}`, depth + 1);
+        else total += Number(item.metadata?.size) || 0;
+      }
+      if (data.length < 1000) return total; offset += 1000;
+    }
+  }
+  const mb = bytes => bytes >= 1024 ** 3 ? `${(bytes / 1024 ** 3).toLocaleString('de-DE', { maximumFractionDigits: 2 })} GB` : `${Math.max(1, Math.round(bytes / 1024 ** 2)).toLocaleString('de-DE')} MB`;
+  function showUsage(bytes) {
+    const tiles = document.querySelector('#docFolderTiles'); if (!tiles) return;
+    let box = document.querySelector('#docStorage');
+    if (!box) { box = document.createElement('div'); box.id = 'docStorage'; tiles.before(box); }
+    const share = bytes / LIMIT, pct = Math.min(100, Math.round(share * 100)), pages = Math.max(0, Math.floor((LIMIT - bytes) / PER_PAGE));
+    box.className = `doc-storage ${share >= 0.9 ? 'full' : share >= 0.8 ? 'warn' : ''}`;
+    box.innerHTML = `<div><strong>Speicher: ${mb(bytes)} von 1 GB belegt</strong><small>${share >= 0.8 ? `Wird knapp – Platz für noch etwa ${pages.toLocaleString('de-DE')} gescannte Seiten. Alte Dokumente löschen oder mehr Speicher dazubuchen.` : `Platz für noch etwa ${pages.toLocaleString('de-DE')} gescannte Seiten.`}</small></div><span class="doc-storage-bar" role="img" aria-label="${pct} Prozent belegt"><i style="width:${Math.max(1, pct)}%"></i></span>`;
+  }
+  async function usage(force = false) {
+    if (!cloudReady || !currentHousehold) return;
+    if (!force && usageCache && Date.now() - usageCache.at < 10 * 60000) { showUsage(usageCache.bytes); return; }
+    try {
+      const bytes = await sizeOf(currentHousehold.id); usageCache = { bytes, at: Date.now() }; showUsage(bytes);
+      if (bytes / LIMIT >= 0.9) { try { if (localStorage.getItem('zuhause-storage-warned') !== todayIso().slice(0, 7)) { localStorage.setItem('zuhause-storage-warned', todayIso().slice(0, 7)); toast('Der Speicher für Dokumente ist fast voll'); } } catch {} }
+    } catch { /* Anzeige ist nur ein Hinweis – bei Fehlern einfach weglassen */ }
   }
 
   // ---------- Darstellung ----------
@@ -139,7 +173,7 @@
     const { error } = await cloud.from('documents').delete().eq('id', id).eq('household_id', currentHousehold.id);
     if (error) { toast('Löschen hat nicht geklappt'); return; }
     await cloud.storage.from('receipts').remove([doc.storage_path, thumbPath(doc.storage_path), ...(doc.original_paths || [])]).catch(() => {});
-    docs = docs.filter(x => x.id !== id); document.querySelector('#docDetailDialog')?.close(); render(); toast('Dokument gelöscht');
+    docs = docs.filter(x => x.id !== id); document.querySelector('#docDetailDialog')?.close(); render(); usage(true); toast('Dokument gelöscht');
   }
 
   document.addEventListener('click', event => {
@@ -155,5 +189,5 @@
 
   // ersetzt die bisherige Liste (app.js/features.js)
   loadDocuments = load;
-  window.ZuhauseDocuments = { load, imageThumb, thumbPath, render, _setDocs: list => { docs = list; render(); } };
+  window.ZuhauseDocuments = { load, usage, showUsage, usageBytes: () => usageCache?.bytes ?? null, imageThumb, thumbPath, render, _setDocs: list => { docs = list; render(); } };
 })();

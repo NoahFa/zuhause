@@ -7,7 +7,8 @@
   const h = escapeHtml;
   const VENDOR = new URL('vendor/', document.baseURI).href;
   const WORK_SIDE = 2200;      // längste Seite der Arbeitskopie (Speicher am iPhone schonen)
-  const DETECT_SIDE = 480;     // Größe für die Ecken-Erkennung
+  const DETECT_SIDE = 480;
+  const ORIGINAL_SIDE = 1600;  // Originalfoto (bleibt laut Festlegung erhalten) – kleiner gespeichert, spart etwa 2/3 Platz     // Größe für die Ecken-Erkennung
   const A4 = 297 / 210;
   const uid = () => crypto.randomUUID();
 
@@ -294,6 +295,7 @@
         <label class="ws-field"><span>Name</span><input name="name" maxlength="120" value="${h(context.name || '')}" placeholder="z. B. Rechnung Tierarzt November"></label>
         <label class="ws-field"><span>Ordner</span><select name="folder">${folderOptions}</select></label>
         <label class="ws-field"><span>Kategorie</span><select name="category">${categories.map(c => `<option ${c === context.category ? 'selected' : ''}>${h(c)}</option>`).join('')}</select></label>
+        ${(window.ZuhauseDocuments?.usageBytes?.() || 0) > 0.95 * 1024 ** 3 ? '<p class="scanner-hint warn">Der Speicher ist fast voll – das Speichern kann fehlschlagen. Unter Dokumente alte Dateien löschen.</p>' : ''}
         <div class="scanner-suggest"></div></div>
       <div class="scanner-foot"><button class="secondary" data-sc-back>Zurück</button><button class="primary" data-sc-save>PDF speichern</button></div>`;
     d.querySelectorAll('.scanner-save > label input, .scanner-save > label select').forEach(el => el.addEventListener('input', () => { el.dataset.touched = '1'; el.classList.remove('scanner-suggested'); }));
@@ -392,7 +394,7 @@
       const blob = pdf.output('blob'), fileName = `${finalName.replace(/[^\wäöüÄÖÜß .-]+/g, '-')}.pdf`;
       if (blob.size > 10485760) { progress.textContent = 'Das PDF ist zu groß (über 10 MB). Bitte auf zwei Scans aufteilen.'; enable(true); d.querySelector('[data-sc-cancel-save]')?.remove(); return; }
       // Originalfotos als JPEG in Arbeitsgröße sichern (iPhone-Fotos können sonst zu groß oder im falschen Format sein)
-      const originalFiles = await Promise.all(pages.map((p, i) => toFile(p.source, `original-${i + 1}.jpg`, 0.82)));
+      const originalFiles = await Promise.all(pages.map((p, i) => toFile(scaled(p.source, ORIGINAL_SIDE), `original-${i + 1}.jpg`, 0.72)));
       const thumb = await window.ZuhauseDocuments?.imageThumb?.(pages[0].result);
       const meta = { folder, category, ocrText: text.trim(), name: finalName, originalFiles, thumb };
       stop(); d.querySelector('[data-sc-cancel-save]')?.remove(); progress.textContent = 'Wird gespeichert …';
