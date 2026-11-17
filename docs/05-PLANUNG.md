@@ -55,7 +55,38 @@ Claude hat über einen Supabase-Zugangsschlüssel von Noah (Access Token „Clau
 
 ## Geplant (Reihenfolge nach Nutzen)
 
-- Derzeit nichts offen. Neue Wünsche von Noah oder Charleen hier ergänzen.
+Ergebnis der ersten Prüfung durch die vier Prüf-Agenten (17.11.2026). Noch nichts davon umgesetzt – Noah entscheidet.
+
+**A. Dringend (Eingaben gehen verloren / falsche Beträge)**
+1. Fenster in Charleens Bereich (Schicht, Ausstempeln, Auszahlung, Grenze, Sparziel), bei Lou (Pflege) und in Noahs Nebenjobs (Zeit, Material) schreiben in einen veralteten Datenstand, wenn das andere Handy währenddessen speichert → Eingabe weg. Beim Speichern Daten neu holen statt beim Öffnen gemerkten Stand verwenden (`charleen.js`, `lou.js`, `noah-jobs.js`; Ursache `app.js` ersetzt `state` beim Abgleich). Testfall in `tests/regression.cjs` ergänzen.
+2. Beträge mit Tausenderpunkt werden falsch gelesen („1.200“ → 1,20 €) – `num()` in `charleen.js` und `noah-jobs.js`.
+3. Lohnänderungen rechnen die Vergangenheit um: Charleens Überstundenkonto (Grenze und Euro-Auszahlungen mit aktuellem Stundenlohn; Okt.-Auszahlung einmalig mit 32,37 h festschreiben) und Noahs Nebenjobs (Standardsatz ändert abgerechnete/bezahlte Aufträge; Satz beim Abrechnen festschreiben).
+4. Mehrtägige Termine erscheinen nur am ersten Tag (`calendar.js`).
+5. Budget: nachträglich erfasste Ausgabe für einen bereits abgeschlossenen Monat zählt nirgends (`features.js`) – relevant, sobald das Budget genutzt wird.
+
+**B. Wichtig (Bedienung und Darstellung)**
+6. Termin für einen anderen Tag: Ende-Datum/-Uhrzeit beim Ändern des Beginns mitziehen (sonst Fehlermeldung).
+7. Startseite: Termine von morgen und Kalendertermine/Geburtstage in „Demnächst wichtig“ zeigen; Einträge antippbar; keine doppelte Aufgabe in „Offene Aufgaben“ und „Demnächst“.
+8. Kalendersuche findet nur im angezeigten Monat → Trefferliste über alle Monate.
+9. Löschen per „×“ ohne Rückfrage/Rückgängig (Aufgaben, Einkauf, Caritas, Charleens Aufgaben) → „Gelöscht – Rückgängig“; Aufgaben nachträglich ändern (✎); gelöschte Runde einer Wiederholung kommt zurück → „nur diese Runde / ganze Serie“.
+10. Tablet (768 px): „Mehr“ und Montage-Reiter laufen über; Wochenansicht am Handy breiter als der Bildschirm.
+11. Karten ohne Innenabstand: Finanzen (Budget, Fixkosten, Sparanalyse) und Dokumente-Filter; Aufgaben-Titel klebt an der Zusatzzeile.
+12. „+ Ausgabe“ enthält noch Steuer-Reste („Wer hat bezahlt?“, Bereich Beruf/Hochschule/Nebengewerbe) → vereinfachen.
+13. Charleens Bereich am Handy: Reiter erst weit unten → direkt unter den Namen; Überstundenkonto-Hinweis „Mehrstunden kommen am Monatsende aufs Konto“.
+14. Termin-Fenster sehr lang → Titel/Wer/Zeit oben, Rest unter „Mehr Optionen“; „Farblabel“ umbenennen.
+
+**C. Sicherheit (kein akutes Risiko)**
+15. Registrierung abschalten (beide Konten existieren), Mindestpasswort 8–10 Zeichen, ggf. Prüfung auf geleakte Passwörter.
+16. Alte Seite `zuhause-familienapp.pages.dev` (Version 6, gleiche Datenbank) abschalten und aus den erlaubten Weiterleitungen nehmen.
+17. Kleinigkeiten: Straßenname in `features.js` maskieren, Link der „Guten Nachricht“ über `safeUrl`, Ausführungsrecht der Datenbankfunktionen für nicht angemeldete Besucher entziehen, Storage-Regel für „unbekannte“ Ordner aufräumen, Sperr-Test um 3 Tabellen ergänzen.
+18. Noahs private E-Mail-Adresse steht als Autor in alten Commits → bei GitHub „E-Mail-Adresse privat halten“ einschalten (macht Noah); Verlauf nur auf ausdrücklichen Wunsch umschreiben.
+- Hinweis: Der Fund „private Dokumente für beide sichtbar“ ist laut Festlegungen gewollt (keine Geheimhaltung zwischen Noah und Charleen) – kein Handlungsbedarf.
+
+**D. Klein**
+19. Größere Tippflächen für ×, ✎, runde ＋ (mind. 40–44 px); untere Leiste am Handy größere/dunklere Beschriftung.
+20. Texte: „Kategorien“-Rest bei Charleen (Mehr, Schnellwahl), Noahs Nebenjobs unter „Mehr“, „Stundenkonto“ → „Arbeitszeit“ im Nebenjob-Auftrag, „€ / Stk“ → „€ je Einheit“, Müll-Abzeichen „2a2“ weglassen, Datum in „Demnächst“ als „Heute/Morgen/Do., 19.11.“, Großbuchstaben-„H“ beim Überstundenkonto, geschütztes Leerzeichen vor „h“/„€“.
+21. Montage: Vorlagenwahl als erstes Feld, zuletzt benutzte vorauswählen; einheitlicher Name für „Auftrag vorbereiten“; Reiter kürzer („Auto (1)“).
+22. Kalender „monatlich am 31.“ in kürzeren Monaten auf den Monatsletzten; Speichern nach Fehler automatisch erneut versuchen; Stempeluhr-Hinweis nach 12 h; Material-Menge 0 nicht zu 1 machen; „Bezahlt ✓“ nicht als großer Hauptknopf während der Auftrag läuft; Lou direkt von der Startseite erreichbar.
 
 ## Bewusst verworfen
 
