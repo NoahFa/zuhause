@@ -64,6 +64,45 @@ Prüfung vom 17.11.2026 umgesetzt (Versionen 32–34, siehe oben). Offen bzw. nu
 - **Prüfung auf geleakte Passwörter** ist erst im kostenpflichtigen Supabase-Tarif möglich.
 - Nächste Prüfung: `/pruefen`.
 
+**Prüfung vom 18.11.2026 (v39, alle vier Prüf-Agenten) – offen, wartet auf Noahs Auswahl:**
+- **A – Falsches und Verlust (dringend):**
+  - Scanner liest bei „Betrag … bis zum 26.11.2026“ das Datum als Betrag (26,11 €) – `scan-analyse.js` Betragssuche.
+  - Ohne Internet nach App-Update: PDF-/Texterkennungs-Dateien nicht vorab gespeichert → Scan geht nicht in die Warteschlange (`sw.js`).
+  - Jeder Upload-Fehler heißt „Kein Internet“; nach 5 Versuchen still liegen bleibende Scans.
+  - Zu frühes „PDF speichern“ verwirft Vorschläge und vorgewählte Folgeaktionen (z. B. Material im Auftrag).
+- **B – Scanner-Bedienung:**
+  - „Übernehmen“ als großer Knopf unten (+ „Übernehmen + nächste Seite“).
+  - Schwarzer Tischrand an entzerrten Seiten entfernen.
+  - Hinweis „Text wird gelesen …“ deutlich, Erklärung „grün = Vorschlag“.
+  - Meldung „zu dunkel“ statt „unscharf“; „Neu aufnehmen“ löscht Seite erst nach neuem Foto.
+  - Abbrechen schneller; Speicher bei vielen Seiten schonen (iPhone).
+  - Desktop: Scanner-Leisten mittig begrenzen.
+- **C – Dokumente-Seite:**
+  - Kacheln auf Tablet kaputt (Schriftgröße).
+  - Suche und Liste weiter nach oben, Speicher-Anzeige erst ab ~50 % oben.
+  - „Dokument scannen“ als grüner Hauptknopf.
+  - „Datei hochladen“ mit Speichern-Fenster (Name/Ordner/Kategorie, Vorschläge) statt versteckter Einstellungen.
+  - Kategorie-Filter (Festlegung 12).
+  - „Zuletzt hinzugefügt“ nur bei langer Liste.
+  - Detailfenster: Abstand zwischen Löschen/Abbrechen/Speichern, größeres ×.
+  - Teilen am iPhone zuverlässiger (Datei vorladen).
+  - Speicher-Anzeige nicht bei jedem Abgleich neu zählen.
+- **D – Finanzen/Noah/Charleen/Lou:**
+  - Kassenbon-Scan unter Finanzen auf den neuen Scanner umleiten, Artikelzeilen mitspeichern (Festlegung 10.10), Nachfrage bei abgeschlossenem Monat.
+  - Charleen: Scan-Knopf aus dem Kopf in die Reiter (Stempeluhr wieder sichtbar).
+  - Lou: Fälliges nach oben, „Erledigt“ mit Rückgängig, Knopftext kürzer.
+  - Nebenjob: Beleg-Material besser benennen, Hinweis auf Doppelzählung, „Material entfernen“ mit Rückgängig.
+  - Haushalt: „×“ in eigener Zeile, doppelter Plus-Knopf.
+- **E – Sicherheit/Aufräumen:**
+  - Content-Security-Policy: jsdelivr und tessdata-Adresse streichen.
+  - Warteschlange an Konto/Zuhause binden.
+  - jsPDF auf Version 3 aktualisieren.
+  - Gelernte Absender-Schlüssel nicht mitten im Wort kürzen.
+  - Dokumentdatum besser wählen.
+  - Dateireste bei fehlgeschlagenem Upload aufräumen.
+  - `ui-check` um neue Dokumente-Ansicht ergänzen.
+- **Nicht prüfbar:** Live-Einstellungen bei Supabase (Zugang für Prüf-Agenten gesperrt); echtes iPhone (Teilen, viele Seiten).
+
 ### Dokumentenscanner perfektionieren (Plan vom 17.11.2026)
 
 **Ist-Stand (geprüft im Code):** „Mehrseitig scannen“ öffnet die Kamera mit `capture="environment" multiple` – am iPhone nimmt die Kamera damit aber nur **ein** Foto auf; mehrere Seiten gehen nur über die Fotoauswahl. Zuschnitt (`prepareScanImage` in `features.js`) sucht nur einen hellen Rand und schneidet gerade ab – keine Ecken, keine Entzerrung, keine Drehung, keine Schattenentfernung. Texterkennung (Tesseract, Deutsch) und PDF (jsPDF) werden bei Bedarf aus dem Internet geladen. Ordner, Kategorie und Name müssen vor dem Scannen oben auf der Seite eingestellt werden. Das PDF enthält nur Bilder (Text nicht markier-/kopierbar). Speicher: Supabase-Gratistarif 1 GB, belegt ~1 MB.
