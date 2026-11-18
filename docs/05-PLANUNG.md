@@ -58,6 +58,10 @@ Claude hat über einen Supabase-Zugangsschlüssel von Noah (Access Token „Clau
 
 **Morgen-Nachricht jeden Tag (18.11.2026, Wunsch Noah):** Am 18.11. kam keine Nachricht, weil nichts anstand (so war es gebaut). Seitdem kommt sie jeden Morgen um 5 Uhr, mit Wetter für Bergisch Gladbach (open-meteo) als erster Zeile, an leeren Tagen „Heute steht nichts an.“ (`send-morning-summary`, Version 9).
 
+**Rezeptkatalog Schritt 1 (18.11.2026, v44, mit Noah abgestimmt):** Reiter „Rezepte“ neben der Einkaufsliste (Haushalt). Neue Tabelle `public.recipes` (je Haushalt, RLS, Migration `supabase/migrations-claude/2026-11-18-rezepte.sql`, Sicherung `sicherung.app_state_20261118_rezepte`); jedes Handy hält eine Kopie + Warteschlange (offline anlegen/ändern), Abgleich im App-Takt, gelöschte Rezepte werden markiert (deleted_at). Rezept eintippen (Zutaten eine pro Zeile, Schritte als Absätze, Quelle), Suche (auch Zutaten), gemeinsames Herz (Favoriten oben), Portionen umrechnen, „Auf die Einkaufsliste“ mit Vorschau (Basics abgewählt, Liste unter „Basics bearbeiten“ → `state.settings.recipeBasics`), Zusammenrechnen bei gleicher/umrechenbarer Einheit (g/kg, ml/l, Stück), Stückzahlen aufgerundet, Bereich über die bestehende Zuordnung (Wortliste um Rezeptzutaten ergänzt; „Reis“ landete vorher bei Tiefkühl). Test `tests/recipes-check.cjs`.
+**Rezeptkatalog Schritt 2 (geplant):** Import per Link (neue Edge Function, schema.org/JSON-LD, nur angemeldete Mitglieder, nur http/https, keine internen Adressen, Zeit-/Größenlimit), Fotos im geschützten Speicher (`<haushalt>/shared/recipes/`), Kategorien frei anlegen.
+**Aufgefallen (18.11.):** Angemeldete Nutzer haben auf den älteren Tabellen das Datenbankrecht TRUNCATE (Standard von Supabase). Über die App/REST nicht nutzbar; bei `recipes` entzogen, bei den übrigen nur nach Rückfrage.
+
 ## Geplant (Reihenfolge nach Nutzen)
 
 Prüfung vom 17.11.2026 umgesetzt (Versionen 32–34, siehe oben). Offen bzw. nur von Noah erledigbar:

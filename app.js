@@ -139,7 +139,7 @@ async function loadHouseholdOnce(){
   lastSyncedState=mergedState(row.data);state=dirty&&scoped?mergeStates(row.data,scoped,storedBase||lastSyncedState):structuredClone(lastSyncedState);localDirty=dirty;localChangeVersion=dirty?1:0;storeScopedState();lastCloudUpdate=row.updated_at;cloudRevision=Number(row.revision||0);
   cloudReady=true;updateStorageExplanation();await loadAutomaticContent();
   await window.ZuhauseCalendar?.connect({cloud,household,user:currentUser,members:members||[],legacyAppointments:state.appointments,automaticEvents,callbacks:{toast,go,detail:openDetail,remindersSelected:notificationHelp}});
-  renderAll();renderInsurance();await loadDocuments();
+  renderAll();renderInsurance();window.ZuhauseRecipes?.sync?.();await loadDocuments();
   connectionAttempts=0;clearTimeout(connectionRetry);$('#authScreen').hidden=true;setSyncStatus('Sicher gespeichert','connected');
   if(dirty||!row.data||!Object.keys(row.data).length){setDirty(true);await saveCloudState()}
   if(!state.settings?.sampleDataRemoved)await removeSampleDataOnce();
@@ -175,7 +175,7 @@ async function refreshCloudState(force){
   lastStateRefresh=Date.now();
   window.ZuhauseCalendar?.refresh(force===true||force?.type!==undefined);
   if(saveInFlight)return;
-  await Promise.allSettled([loadDocuments(),loadAutomaticContent()]);
+  await Promise.allSettled([loadDocuments(),loadAutomaticContent(),window.ZuhauseRecipes?.sync?.()]);
   window.ZuhauseFeatures?.refresh();
   if(saveInFlight)return;
   const {data,error}=await cloud.from('app_state').select('data,updated_at,revision').eq('household_id',currentHousehold.id).single();

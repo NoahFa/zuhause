@@ -190,10 +190,11 @@
     const title = (quantityMatch ? quantityMatch[2] : raw).trim();
     const value = title.toLowerCase();
     const groups = [
-      ['Obst und Gemüse', /apfel|äpfel|banane|beere|salat|gurke|tomate|paprika|kartoffel|zwiebel|obst|gemüse|avocado|zitrone|orange/],
-      ['Tiefkühlprodukte', /tiefkühl|tk[- ]|pizza|eis|pommes|frost/],
-      ['Kühlprodukte', /milch|joghurt|käse|butter|sahne|quark|wurst|fleisch|tofu|ei(?:er)?\b/],
-      ['Trockenwaren', /brot|nudel|reis|mehl|zucker|müsli|kaffee|tee|konserve|gewürz|öl|hafer/],
+      // Wortlisten um typische Rezeptzutaten ergänzt (18.11.2026); „eis“ nur als eigenes Wort (sonst landete „Reis“ bei Tiefkühl)
+      ['Obst und Gemüse', /apfel|äpfel|banane|beere|salat|gurke|tomate|paprika|kartoffel|zwiebel|obst|gemüse|avocado|zitrone|orange|knoblauch|ingwer|möhre|karotte|lauch|porree|zucchini|aubergine|brokkoli|blumenkohl|spinat|pilz|champignon|kürbis|sellerie|petersilie|basilikum|schnittlauch|koriander|dill|minze|rosmarin|thymian|frühlingszwiebel|limette|mango|ananas|traube|birne|radieschen|rucola|kohl/],
+      ['Tiefkühlprodukte', /tiefkühl|tk[- ]|pizza|(?:^|\s)eis(?:würfel|\b)|pommes|frost/],
+      ['Kühlprodukte', /milch|joghurt|käse|butter|sahne|quark|wurst|fleisch|tofu|ei(?:er)?\b|hack|hähnchen|huhn|pute|schinken|speck|lachs|fisch|garnele|mozzarella|parmesan|feta|frischkäse|crème fraîche|creme fraiche|schmand|hefe|margarine/],
+      ['Trockenwaren', /brot|nudel|reis|mehl|zucker|müsli|kaffee|tee|konserve|gewürz|öl|hafer|spaghetti|pasta|penne|fusilli|lasagne|linsen|kichererbse|bohnen|couscous|bulgur|quinoa|backpulver|vanille|brühe|essig|senf|ketchup|honig|schokolade|kakao|nüsse|mandel|paniermehl|semmelbrösel|dose|tomatenmark|passierte|oregano|paprikapulver|zimt|salz|pfeffer/],
       ['Getränke', /wasser|saft|cola|limo|bier|wein|getränk/],
       ['Haushaltsartikel', /papier|reiniger|spül|waschmittel|müllbeutel|zahnpasta|seife|schwamm|hundefutter|tierfutter/]
     ];
