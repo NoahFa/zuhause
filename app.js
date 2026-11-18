@@ -138,7 +138,7 @@ async function loadHouseholdOnce(){
   const scoped=readJson(scopedStorageKey()),dirty=localStorage.getItem(scopedStorageKey('dirty'))==='1',storedBase=readJson(scopedStorageKey('base'));
   lastSyncedState=mergedState(row.data);state=dirty&&scoped?mergeStates(row.data,scoped,storedBase||lastSyncedState):structuredClone(lastSyncedState);localDirty=dirty;localChangeVersion=dirty?1:0;storeScopedState();lastCloudUpdate=row.updated_at;cloudRevision=Number(row.revision||0);
   cloudReady=true;updateStorageExplanation();await loadAutomaticContent();
-  await window.ZuhauseCalendar?.connect({cloud,household,user:currentUser,members:members||[],legacyAppointments:state.appointments,automaticEvents,callbacks:{toast,go,detail:openDetail,remindersSelected:notificationHelp}});
+  await window.ZuhauseCalendar?.connect({cloud,household,user:currentUser,members:members||[],legacyAppointments:state.appointments,automaticEvents,callbacks:{toast,go,detail:openDetail,remindersSelected:reminderHint}});
   renderAll();renderInsurance();window.ZuhauseRecipes?.sync?.();await loadDocuments();
   connectionAttempts=0;clearTimeout(connectionRetry);$('#authScreen').hidden=true;setSyncStatus('Sicher gespeichert','connected');
   if(dirty||!row.data||!Object.keys(row.data).length){setDirty(true);await saveCloudState()}
@@ -359,6 +359,8 @@ $$('[data-explain]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation
 $('#expenseSearch').addEventListener('input',e=>renderExpenses(e.target.value));
 const VAPID_PUBLIC_KEY='BBdsUcOhWD0t-zaxgt7JrMuGKa2kf2-KaIZ0bY6ZmMBKXlF3h-NFNogjIefewWbPxFQDvfrqhhz8g4bLcto7FRs';
 function urlBase64ToUint8Array(value){const padding='='.repeat((4-value.length%4)%4),base64=(value+padding).replace(/-/g,'+').replace(/_/g,'/'),raw=atob(base64);return Uint8Array.from([...raw].map(char=>char.charCodeAt(0)))}
+// Nach einem Termin mit Erinnerung nur dann auf Mitteilungen hinweisen, wenn sie auf diesem Gerät noch nicht erlaubt sind
+function reminderHint(){if(!('Notification' in window)||Notification.permission!=='granted')notificationHelp()}
 function notificationHelp(){
   const installed=window.matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
   const supported='serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window;
@@ -495,7 +497,7 @@ function renderAll(){
   const year=new Date().getFullYear(),income=state.incomes.filter(item=>{const date=parseStoredDate(item.date);return date&&date.getFullYear()===year}).reduce((sum,item)=>sum+(Number(item.amount)||0),0),businessExpenses=state.expenses.filter(item=>{const date=parseStoredDate(item.date);return date&&date.getFullYear()===year&&item.category==='Nebengewerbe'}).reduce((sum,item)=>sum+(Number(item.amount)||0),0);
   $('#incomeTotal').textContent=money(income);$('#businessExpenseTotal').textContent=money(businessExpenses);$('#profitTotal').textContent=money(income-businessExpenses);
 }
-window.ZuhauseCalendar?.bootstrap({legacyAppointments:state.appointments,automaticEvents,callbacks:{toast,go,detail:openDetail,remindersSelected:notificationHelp}});
+window.ZuhauseCalendar?.bootstrap({legacyAppointments:state.appointments,automaticEvents,callbacks:{toast,go,detail:openDetail,remindersSelected:reminderHint}});
 setGreeting();bindOpenButtons();renderAll();renderInsurance();
 const localCalendarPreview=['127.0.0.1','localhost'].includes(location.hostname)&&new URLSearchParams(location.search).get('preview')==='calendar';
 if(localCalendarPreview){$('#authScreen').hidden=true;go('calendar')}else{startCloud();setInterval(refreshCloudState,5000);window.addEventListener('focus',refreshCloudState);document.addEventListener('visibilitychange',()=>{if(!document.hidden){refreshCloudState(true);if(localDirty)saveCloudState()}});window.addEventListener('pageshow',()=>refreshCloudState(true));window.addEventListener('online',()=>{if(!$('#authOffline').hidden){connectionAttempts=0;resumeSession();return}setSyncStatus('Verbindung wieder da','syncing');saveCloudState()})}

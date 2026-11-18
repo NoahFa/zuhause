@@ -7,7 +7,7 @@
   const h = escapeHtml;
   const FOLDERS = ['Gemeinsam', 'Noah', 'Charleen', 'Lou'];
   const ICON = { Gemeinsam: '⌂', Noah: 'N', Charleen: 'C', Lou: '🐾' };
-  let docs = [], folder = 'Alle', category = '', query = '', thumbs = new Map(), thumbsUntil = 0, lastSignature = '';
+  let loaded = false, docs = [], folder = 'Alle', category = '', query = '', thumbs = new Map(), thumbsUntil = 0, lastSignature = '';
   const thumbPath = path => `${path}.thumb.jpg`;
   const norm = s => String(s || '').toLowerCase();
   const fresh = id => docs.find(d => d.id === id);
@@ -25,13 +25,15 @@
 
   // ---------- Laden ----------
   async function load() {
-    const list = document.querySelector('#documentList'); if (!list || !cloudReady || !currentHousehold) return;
+    const list = document.querySelector('#documentList'); if (!list) return;
+    if (!cloudReady || !currentHousehold) { render(); return; } // ohne Verbindung: neue Ansicht mit Hinweis statt alter Seite
     const columns = 'id,file_name,mime_type,size_bytes,storage_path,created_at,category,folder,ocr_text,original_paths,visibility,owner_user_id,uploaded_by';
     let { data, error } = await cloud.from('documents').select(columns).eq('household_id', currentHousehold.id).order('created_at', { ascending: false });
     if (error && /folder|ocr_text|original_paths/i.test(error.message || '')) ({ data, error } = await cloud.from('documents').select('id,file_name,mime_type,size_bytes,storage_path,created_at,category,visibility,owner_user_id,uploaded_by').eq('household_id', currentHousehold.id).order('created_at', { ascending: false }));
     if (error) { list.innerHTML = '<p>Dateien konnten gerade nicht geladen werden.</p>'; return; }
     // Die Liste wird beim regelmäßigen Abgleich mitgeladen – nur neu zeichnen, wenn sich wirklich etwas geändert hat
     // (sonst springt die Liste alle paar Sekunden und ein Tipp kann ins Leere gehen).
+    loaded = true;
     const signature = JSON.stringify((data || []).map(d => [d.id, d.file_name, d.folder, d.category]));
     const changed = signature !== lastSignature; lastSignature = signature; docs = data || [];
     if (changed || !document.querySelector('#docFolderTiles')) { render(); loadThumbs(); window.ZuhauseScanner?.showQueue?.(); }
@@ -109,9 +111,11 @@
   function render() {
     const list = document.querySelector('#documentList'); if (!list) return;
     ensureControls();
-    const counts = Object.fromEntries(FOLDERS.map(f => [f, docs.filter(d => (d.folder || 'Gemeinsam') === f).length]));
+    // bei einer Suche zählen die Kacheln die Treffer je Ordner (sonst passten die Zahlen nicht zur Liste)
+    const counted = query ? docs.filter(d => norm(`${d.file_name} ${d.category} ${d.folder} ${d.ocr_text}`).includes(norm(query))) : docs;
+    const counts = Object.fromEntries(FOLDERS.map(f => [f, counted.filter(d => (d.folder || 'Gemeinsam') === f).length]));
     const tiles = document.querySelector('#docFolderTiles');
-    if (tiles) tiles.innerHTML = [['Alle', '☰', docs.length], ...FOLDERS.map(f => [f, ICON[f], counts[f]])].map(([f, icon, n]) => `<button class="doc-tile ${folder === f ? 'active' : ''}" data-doc-folder="${h(f)}" aria-pressed="${folder === f}"><span>${icon}</span><strong>${h(f === 'Alle' ? 'Alle' : f)}</strong><small>${n}<span class="doc-word"> ${n === 1 ? "Dokument" : "Dokumente"}</span></small></button>`).join('');
+    if (tiles) tiles.innerHTML = [['Alle', '☰', counted.length], ...FOLDERS.map(f => [f, ICON[f], counts[f]])].map(([f, icon, n]) => `<button class="doc-tile ${folder === f ? 'active' : ''}" data-doc-folder="${h(f)}" aria-pressed="${folder === f}"><span>${icon}</span><strong>${h(f === 'Alle' ? 'Alle' : f)}</strong><small>${n}<span class="doc-word"> ${n === 1 ? "Dokument" : "Dokumente"}</span></small></button>`).join('');
     // Kategorie-Filter: nur Kategorien, die im gewählten Ordner vorkommen
     const inFolder = docs.filter(d => folder === 'Alle' || (d.folder || 'Gemeinsam') === folder);
     const cats = [...new Set(inFolder.map(d => d.category || 'Sonstige Dokumente'))].sort((a, b) => a.localeCompare(b, 'de'));
@@ -121,7 +125,9 @@
     const shown = docs.filter(matches);
     // „Zuletzt hinzugefügt“ nur, wenn die Liste lang ist (sonst stünden dieselben Einträge zweimal untereinander)
     const recent = !query && !category && folder === 'Alle' && docs.length > 12 ? docs.slice(0, 4) : [];
-    list.innerHTML = !docs.length ? '<div class="ws-empty"><strong>Noch keine Dokumente.</strong><p>Tippe oben auf „Dokument scannen“ – Seite fotografieren, die App macht daraus ein sauberes, durchsuchbares PDF.</p></div>'
+    const offline = typeof cloudReady === 'undefined' || !cloudReady || !navigator.onLine;
+    list.innerHTML = !docs.length && !loaded ? `<div class="ws-empty"><strong>${offline ? 'Ohne Internet' : 'Dokumente werden geladen …'}</strong><p>${offline ? 'Die Dokumente erscheinen, sobald ihr wieder online seid. Scannen geht trotzdem – der Scan wird später automatisch hochgeladen.' : 'Einen Moment bitte.'}</p></div>`
+      : !docs.length ? '<div class="ws-empty"><strong>Noch keine Dokumente.</strong><p>Tippe oben auf „Dokument scannen“ – Seite fotografieren, die App macht daraus ein sauberes, durchsuchbares PDF.</p></div>'
       : `${recent.length ? `<p class="doc-section">Zuletzt hinzugefügt</p><div class="doc-recent">${recent.map(d => `<button class="doc-recent-card" data-doc-id="${h(d.id)}"><span class="doc-thumb big"><img data-doc-thumb="${h(d.storage_path)}" alt="" ${thumbs.get(d.storage_path) ? `src="${h(thumbs.get(d.storage_path))}"` : 'hidden'}><span class="document-icon" ${thumbs.get(d.storage_path) ? 'hidden' : ''}>${d.mime_type === 'application/pdf' ? 'PDF' : '▣'}</span></span><small>${h(d.file_name)}</small></button>`).join('')}</div><p class="doc-section">Alle Dokumente</p>` : ''}
         ${shown.map(row).join('') || `<p class="ws-muted">${query ? `Nichts gefunden für „${h(query)}“${folder !== 'Alle' ? ` im Ordner ${h(folder)}` : ''}.` : 'In diesem Ordner liegt noch nichts.'}</p>`}`;
     const head = document.querySelector('.document-card .card-head h2'); if (head) head.textContent = `${folder === 'Alle' ? 'Alle Dokumente' : `Ordner ${folder}`}${category ? ` · ${category}` : ''}`;
@@ -170,7 +176,7 @@
       const values = { file_name: String(f.get('name')).trim(), folder: String(f.get('folder')), category: String(f.get('category')) };
       if (!values.file_name) { message.textContent = 'Bitte einen Namen eingeben.'; return; }
       const { error } = await cloud.from('documents').update(values).eq('id', id).eq('household_id', currentHousehold.id);
-      if (error) { message.textContent = 'Speichern hat nicht geklappt. Bitte später noch einmal.'; return; }
+      if (error) { message.textContent = navigator.onLine ? 'Speichern hat nicht geklappt. Bitte später noch einmal.' : 'Kein Internet – bitte später noch einmal.'; return; }
       const current = fresh(id); if (current) Object.assign(current, values); d.close(); render(); toast('Gespeichert');
     };
     d.showModal(); prepareShare(doc, d);
@@ -261,5 +267,6 @@
 
   // ersetzt die bisherige Liste (app.js/features.js)
   loadDocuments = load;
-  window.ZuhauseDocuments = { load, uploadDialog, usage, showUsage, usageBytes: () => usageCache?.bytes ?? null, imageThumb, thumbPath, render, _setDocs: list => { docs = list; render(); } };
+  document.addEventListener('click', event => { if (event.target.closest('[data-page="documents"]')) setTimeout(() => { if (!loaded) load(); }, 50); });
+  window.ZuhauseDocuments = { load, uploadDialog, usage, showUsage, usageBytes: () => usageCache?.bytes ?? null, imageThumb, thumbPath, render, _setDocs: list => { docs = list; loaded = true; render(); } };
 })();

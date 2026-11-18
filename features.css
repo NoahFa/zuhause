@@ -255,3 +255,54 @@
 .recipe-cat-row span{font-weight:700;overflow-wrap:anywhere}.recipe-cat-row small{color:var(--muted)}
 .recipe-cat-row .ws-van-edit{width:44px;height:44px}
 .recipe-import-note{margin:0;background:var(--gold-soft);border-radius:12px;padding:10px 12px;font-size:14px}
+/* ===== Prüfung 18.11. (v45) B/C ===== */
+/* Haushalt: unter 1050 px einspaltig (auf dem Tablet war die Einkaufs-/Rezeptkarte zu schmal) */
+@media(max-width:1050px){.household-grid{grid-template-columns:1fr}}
+/* Fenster: Knopfleiste unten festhalten, damit „Speichern“ ohne Scrollen sichtbar ist */
+dialog .calendar-dialog-actions{position:sticky;bottom:0;z-index:2;background:#fbfaf6;padding-top:12px;padding-bottom:4px;margin-top:8px;box-shadow:0 -10px 14px -10px rgba(31,40,31,.18)}
+.doc-detail .dialog-head h2{font-size:24px;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+/* Kategorien/Basics: Knöpfe sauber */
+#recipeCategoriesDialog .calendar-dialog-actions [data-recipe-close].primary,#recipeBasicsDialog .calendar-dialog-actions [type=submit]{grid-column:-2/-1}
+@media(max-width:760px){#recipeCategoriesDialog .calendar-dialog-actions [data-recipe-close].primary{grid-column:1/-1}#recipeBasicsDialog [data-recipe-basics-reset]{grid-column:1/-1}#recipeBasicsDialog .calendar-dialog-actions [type=submit]{grid-column:2/3}}
+/* Aufgabe: Beschreibung im App-Stil */
+.field textarea{width:100%;border:1px solid #dddcd3;background:#fff;border-radius:11px;padding:11px;outline:0;font:inherit;min-height:80px;resize:vertical}
+/* Caritas: Knopf nicht umbrechen */
+.ch-work-form button{white-space:nowrap;font-size:16px!important;padding:0 14px!important}
+@media(max-width:760px){.ch-work-form{grid-template-columns:minmax(0,1fr) auto!important}.ch-work-form input[type=date]{grid-column:1/-1;order:3}}
+/* Scanner */
+.scanner-hint{margin:10px 16px 22px}
+.scanner-page-actions{gap:8px}.scanner-page-actions button{width:44px;height:44px}
+.scanner-page-actions [data-sc-delete]{margin-left:6px;background:rgba(189,120,104,.35)}
+@media(max-width:760px){.scanner-foot{display:grid;grid-template-columns:1fr 2fr}.scanner-foot button{min-height:56px}.scanner-foot [data-sc-cancel-save]{grid-column:1/2}}
+/* kleine Textlinks größer antippbar */
+.text-button,.card-head .text-button,.ws-personal-links button,.calendar-search-toggle{min-height:44px;display:inline-flex;align-items:center}
+/* Startseite am Handy kompakter: Schnellknöpfe in 3 Spalten ohne Unterzeile, Begrüßungssatz weg */
+@media(max-width:760px){
+  .quick-actions{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:8px!important;margin-bottom:14px!important}
+  .quick-actions button{grid-template-columns:28px minmax(0,1fr)!important;grid-template-rows:auto!important;padding:10px 8px!important;align-items:center;border-radius:14px!important;min-height:48px}
+  .quick-actions button small{display:none}
+  .quick-actions .action-icon{width:28px!important;height:28px!important;font-size:14px!important;border-radius:9px!important;grid-row:1!important}
+  .quick-actions strong{font-size:13px;grid-row:1!important;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #timeMessage{display:none}
+  .home-hero{margin-bottom:10px}
+  .day-card,.weather-card,.waste-card,.household-tasks{min-height:0!important}
+}
+/* Finanzen: Suchfeld mit Lupe in einer Zeile */
+.expense-search,.finance-search{display:flex!important;align-items:center;gap:8px}
+#expenseSearchFeature{min-height:44px;flex:1;min-width:0}
+/* Kalender: Importieren dezenter */
+[data-calendar-import]{font-size:13px}
+/* Haushalt: Sprungknöpfe */
+.household-jumps{display:flex;gap:8px;flex-wrap:wrap;margin:-8px 0 16px}
+.household-jumps button{min-height:44px}
+.table-card .search{display:flex!important;align-items:center;gap:8px;flex-wrap:nowrap}
+.table-card .search input{min-height:40px;min-width:0}
+.calendar-import-link{color:var(--sage-dark);font-weight:700;background:none;border:0;cursor:pointer}
+.full-shopping{scroll-margin-top:150px}
+.recipe-shop-row>span{display:grid;gap:2px}
+.recipe-shop-row em{font-style:normal;font-size:12px;color:var(--sage-dark)}
+.recipe-cat-suggest{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}.recipe-cat-suggest small{color:var(--muted)}
+.scanner-items{grid-column:1/-1;color:#cfd6cb;font-size:13px}
+.scanner-items summary{cursor:pointer;min-height:36px;display:flex;align-items:center;color:#7fd19b;font-weight:700}
+.scanner-items ul{margin:4px 0 0;padding-left:18px;max-height:180px;overflow:auto;line-height:1.6}
+@media(max-width:760px){.home-hero{min-height:0!important}}

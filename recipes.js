@@ -60,6 +60,7 @@
     return `${text}${u ? ` ${v > 1 ? PLURAL[u] || u : u}` : ''}`;
   }
   const PLURAL = { Dose: 'Dosen', Zehe: 'Zehen', Prise: 'Prisen', Scheibe: 'Scheiben', Tasse: 'Tassen', Stange: 'Stangen', Knolle: 'Knollen', Zweig: 'Zweige', Kopf: 'Köpfe', Glas: 'Gläser', Blatt: 'Blätter', Box: 'Boxen', cup: 'cups' };
+  const SPOON = ['EL', 'TL', 'Prise', 'Msp.', 'Tropfen', 'Schuss']; // kleine Mengen – meist im Haus, in der Vorschau erst einmal abgewählt
   const ingredientText = (ing, factor = 1) => `${ing.amount ? `${formatAmount(ing.amount * factor, ing.unit)} ` : ing.unit ? `${ing.unit} ` : ''}${ing.name}`;
 
   // Gleiche Zutat erkennen: Kleinschreibung, Zusätze nach Komma/Klammer weg, einfache Mehrzahl-Endungen kürzen
@@ -134,7 +135,19 @@
     try { tab = localStorage.getItem('zuhause-shopping-tab') === 'recipes' ? 'recipes' : 'shopping'; } catch {}
     card.insertAdjacentHTML('afterbegin', '<nav class="ws-tabs recipe-tabs" aria-label="Einkaufen oder Rezepte"><button type="button" data-recipe-tab="shopping">🛒 Einkaufsliste</button><button type="button" data-recipe-tab="recipes">📖 Rezepte</button></nav>');
     card.insertAdjacentHTML('beforeend', '<div id="recipePanel" class="recipe-panel"></div>');
+    // Sprungknöpfe oben auf der Haushaltsseite (am Handy liegt die Einkaufskarte sonst unter dem Rand)
+    document.querySelector('#household .page-title')?.insertAdjacentHTML('afterend', '<div class="household-jumps"><button type="button" class="secondary" data-jump="shopping">🛒 Einkaufsliste</button><button type="button" class="secondary" data-jump="recipes">📖 Rezepte</button></div>');
   }
+  // „Liste öffnen“, „Rezepte“ unter Mehr und die Sprungknöpfe: Reiter wählen und hinscrollen
+  document.addEventListener('click', event => {
+    const b = event.target.closest('[data-jump]'); if (!b) return;
+    const target = b.dataset.jump === 'recipes' ? 'recipes' : 'shopping';
+    setTimeout(() => {
+      tab = target; try { localStorage.setItem('zuhause-shopping-tab', tab); } catch {}
+      render(); if (tab === 'recipes') sync();
+      document.querySelector('.full-shopping')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 60);
+  });
   function render() {
     installTabs(); loadCache();
     const card = document.querySelector('.full-shopping'), panel = document.querySelector('#recipePanel'); if (!card || !panel) return;
@@ -214,15 +227,17 @@
   function edit(id, preset = null) {
     const r = id ? recipe(id) : null, data = preset || r?.data || {};
     let photo = { blob: preset?.photoBlob || null, remove: false }, chosenCats = new Set((data.categories || []).filter(c => categories().includes(c)));
+    // Kategorien der Rezeptseite, die es bei euch noch nicht gibt: als Vorschlag zum Antippen (nicht still verwerfen)
+    const suggested = preset ? (data.categories || []).filter(c => c && !categories().some(k => k.toLowerCase() === String(c).toLowerCase())).slice(0, 6) : [];
     const d = dialog('recipeEditDialog', `<form><div class="dialog-head"><div><span class="kicker">Rezept</span><h2>${r ? 'Rezept bearbeiten' : 'Neues Rezept'}</h2></div><button class="close" type="button" data-recipe-close aria-label="Schließen">×</button></div>
       <div class="ws-dialog-fields">
         ${preset ? '<p class="recipe-import-note">Bitte kurz prüfen – gespeichert wird erst mit „Speichern“.</p>' : ''}
         <label class="ws-field"><span>Titel</span><input name="title" required maxlength="200" value="${h(preset?.title || r?.title || '')}" placeholder="z. B. Spaghetti Bolognese"></label>
-        <div class="ws-field"><span>Foto (optional)</span><div class="recipe-photo-edit"><img data-recipe-edit-photo alt="" hidden><div><button type="button" class="secondary" data-recipe-photo-pick>📷 Foto wählen</button><button type="button" class="ws-text-button" data-recipe-photo-remove hidden>Foto entfernen</button></div></div></div>
-        <div class="ws-field"><span>Kategorien</span><div class="doc-chips recipe-cat-pick" data-recipe-cat-pick></div><div class="recipe-cat-new"><input data-recipe-cat-new maxlength="40" placeholder="Neue Kategorie, z. B. Schnell" aria-label="Neue Kategorie"><button type="button" class="secondary" data-recipe-cat-add>＋</button></div></div>
         <label class="ws-field recipe-servings-field"><span>Für wie viele Portionen?</span><input name="servings" type="number" inputmode="numeric" min="1" max="99" required value="${h(String(data.servings || 2))}"></label>
         <label class="ws-field"><span>Zutaten – eine pro Zeile</span><textarea name="ingredients" rows="8" placeholder="500 g Spaghetti&#10;1 Zwiebel&#10;2 EL Olivenöl&#10;Salz">${h((data.ingredients || []).map(ing => typeof ing === 'string' ? ing : ingredientText(ing)).join('\n'))}</textarea><small class="ws-help">Menge und Einheit vorne, z. B. „200 g Mehl“, „1,5 l Milch“, „½ TL Salz“.</small></label>
         <label class="ws-field"><span>Zubereitung – ein Schritt pro Absatz</span><textarea name="steps" rows="8" placeholder="Zwiebel würfeln und in Öl anschwitzen.&#10;&#10;Hackfleisch dazugeben …">${h((data.steps || []).join('\n\n'))}</textarea></label>
+        <div class="ws-field"><span>Foto (optional)</span><div class="recipe-photo-edit"><img data-recipe-edit-photo alt="" hidden><div><button type="button" class="secondary" data-recipe-photo-pick>📷 Foto wählen</button><button type="button" class="ws-text-button" data-recipe-photo-remove hidden>Foto entfernen</button></div></div></div>
+        <div class="ws-field"><span>Kategorien</span><div class="doc-chips recipe-cat-pick" data-recipe-cat-pick></div>${suggested.length ? `<div class="recipe-cat-suggest"><small>Von der Rezeptseite:</small>${suggested.map(c => `<button type="button" class="doc-chip" data-cat-suggest="${h(c)}">＋ ${h(c)}</button>`).join('')}</div>` : ''}<div class="recipe-cat-new"><input data-recipe-cat-new maxlength="40" placeholder="Neue Kategorie, z. B. Schnell" aria-label="Neue Kategorie"><button type="button" class="secondary" data-recipe-cat-add>＋</button></div></div>
         <label class="ws-field"><span>Quelle (Link, optional)</span><input name="source" type="url" inputmode="url" maxlength="500" value="${h(data.source || '')}" placeholder="https://…"></label>
         <p class="auth-message" data-recipe-message></p>
       </div>
@@ -240,6 +255,7 @@
     const pick = d.querySelector('[data-recipe-cat-pick]');
     const drawCats = () => { pick.innerHTML = categories().map(c => `<button type="button" class="doc-chip ${chosenCats.has(c) ? 'active' : ''}" data-cat="${h(c)}" aria-pressed="${chosenCats.has(c)}">${h(c)}</button>`).join('') || '<small class="ws-help">Noch keine Kategorien – unten eine anlegen.</small>'; };
     drawCats();
+    d.querySelectorAll('[data-cat-suggest]').forEach(b => { b.onclick = () => { const name = b.dataset.catSuggest.slice(0, 40); if (!categories().some(c => c.toLowerCase() === name.toLowerCase())) { state.customCategories = { ...(state.customCategories || {}), recipes: [...categories(), name] }; persist(); } chosenCats.add(categories().find(c => c.toLowerCase() === name.toLowerCase()) || name); b.remove(); drawCats(); }; });
     pick.onclick = event => { const b = event.target.closest('[data-cat]'); if (!b) return; const c = b.dataset.cat; chosenCats.has(c) ? chosenCats.delete(c) : chosenCats.add(c); drawCats(); };
     const addCat = () => { const input = d.querySelector('[data-recipe-cat-new]'), name = input.value.trim().slice(0, 40); if (!name) return; const existing = categories().find(c => c.toLowerCase() === name.toLowerCase()); if (!existing) { state.customCategories = { ...(state.customCategories || {}), recipes: [...categories(), name] }; persist(); } chosenCats.add(existing || name); input.value = ''; drawCats(); };
     d.querySelector('[data-recipe-cat-add]').onclick = addCat;
@@ -326,16 +342,20 @@
     const r = recipe(id); if (!r) return;
     const base = Number(r.data?.servings) || 2, servings = servingsFor[id] || base, factor = servings / base, items = r.data?.ingredients || [];
     const d = dialog('recipeShopDialog', `<form><div class="dialog-head"><div><span class="kicker">${h(r.title)} · ${servings} Portionen</span><h2>Auf die Einkaufsliste</h2></div><button class="close" type="button" data-recipe-close aria-label="Schließen">×</button></div>
-      <div class="ws-dialog-fields"><p class="ws-help">Haken weg bei allem, was ihr schon zu Hause habt. Basics wie Salz und Öl sind schon abgewählt.</p>
-        <div class="recipe-shop-list">${items.map((ing, i) => `<label class="ws-check recipe-shop-row"><input type="checkbox" name="pick" value="${i}" ${isBasic(ing.name) ? '' : 'checked'}><span>${ing.amount || ing.unit ? `<b>${h(ing.amount ? formatAmount(ing.amount * factor, ing.unit) : ing.unit)}</b> ` : ''}${h(ing.name)}${isBasic(ing.name) ? ' <small>Basic</small>' : ''}</span></label>`).join('') || '<p class="ws-muted">Dieses Rezept hat keine Zutaten.</p>'}</div>
+      <div class="ws-dialog-fields"><p class="ws-help">Haken weg bei allem, was ihr schon zu Hause habt. Basics (Salz, Öl …) und kleine Mengen (EL, TL, Prise) sind schon abgewählt.</p>
+        <div class="recipe-shop-list">${items.map((ing, i) => { const plan = planItem(ing, factor), basic = isBasic(ing.name), spoon = SPOON.includes(ing.unit); return `<label class="ws-check recipe-shop-row"><input type="checkbox" name="pick" value="${i}" ${basic || spoon ? '' : 'checked'}><span><span>${h(plan.text)}${basic ? ' <small>Basic</small>' : spoon && !basic ? ' <small>kleine Menge</small>' : ''}</span>${plan.note ? `<em>${h(plan.note)}</em>` : ''}</span></label>`; }).join('') || '<p class="ws-muted">Dieses Rezept hat keine Zutaten.</p>'}</div>
       </div>
       <div class="calendar-dialog-actions"><span></span><span></span><button type="button" class="secondary" data-recipe-close>Abbrechen</button><button class="primary" type="submit" ${items.length ? '' : 'disabled'}>Übernehmen</button></div></form>`);
     d.querySelector('form').onsubmit = event => {
       event.preventDefault();
       const picked = [...d.querySelectorAll('[name=pick]:checked')].map(input => items[Number(input.value)]).filter(Boolean);
+      const before = JSON.parse(JSON.stringify(state.shopping));
       const result = addToShopping(picked, factor, r.title);
       d.close(); document.querySelector('#recipeViewDialog')?.close();
-      toast(`${result.added} neu auf der Liste${result.merged ? `, ${result.merged} zusammengerechnet` : ''}`);
+      // gleich zur Einkaufsliste wechseln, damit man das Ergebnis sieht – mit Rückgängig (z. B. versehentlich doppelt übertragen)
+      tab = 'shopping'; try { localStorage.setItem('zuhause-shopping-tab', tab); } catch {} render();
+      document.querySelector('.full-shopping')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      toastUndo(`${result.added} neu auf der Liste${result.merged ? `, ${result.merged} zusammengerechnet` : ''}`, () => { state.shopping = before; persist(); try { renderShopping(); } catch {} try { renderAll(); } catch {} toast('Rückgängig gemacht'); });
     };
   }
   // Menge eines Einkaufsartikels („2 ×“, „500 g“, „1,5 kg“) lesen
@@ -346,26 +366,35 @@
     return { value: amount.value, unit: /×|x/i.test(q) && !rest ? '' : unit };
   }
   const shoppingQuantity = (value, unit) => value === null || value === undefined ? (unit || '') : !unit || unit === 'Stück' ? `${formatAmount(value, '')} ×` : formatAmount(value, unit);
+  // Was passiert mit einer Zutat auf der Einkaufsliste? (für Vorschau und Übernehmen – beides zeigt bzw. tut dasselbe)
+  function planItem(ing, factor) {
+    // Stückzahlen zum Einkaufen aufrunden (eine halbe Zwiebel oder Dose kauft man nicht); Gewicht, Löffel usw. bleiben genau
+    const unit = ing.unit || '', countable = ['', 'Stück', 'Dose', 'Pck.', 'Bund', 'Becher', 'Glas', 'Kopf', 'Knolle', 'Stange', 'Tasse', 'Box'].includes(unit);
+    const exact = ing.amount ? ing.amount * factor : null, value = exact === null ? null : countable ? Math.ceil(exact - 1e-9) : exact;
+    const rounded = exact !== null && countable && Math.abs(value - exact) > 1e-6 ? `aufgerundet von ${formatAmount(exact, unit)}` : '';
+    const existing = state.shopping.find(item => !item.done && sameIngredient(item.title, ing.name));
+    if (existing) {
+      const have = shoppingAmount(existing.quantity), [baseA, fA] = baseOf(have.unit), [baseB, fB] = baseOf(unit);
+      if (value === null) return { kind: 'already', existing, text: ing.name, note: `steht schon auf der Liste${existing.quantity ? ` (${existing.quantity})` : ''}` };
+      if (have.value === null && !have.unit) { const q = shoppingQuantity(value, unit); return { kind: 'merge', existing, quantity: q, text: `${q} ${ing.name}`, note: 'steht schon auf der Liste – Menge wird ergänzt' }; }
+      if (have.value !== null && baseA === baseB) {
+        // zusammenrechnen in der Grundeinheit, dann wieder lesbar (z. B. 1.200 g → 1,2 kg)
+        const q = shoppingQuantity(have.value * fA + value * fB, baseA === 'stk' ? '' : baseA);
+        return { kind: 'merge', existing, quantity: q, text: `${q} ${existing.title}`, note: `${existing.quantity} stehen schon drauf → zusammen ${q}` };
+      }
+    }
+    const q = shoppingQuantity(value, unit);
+    return { kind: 'new', quantity: q, value, unit, text: `${q ? `${q} ` : ''}${ing.name}`, note: [rounded, existing ? 'andere Einheit – eigene Zeile' : ''].filter(Boolean).join(' · ') };
+  }
   function addToShopping(ingredients, factor, recipeTitle) {
     let added = 0, merged = 0;
     for (const ing of ingredients) {
-      // Stückzahlen zum Einkaufen aufrunden (eine halbe Zwiebel oder Dose kauft man nicht); Gewicht, Löffel usw. bleiben genau
-      const unit = ing.unit || '', countable = ['', 'Stück', 'Dose', 'Pck.', 'Bund', 'Becher', 'Glas', 'Kopf', 'Knolle', 'Stange', 'Tasse'].includes(unit);
-      const value = ing.amount ? (countable ? Math.ceil(ing.amount * factor - 1e-9) : ing.amount * factor) : null;
-      const existing = state.shopping.find(item => !item.done && sameIngredient(item.title, ing.name));
-      if (existing) {
-        const have = shoppingAmount(existing.quantity), [baseA, fA] = baseOf(have.unit), [baseB, fB] = baseOf(unit);
-        if (value === null) { merged++; continue; } // steht schon drauf, Menge offen
-        if (have.value === null && !have.unit) { existing.quantity = shoppingQuantity(value, unit); merged++; continue; }
-        if (have.value !== null && baseA === baseB) {
-          // zusammenrechnen in der Grundeinheit, dann wieder lesbar (z. B. 1.200 g → 1,2 kg)
-          const total = have.value * fA + value * fB, outUnit = baseA === 'stk' ? '' : baseA;
-          existing.quantity = shoppingQuantity(total, outUnit); existing.fromRecipe = recipeTitle; merged++; continue;
-        }
-      }
+      const plan = planItem(ing, factor);
+      if (plan.kind === 'already') { merged++; continue; }
+      if (plan.kind === 'merge') { plan.existing.quantity = plan.quantity; plan.existing.fromRecipe = recipeTitle; merged++; continue; }
       // Bereich im Supermarkt über die bestehende Zuordnung der Einkaufsliste
       const parsed = window.ZuhauseFeatures?.parseShoppingItem?.(ing.name) || { title: ing.name, category: 'Sonstiges' };
-      state.shopping.unshift({ id: uid(), raw: ingredientText({ ...ing, amount: value }), title: ing.name, quantity: shoppingQuantity(value, unit), category: parsed.category || 'Sonstiges', done: false, fromRecipe: recipeTitle, createdAt: new Date().toISOString() });
+      state.shopping.unshift({ id: uid(), raw: ingredientText({ ...ing, amount: plan.value }), title: ing.name, quantity: plan.quantity, category: parsed.category || 'Sonstiges', done: false, fromRecipe: recipeTitle, createdAt: new Date().toISOString() });
       added++;
     }
     persist(); try { renderShopping(); } catch {} try { renderAll(); } catch {}

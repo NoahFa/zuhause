@@ -11,12 +11,12 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Zuhause">
   <title>Zuhause · Euer Familien-Dashboard</title>
-  <link rel="manifest" href="manifest.webmanifest?v=46">
-  <link rel="icon" href="icon.svg?v=46" type="image/svg+xml">
-  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=46">
-  <link rel="stylesheet" href="styles.css?v=46">
-  <link rel="stylesheet" href="features.css?v=46">
-  <link rel="stylesheet" href="workspaces.css?v=46">
+  <link rel="manifest" href="manifest.webmanifest?v=47">
+  <link rel="icon" href="icon.svg?v=47" type="image/svg+xml">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=47">
+  <link rel="stylesheet" href="styles.css?v=47">
+  <link rel="stylesheet" href="features.css?v=47">
+  <link rel="stylesheet" href="workspaces.css?v=47">
 </head>
 <body>
   <div class="auth-screen" id="authScreen" aria-live="polite">
@@ -89,7 +89,7 @@
         <div class="home-grid">
           <article class="card day-card"><div class="card-head"><div><span class="kicker">Euer Tag</span><h2>Was heute ansteht</h2></div><button class="text-button" data-page="calendar">Kalender →</button></div><div class="timeline" id="todayTimeline"></div></article>
           <article class="card task-card"><div class="card-head"><div><span class="kicker">Gemeinsam</span><h2>Offene Aufgaben</h2></div><button class="round-add" data-open="task" aria-label="Aufgabe hinzufügen">＋</button></div><div class="home-task-list" id="homeTaskList"></div><button class="card-footer" data-page="household">Alle Aufgaben <span>→</span></button></article>
-          <article class="card shopping-card"><div class="card-head"><div><span class="kicker">Einkauf</span><h2>Für den nächsten Einkauf</h2></div><button class="round-add" data-open="shopping" aria-label="Einkauf hinzufügen">＋</button></div><div class="shopping-list" id="shoppingPreview"></div><button class="card-footer" data-page="household">Liste öffnen <span>→</span></button></article>
+          <article class="card shopping-card"><div class="card-head"><div><span class="kicker">Einkauf</span><h2>Für den nächsten Einkauf</h2></div><button class="round-add" data-open="shopping" aria-label="Einkauf hinzufügen">＋</button></div><div class="shopping-list" id="shoppingPreview"></div><button class="card-footer" data-page="household" data-jump="shopping">Liste öffnen <span>→</span></button></article>
           <article class="card lou-card" data-detail="pet"><div class="lou-illustration">🐾</div><div><span class="kicker">Haustier</span><h2>Termine & Unterlagen</h2><p>Persönliche Inhalte erscheinen erst nach dem Eintragen.</p></div><button class="text-button" data-detail="pet">Öffnen →</button></article>
         </div>
         <div class="overview-grid">
@@ -139,7 +139,7 @@
         <div class="more-grid">
           <button class="more-feature tax-feature" data-page="tax"><span class="large-icon">S</span><span><small>SteuerKompass</small><strong>Steuern vorbereiten</strong><p>Belege, Arbeitstage, Nebengewerbe und später ELSTER.</p></span><em>→</em></button>
           <button class="more-feature" data-page="people"><span class="large-icon people-icon">◎</span><span><small>Persönlich</small><strong>Ihr beide</strong><p>Getrennte Profile und gemeinsamer Haushalt.</p></span><em>→</em></button>
-          <button class="more-feature" data-page="documents"><span class="large-icon doc-icon">▤</span><span><small>Ablage</small><strong>Dokumente</strong><p>Lohn, Verträge und wichtige Nachweise.</p></span><em>→</em></button>
+          <button class="more-feature" data-page="documents"><span class="large-icon doc-icon">▤</span><span><small>Ablage</small><strong>Dokumente</strong><p>Lohn, Verträge und wichtige Nachweise.</p></span><em>→</em></button><button class="more-feature" data-page="household" data-jump="recipes"><span class="large-icon doc-icon">📖</span><span><small>Küche</small><strong>Rezepte</strong><p>Eure Lieblingsrezepte – mit einem Tipp auf die Einkaufsliste.</p></span><em>→</em></button>
           <button class="more-feature" data-notification-settings><span class="large-icon bell-icon">◌</span><span><small>Am Vortag um 15 Uhr</small><strong>Müll-Mitteilungen</strong><p>Einmal je iPhone erlauben – die App erinnert automatisch.</p></span><em>→</em></button>
           <button class="more-feature" data-detail="install"><span class="large-icon phone-icon">▯</span><span><small>Auf beiden iPhones</small><strong>Als App installieren</strong><p>Für Mitteilungen zum Home-Bildschirm hinzufügen.</p></span><em>→</em></button>
           <button class="more-feature" data-detail="settings"><span class="large-icon setting-icon">⚙</span><span><small>App</small><strong>Einstellungen</strong><p>Ansicht, Sicherung und Zugänge.</p></span><em>→</em></button>
@@ -215,16 +215,16 @@
   <dialog id="calendarSeriesDialog" aria-labelledby="calendarSeriesTitle"><form method="dialog"><div class="dialog-head"><div><span class="kicker">Serientermin</span><h2 id="calendarSeriesTitle">Welche Termine ändern?</h2></div><button class="close" value="cancel" aria-label="Schließen">×</button></div><p>Wähle aus, ob nur dieser Termin oder die ganze Serie betroffen sein soll.</p><div class="calendar-series-actions"><button value="single">Nur dieser Termin</button><button value="future">Dieser und folgende</button><button value="all">Gesamte Serie</button><button class="secondary" value="cancel">Abbrechen</button></div></form></dialog>
   <div class="toast" id="toast">Gespeichert</div>
   <script src="vendor/supabase.min.js?v=2.49.4"></script>
-  <script src="calendar.js?v=46"></script>
-  <script src="app.js?v=46"></script>
-  <script src="features.js?v=46"></script>
-  <script src="workspaces.js?v=46"></script>
-  <script src="lou.js?v=46"></script>
-  <script src="charleen.js?v=46"></script>
-  <script src="noah-jobs.js?v=46"></script>
-  <script src="scan-analyse.js?v=46"></script>
-  <script src="scanner.js?v=46"></script>
-  <script src="documents-view.js?v=46"></script>
-  <script src="recipes.js?v=46"></script>
+  <script src="calendar.js?v=47"></script>
+  <script src="app.js?v=47"></script>
+  <script src="features.js?v=47"></script>
+  <script src="workspaces.js?v=47"></script>
+  <script src="lou.js?v=47"></script>
+  <script src="charleen.js?v=47"></script>
+  <script src="noah-jobs.js?v=47"></script>
+  <script src="scan-analyse.js?v=47"></script>
+  <script src="scanner.js?v=47"></script>
+  <script src="documents-view.js?v=47"></script>
+  <script src="recipes.js?v=47"></script>
 </body>
 </html>

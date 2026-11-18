@@ -742,7 +742,7 @@
   }
   function bindUi() {
     const titleAdd = qs('.calendar-titlebar > [data-calendar-add]');
-    if (titleAdd) { const actions = el('div', 'calendar-title-actions'); titleAdd.replaceWith(actions); const importButton = el('button', 'secondary', 'Importieren'); importButton.type = 'button'; importButton.addEventListener('click', openImport); const birthdayButton = el('button', 'secondary', '🎂 Geburtstag'); birthdayButton.type = 'button'; birthdayButton.addEventListener('click', openBirthday); actions.append(importButton, birthdayButton, titleAdd); }
+    if (titleAdd) { const actions = el('div', 'calendar-title-actions'); titleAdd.replaceWith(actions); const importButton = el('button', 'text-button calendar-import-link', 'Importieren'); /* selten gebraucht → dezent (Prüfung 18.11.) */ importButton.type = 'button'; importButton.addEventListener('click', openImport); const birthdayButton = el('button', 'secondary', '🎂 Geburtstag'); birthdayButton.type = 'button'; birthdayButton.addEventListener('click', openBirthday); actions.append(importButton, birthdayButton, titleAdd); }
     qs('#previousPeriod')?.addEventListener('click', () => navigate(-1)); qs('#nextPeriod')?.addEventListener('click', () => navigate(1));
     qs('#currentPeriod')?.addEventListener('click', () => { state.selectedDate = isoDate(new Date()); state.cursor = startOfMonth(new Date()); render(); });
     qsa('[data-calendar-view]').forEach(button => button.addEventListener('click', () => { state.view = button.dataset.calendarView; render(); }));
