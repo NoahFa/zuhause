@@ -110,9 +110,17 @@
     return !task.done || (task.done && task.completedAt && isoDate(new Date(task.completedAt)) === today);
   }
 
+  // Putzplan/Wiederholung: wer ist als Nächstes dran? (die nächste Runde erscheint sonst erst an ihrem Tag)
+  function nextRoundText(task) {
+    if (!task.recurrence || task.recurrence === 'none' || !(task.done || task.alternate)) return '';
+    if (state.householdTasks.some(other => other.seriesId && other.seriesId === task.seriesId && other.dueOn > task.dueOn)) return '';
+    const due = nextDue(task, task.dueOn); if (!due) return '';
+    const person = task.alternate ? (task.person === 'person1' ? 'person2' : 'person1') : task.person;
+    return escapeHtml(` · nächste Runde: ${displayPerson(person)}, ${displayDate(due)}`);
+  }
   function taskRow(task, history = false) {
     const overdue = !task.done && task.dueOn < todayIso();
-    return `<label class="check-row feature-task ${task.done ? 'done' : ''} ${overdue ? 'overdue' : ''}"><input type="checkbox" data-task-id="${escapeHtml(task.id)}" ${task.done ? 'checked' : ''}><span class="check-dot"></span><span><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(displayPerson(task.person))} · ${escapeHtml(formatDue(task))}${task.recurrence !== 'none' ? (task.alternate ? ' · ⇄ abwechselnd' : ' · ↻') : ''}</small>${task.description ? `<em>${escapeHtml(task.description)}</em>` : ''}</span>${history ? `<button type="button" class="row-edit" data-edit-task="${escapeHtml(task.id)}" aria-label="Aufgabe ändern">✎</button><button type="button" class="row-delete" data-delete-task aria-label="Aufgabe löschen">×</button>` : ''}</label>`;
+    return `<label class="check-row feature-task ${task.done ? 'done' : ''} ${overdue ? 'overdue' : ''}"><input type="checkbox" data-task-id="${escapeHtml(task.id)}" ${task.done ? 'checked' : ''}><span class="check-dot"></span><span><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(displayPerson(task.person))} · ${escapeHtml(formatDue(task))}${task.recurrence !== 'none' ? (task.alternate ? ' · ⇄ abwechselnd' : ' · ↻') : ''}${nextRoundText(task)}</small>${task.description ? `<em>${escapeHtml(task.description)}</em>` : ''}</span>${history ? `<button type="button" class="row-edit" data-edit-task="${escapeHtml(task.id)}" aria-label="Aufgabe ändern">✎</button><button type="button" class="row-delete" data-delete-task aria-label="Aufgabe löschen">×</button>` : ''}</label>`;
   }
 
   // Auswahl mit mehreren Möglichkeiten (z. B. „nur diese Runde“ / „ganze Serie“). Ergebnis: Index oder -1 für Abbrechen.
@@ -254,7 +262,11 @@
     }));
     document.querySelectorAll('[data-delete-shopping]').forEach(button => button.addEventListener('click', event => {
       event.preventDefault(); const id = button.closest('.check-row')?.querySelector('[data-shopping-id]')?.dataset.shoppingId;
-      const removed = state.shopping.find(item => String(item.id) === id); state.shopping = state.shopping.filter(item => String(item.id) !== id); persist(); renderShoppingEnhanced();
+      const removed = state.shopping.find(item => String(item.id) === id); state.shopping = state.shopping.filter(item => String(item.id) !== id);
+      // noch nicht eingekauft wieder gelöscht = vermutlich Fehleintrag → zählt nicht für „Oft gekauft“
+      const historyKey = String(removed?.title || '').trim().toLowerCase(), entry = state.shoppingHistory?.[historyKey];
+      if (removed && !removed.done && entry) { if (entry.count <= 1) delete state.shoppingHistory[historyKey]; else entry.count -= 1; }
+      persist(); renderShoppingEnhanced();
       toastUndo(`${removed?.title || 'Artikel'} entfernt`, () => { if (removed && !state.shopping.some(item => item.id === removed.id)) state.shopping.unshift(removed); persist(); renderShoppingEnhanced(); });
     }));
   }
@@ -262,7 +274,14 @@
   function addShopping(raw, extra = {}) {
     const parsed = parseShoppingItem(raw); if (!parsed.title) return false;
     const duplicate = state.shopping.find(item => !item.done && String(item.title).toLowerCase() === parsed.title.toLowerCase());
-    if (duplicate) { toast(`${parsed.title} steht schon auf der Liste`); return false; }
+    if (duplicate) {
+      // gleicher Artikel: Mengen zusammenrechnen statt nur „steht schon drauf“ (wie bei den Rezepten)
+      const quantity = extra.quantity ?? parsed.quantity;
+      const merged = quantity && duplicate.quantity ? window.ZuhauseRecipes?.mergeQuantities?.(duplicate.quantity, quantity) : null;
+      if (merged) { duplicate.quantity = merged; persist(); renderShoppingEnhanced(); toast(`${parsed.title}: jetzt ${merged}`); return true; }
+      if (quantity && !duplicate.quantity) { duplicate.quantity = quantity; persist(); renderShoppingEnhanced(); toast(`${parsed.title}: Menge ergänzt`); return true; }
+      toast(`${parsed.title} steht schon auf der Liste`); return false;
+    }
     state.shopping.unshift({ id: crypto.randomUUID(), raw, title: parsed.title, quantity: extra.quantity ?? parsed.quantity, category: extra.category || parsed.category, done: false, createdAt: new Date().toISOString() });
     persist(); renderShoppingEnhanced(); return true;
   }
@@ -427,7 +446,7 @@
   function injectFinances() {
     const page = document.querySelector('#finances'); if (!page || page.dataset.featured) return;
     page.dataset.featured = '1';
-    page.innerHTML = `<div class="page-title"><div><p class="eyebrow">Gemeinsame Finanzen</p><h1>Budget und Ausgaben.</h1><p>Der rechnerische Haushaltsrahmen ist nicht euer Bankkontostand.</p></div><div class="page-actions"><button class="secondary" data-receipt-scan>📷 Kassenbon scannen</button><button class="primary" data-open="expense">＋ Ausgabe</button></div></div><div class="budget-summary"><article class="balance-card"><span>Verfügbar in diesem Monat</span><strong id="budgetAvailable">0,00 €</strong><small id="budgetMonthLabel"></small></article><article class="mini-money"><span>Übertrag aus Vormonat</span><strong id="budgetCarry">0,00 €</strong><small>auch negative Beträge</small></article><article class="mini-money"><span>Fixkosten diesen Monat</span><strong id="budgetFixed">0,00 €</strong><small id="fixedCount">0 Einträge</small></article></div><div class="finance-feature-grid"><article class="card finance-settings"><span class="kicker">Monatsrahmen</span><h2>Budget einstellen</h2><p class="budget-summary" id="budgetSummary"></p><button class="secondary budget-edit" type="button" id="budgetEdit">Budget ändern</button><form id="budgetForm" class="inline-form"><label>Monatliches Budget<input name="monthlyAmount" type="number" min="0" step="0.01"></label><label>Sparziel (optional)<input name="savingsGoal" type="number" min="0" step="0.01"></label><button class="primary" type="submit">Speichern</button></form><button class="text-button" data-close-month>Monat unveränderlich abschließen →</button></article><article class="card fixed-costs"><div class="card-head"><div><span class="kicker">Regelmäßig</span><h2>Fixkosten</h2></div></div><form id="fixedCostForm" class="inline-form"><input name="title" placeholder="z. B. Miete" required><input name="amount" type="number" min="0.01" step="0.01" placeholder="Betrag" required><button class="secondary" type="submit">Hinzufügen</button></form><div id="fixedCostList"></div></article></div><article class="card table-card"><div class="card-head"><div><span class="kicker">Chronologisch</span><h2>Ausgaben diesen Monat</h2></div><div class="search">⌕ <input id="expenseSearchFeature" placeholder="Suchen …"></div></div><div class="expense-list" id="expenseListFeature"></div></article><article class="card savings-card"><div class="card-head"><div><span class="kicker">Sparanalyse</span><h2>Einfach vergleichen</h2></div></div><div id="savingsAnalysis"></div></article><input id="receiptCamera" type="file" accept="image/*" capture="environment" hidden>`;
+    page.innerHTML = `<div class="page-title"><div><p class="eyebrow">Gemeinsame Finanzen</p><h1>Budget und Ausgaben.</h1><p>Der rechnerische Haushaltsrahmen ist nicht euer Bankkontostand.</p></div><div class="page-actions"><button class="secondary" data-receipt-scan>📷 Kassenbon scannen</button><button class="primary" data-open="expense">＋ Ausgabe</button></div></div><div class="budget-summary"><article class="balance-card"><span>Verfügbar in diesem Monat</span><strong id="budgetAvailable">0,00 €</strong><small id="budgetMonthLabel"></small></article><article class="mini-money"><span>Übertrag aus Vormonat</span><strong id="budgetCarry">0,00 €</strong><small>auch negative Beträge</small></article><article class="mini-money"><span>Fixkosten diesen Monat</span><strong id="budgetFixed">0,00 €</strong><small id="fixedCount">0 Einträge</small></article></div><div class="finance-feature-grid"><article class="card finance-settings"><span class="kicker">Monatsrahmen</span><h2>Budget einstellen</h2><p class="budget-summary" id="budgetSummary"></p><button class="secondary budget-edit" type="button" id="budgetEdit">Budget ändern</button><form id="budgetForm" class="inline-form"><label>Monatliches Budget<input name="monthlyAmount" type="number" min="0" step="0.01"></label><label>Sparziel für den Haushalt (optional)<input name="savingsGoal" type="number" min="0" step="0.01"></label><button class="primary" type="submit">Speichern</button></form><button class="text-button" data-close-month>Monat unveränderlich abschließen →</button></article><article class="card fixed-costs"><div class="card-head"><div><span class="kicker">Regelmäßig</span><h2>Fixkosten</h2></div></div><form id="fixedCostForm" class="inline-form"><input name="title" placeholder="z. B. Miete" required><input name="amount" type="number" min="0.01" step="0.01" placeholder="Betrag" required><button class="secondary" type="submit">Hinzufügen</button></form><div id="fixedCostList"></div></article></div><article class="card table-card"><div class="card-head"><div><span class="kicker">Chronologisch</span><h2>Ausgaben diesen Monat</h2></div><div class="search">⌕ <input id="expenseSearchFeature" placeholder="Suchen …"></div></div><div class="expense-list" id="expenseListFeature"></div></article><article class="card savings-card"><div class="card-head"><div><span class="kicker">Sparanalyse</span><h2>Einfach vergleichen</h2></div></div><div id="savingsAnalysis"></div></article><input id="receiptCamera" type="file" accept="image/*" capture="environment" hidden>`;
     bindOpenButtons();
     page.querySelector('.page-title').insertAdjacentHTML('afterend', '<label class="field finance-month-picker"><span>Monat ansehen</span><input id="financeMonth" type="month"></label>');
     page.querySelector('#financeMonth').value = monthKey(); page.querySelector('#financeMonth').addEventListener('change', renderFinances);
@@ -507,11 +526,14 @@
   function renderFinances() {
     ensureFeatureState(); const page = document.querySelector('#finances'); if (!page?.dataset.featured) return;
     const key = financeMonth(); const summary = calculateMonth(key);
-    document.querySelector('#budgetAvailable').textContent = money(summary.available);
-    document.querySelector('#budgetAvailable').classList.toggle('negative', summary.available < 0);
+    // Noch kein Budget eingestellt: statt rotem Minus ohne Erklärung einen Hinweis zeigen
+    const noBudget = !Number(state.budget.monthlyAmount) && !Object.values(state.budget.monthlyAmounts || {}).some(Number) && !Object.keys(state.budget.closedMonths || {}).length;
+    document.querySelector('#budgetAvailable').textContent = noBudget ? 'Noch kein Budget' : money(summary.available);
+    document.querySelector('#budgetAvailable').classList.toggle('negative', !noBudget && summary.available < 0);
+    document.querySelector('#budgetAvailable').classList.toggle('no-budget', noBudget);
     document.querySelector('#budgetCarry').textContent = money(summary.carry);
     document.querySelector('#budgetFixed').textContent = money(summary.fixed);
-    document.querySelector('#budgetMonthLabel').textContent = `${new Date(key + '-01T12:00:00').toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}${state.budget.closedMonths?.[key] ? ' · abgeschlossen' : ''}`;
+    document.querySelector('#budgetMonthLabel').textContent = noBudget ? `Bisher ${money(summary.expenses + summary.fixed)} ausgegeben – unten „Budget einstellen“` : `${new Date(key + '-01T12:00:00').toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}${state.budget.closedMonths?.[key] ? ' · abgeschlossen' : ''}`;
     page.querySelector('.finance-settings').hidden = key !== monthKey();
     page.querySelector('#fixedCostForm').hidden = key !== monthKey();
     document.querySelector('#fixedCount').textContent = `${state.fixedCosts.length} ${state.fixedCosts.length === 1 ? 'Eintrag' : 'Einträge'}`;

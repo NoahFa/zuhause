@@ -434,5 +434,11 @@
   });
 
   render(); setTimeout(() => { render(); sync(); }, 0);
-  window.ZuhauseRecipes = { render, sync, pendingCount: () => { loadCache(); return Object.keys(cache.pending).length; }, parseIngredient, formatAmount, shoppingAmount, addToShopping, isBasic, _setRecipes: rows => { loadCache(); rows.forEach(r => { cache.recipes[r.id] = r; }); render(); } };
+  // Zwei Mengen auf der Einkaufsliste zusammenrechnen („2 ×“ + „1“ → „3 ×“, „500 g“ + „1 kg“ → „1,5 kg“); null, wenn nicht umrechenbar
+  function mergeQuantities(a, b) {
+    const A = shoppingAmount(a), B = shoppingAmount(b); if (A.value === null || B.value === null) return null;
+    const [ba, fa] = baseOf(A.unit), [bb, fb] = baseOf(B.unit); if (ba !== bb) return null;
+    return shoppingQuantity(A.value * fa + B.value * fb, ba === 'stk' ? '' : ba);
+  }
+  window.ZuhauseRecipes = { render, sync, mergeQuantities, pendingCount: () => { loadCache(); return Object.keys(cache.pending).length; }, parseIngredient, formatAmount, shoppingAmount, addToShopping, isBasic, _setRecipes: rows => { loadCache(); rows.forEach(r => { cache.recipes[r.id] = r; }); render(); } };
 })();

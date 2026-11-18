@@ -69,7 +69,7 @@
       <div class="lou-grid">
         <article class="card lou-vet"><span class="kicker">Tierarzt</span>
           ${vet ? `<h2>${h(vet.title)}</h2><p class="lou-big">${h(niceDate(vet.occurrenceDate))}${vet.allDay ? '' : ` · ${h(vet.startTime)} Uhr`}</p>` : '<h2>Kein Termin geplant</h2><p class="ws-muted">Tierarzttermine tragt ihr im Kalender ein. Steht „Tierarzt“ oder „Lou“ im Titel, erscheinen sie hier.</p>'}
-          <div class="lou-actions"><button class="primary" data-lou-vet-new>＋ Tierarzttermin</button>${phone ? `<a class="secondary lou-call" href="tel:${h(phone)}">📞 ${h(profile.vetName || 'Tierarzt')} anrufen</a>` : ''}</div>
+          <div class="lou-actions"><button class="primary" data-lou-vet-new>＋ Tierarzttermin</button>${phone ? `<a class="secondary lou-call" href="tel:${h(phone)}">📞 ${h(profile.vetName || 'Tierarzt')} anrufen</a>` : '<button class="secondary" data-lou-profile>📞 Tierarzt-Nummer eintragen</button>'}</div>
         </article>
         <article class="card lou-quick"><span class="kicker">Schnell erledigt</span><h2>Für Lou</h2>
           <button class="secondary lou-wide" data-lou-food>🛒 Futter auf die Einkaufsliste</button>

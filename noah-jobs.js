@@ -69,7 +69,7 @@
       </section>
       <section class="card ws-step"><div class="ws-step-heading"><span>🧾</span><div><small>Material</small><h2>Material · ${euro(t.material)}</h2></div></div>
         <button class="secondary scan-here" data-scan-here data-scan-folder="Noah" data-scan-actions="material" data-scan-order="${h(order.id)}">📄 Beleg scannen</button>
-        <form class="nj-material-form" data-nj-material-form="${h(order.id)}"><input name="name" required maxlength="120" placeholder="Material, z. B. Silikon" aria-label="Material"><input name="qty" inputmode="decimal" placeholder="Menge" value="1" aria-label="Menge"><input name="unit" maxlength="20" placeholder="Einheit" aria-label="Einheit"><input name="price" inputmode="decimal" required placeholder="€/Einh." aria-label="Preis je Einheit in Euro"><button class="primary" type="submit">＋ Material</button></form>
+        <form class="nj-material-form" data-nj-material-form="${h(order.id)}" novalidate><input name="name" required maxlength="120" placeholder="Material, z. B. Silikon" aria-label="Material"><input name="qty" inputmode="decimal" placeholder="Menge" value="1" aria-label="Menge"><input name="unit" maxlength="20" placeholder="Einheit" aria-label="Einheit"><input name="price" inputmode="decimal" required placeholder="€/Einh." aria-label="Preis je Einheit in Euro"><button class="primary" type="submit">＋ Material</button></form>
         ${(order.materials || []).map(m => `<div class="nj-row"><div><strong>${h(m.name)}</strong><small>${m.fromScan ? '📄 aus Beleg · ' : ''}${h(String(m.qty).replace('.', ','))}${m.unit ? ` ${h(m.unit)}` : ''} × ${euro(m.price)}</small></div><b>${euro(num(m.qty) * num(m.price))}</b><button class="ws-van-edit" data-nj-material-edit="${h(order.id)}:${h(m.id)}" aria-label="Material bearbeiten">✎</button></div>`).join('') || '<p class="ws-muted">Noch kein Material.</p>'}
       </section>
       <section class="card ws-step nj-bill"><div class="ws-step-heading"><span>€</span><div><small>Abrechnung</small><h2>${euro(t.total)}</h2></div></div>
@@ -152,7 +152,9 @@
   });
   document.addEventListener('submit', event => {
     const form = event.target.closest('[data-nj-material-form]'); if (!form) return; event.preventDefault();
-    const o = data().orders.find(x => x.id === form.dataset.njMaterialForm), f = new FormData(form), name = String(f.get('name')).trim(); if (!o || !name) return;
+    const o = data().orders.find(x => x.id === form.dataset.njMaterialForm), f = new FormData(form), name = String(f.get('name')).trim(); if (!o) return;
+    // eigene Meldung statt stillem Nichts (die Browser-Prüfung zeigt am iPhone oft gar nichts an)
+    if (!name || String(f.get('price')).trim() === '') { toast(!name ? 'Bitte eintragen, welches Material' : 'Bitte den Preis eintragen'); form.querySelector(!name ? '[name=name]' : '[name=price]')?.focus(); return; }
     (o.materials ||= []).push({ id: uid(), name, qty: String(f.get('qty')).trim() === '' ? 1 : num(f.get('qty')), unit: String(f.get('unit')).trim(), price: num(f.get('price')) });
     save('Material ergänzt'); document.querySelector('[data-nj-material-form] input[name=name]')?.focus();
   });

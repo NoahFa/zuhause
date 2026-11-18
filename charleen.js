@@ -17,7 +17,8 @@
   const nowTime = () => { const d = new Date(); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
   const EXAM_TYPES = ['Präsentation', 'Hausarbeit', 'Klausur', 'Referat', 'Portfolio', 'Mündliche Prüfung', 'Projektarbeit', 'Bericht'];
   const EXAM_STATUS = { open: 'offen', submitted: 'abgegeben', passed: 'bestanden', failed: 'nicht bestanden' };
-  let tab = 'study', jobMonth = todayIso().slice(0, 7), tick = null;
+  // zuletzt benutzten Reiter merken (spart beim Stempeln einen Tipp)
+  let tab = (() => { try { return ['study', 'job', 'work', 'savings', 'notes'].includes(localStorage.getItem('zuhause-charleen-tab')) ? localStorage.getItem('zuhause-charleen-tab') : 'study'; } catch { return 'study'; } })(), jobMonth = todayIso().slice(0, 7), tick = null;
 
   function data() {
     if (!state.charleen || typeof state.charleen !== 'object') state.charleen = {};
@@ -87,8 +88,8 @@
     const m = data().modules.find(x => x.id === moduleId); if (!m) return; m.exams ||= [];
     const e = m.exams.find(x => x.id === examId);
     dialog(e ? 'Prüfungsleistung bearbeiten' : `Prüfungsleistung · ${m.name}`,
-      `<label class="ws-field"><span>Art</span><input name="type" list="chExamTypes" required maxlength="80" value="${h(e?.type || '')}" placeholder="z. B. Präsentation"><datalist id="chExamTypes">${EXAM_TYPES.map(t => `<option value="${t}">`).join('')}</datalist></label>${field('Datum', 'date', e?.date || '', 'date')}<label class="ws-field"><span>Stand</span><select name="status">${Object.entries(EXAM_STATUS).map(([k, v]) => `<option value="${k}" ${(e?.status || 'open') === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>${field('Note (optional)', 'grade', e?.grade || '', 'text', 'maxlength="10" inputmode="decimal" placeholder="z. B. 1,7"')}`,
-      f => { const values = { type: String(f.get('type')).trim(), date: String(f.get('date') || ''), status: String(f.get('status')), grade: String(f.get('grade')).trim() }; if (!values.type) return false; const m = freshModule(moduleId); if (!m) return 'Das Modul wurde inzwischen entfernt.'; m.exams ||= []; const e = examId ? m.exams.find(x => x.id === examId) : null; if (e) Object.assign(e, values); else m.exams.push({ id: uid(), ...values }); save('Prüfungsleistung gespeichert'); },
+      `<label class="ws-field"><span>Art</span><input name="type" list="chExamTypes" maxlength="80" value="${h(e?.type || '')}" placeholder="z. B. Präsentation"><datalist id="chExamTypes">${EXAM_TYPES.map(t => `<option value="${t}">`).join('')}</datalist></label>${field('Datum', 'date', e?.date || '', 'date')}<label class="ws-field"><span>Stand</span><select name="status">${Object.entries(EXAM_STATUS).map(([k, v]) => `<option value="${k}" ${(e?.status || 'open') === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>${field('Note (optional)', 'grade', e?.grade || '', 'text', 'maxlength="10" inputmode="decimal" placeholder="z. B. 1,7"')}`,
+      f => { const values = { type: String(f.get('type')).trim(), date: String(f.get('date') || ''), status: String(f.get('status')), grade: String(f.get('grade')).trim() }; if (!values.type) return 'Bitte die Art eintragen, z. B. Präsentation oder Hausarbeit.'; const m = freshModule(moduleId); if (!m) return 'Das Modul wurde inzwischen entfernt.'; m.exams ||= []; const e = examId ? m.exams.find(x => x.id === examId) : null; if (e) Object.assign(e, values); else m.exams.push({ id: uid(), ...values }); save('Prüfungsleistung gespeichert'); },
       e ? removeButton('Prüfungsleistung entfernen', `„${e.type}“ entfernen?`, () => { const m = freshModule(moduleId); if (m) m.exams = (m.exams || []).filter(x => x.id !== examId); save('Entfernt'); }) : null);
   }
 
@@ -131,7 +132,7 @@
   function overtimeView(job) {
     const l = ledger(job), c = l.current, rest = c.limit - c.hours, lastRow = l.rows[l.rows.length - 1];
     return `<article class="card ch-overtime"><div class="ch-module-head"><div><span class="kicker">Überstundenkonto · Grenze ${num(job.monthCap) ? `${euro(job.monthCap)} ≈ ${hDec(monthLimit(job, c.month))}` : hDec(monthLimit(job, c.month)).replace(',00', '')} pro Monat</span><h2>${hDec(l.balance)}</h2><small>Stand ${lastRow ? `Ende ${h(monthName(lastRow.month))}` : 'jetzt'}${c.adjust ? ' inkl. Buchungen in diesem Monat' : ''}</small><p class="ws-help">Was über der Grenze liegt, kommt am Monatsende aufs Konto; fehlende Stunden werden dann vom Konto aufgefüllt.</p></div></div>
-      <p class="ch-overtime-now">${h(monthName(c.month))} bisher: <b>${hDec(c.hours)}</b> von ${hDec(c.limit)} · ${rest > 0 ? `noch ${hDec(rest)} bis zur Grenze${l.balance > 0 ? ` – fehlende Stunden werden am Monatsende vom Konto genommen` : ''}` : `<b>${hDec(-rest)} über der Grenze</b> – gehen am Monatsende aufs Konto`}</p>
+      <p class="ch-overtime-now">${h(monthName(c.month))} bisher: <b>${hDec(c.hours)}</b> von ${hDec(c.limit)} · ${rest > 0 ? `noch ${hDec(rest)}${rateForMonth(job, c.month) ? ` ≈ ${euro(rest * rateForMonth(job, c.month))}` : ''} bis zur Grenze${l.balance > 0 ? ` – fehlende Stunden werden am Monatsende vom Konto genommen` : ''}` : `<b>${hDec(-rest)} über der Grenze</b> – gehen am Monatsende aufs Konto`}</p>
       <div class="ch-clock-actions"><button class="secondary" data-ch-adjust-new>Auszahlung / Korrektur</button><button class="secondary" data-ch-limit>Monatsgrenze</button></div>
       ${l.rows.length ? `<details class="ws-history"><summary>Verlauf nach Monaten</summary><div class="ch-ledger"><div class="head"><span>Monat</span><span>Gearbeitet</span><span>Konto ±</span><span>Stand</span></div>${l.rows.map(r => `<div><span>${h(monthName(r.month))}${Math.abs(r.limit - monthLimit(job, '0000-00')) > 0.001 ? ` <small>(Grenze ${hDec(r.limit)})</small>` : ''}${r.adjust.map(a => `<small>${h(a.note || (adjustHours(job, a) < 0 ? 'Auszahlung' : 'Korrektur'))}: ${adjustHours(job, a) > 0 ? '+' : ''}${hDec(adjustHours(job, a))} <button class="row-delete" data-ch-adjust-delete="${h(a.id)}" aria-label="Buchung löschen">×</button></small>`).join('')}</span><span>${hDec(r.hours)}</span><span class="${r.change < -0.004 ? 'neg' : 'pos'}">${r.change > 0.004 ? '+' : ''}${hDec(Math.abs(r.change) < 0.005 ? 0 : r.change)}</span><b>${hDec(r.balance)}</b></div>`).join('')}</div></details>` : ''}
     </article>`;
@@ -269,7 +270,7 @@
   // ---------- Bedienung ----------
   document.addEventListener('click', event => {
     const b = event.target.closest('button'); if (!b || !b.closest('#study, #charleenDialog')) return; const d = b.dataset;
-    if ('chTab' in d) { tab = d.chTab; render(); }
+    if ('chTab' in d) { tab = d.chTab; try { localStorage.setItem('zuhause-charleen-tab', tab); } catch {} render(); }
     if ('chModuleNew' in d) editModule();
     if ('chModuleSuggest' in d) editModule(null, d.chModuleSuggest);
     if ('chModuleEdit' in d) editModule(d.chModuleEdit);

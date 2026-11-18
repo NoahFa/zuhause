@@ -306,3 +306,6 @@ dialog .calendar-dialog-actions{position:sticky;bottom:0;z-index:2;background:#f
 .scanner-items summary{cursor:pointer;min-height:36px;display:flex;align-items:center;color:#7fd19b;font-weight:700}
 .scanner-items ul{margin:4px 0 0;padding-left:18px;max-height:180px;overflow:auto;line-height:1.6}
 @media(max-width:760px){.home-hero{min-height:0!important}}
+#budgetAvailable.no-budget{font-size:28px}
+/* Noah am Handy: Startkarte kompakter, damit „Nebenjobs“ ohne viel Scrollen erreichbar ist */
+@media(max-width:760px){#noah .ws-start-card{padding:18px;margin-bottom:18px}#noah .ws-start-card p{display:none}#noah .ws-start-card h2{font-size:24px}}
