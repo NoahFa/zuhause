@@ -56,11 +56,14 @@
     const lou = data(), profile = lou.profile;
     const care = [...lou.care].sort((a, b) => String(a.nextDue).localeCompare(String(b.nextDue)));
     const vet = nextVetAppointment();
+    // Fälliges (überfällig, heute, in den nächsten 7 Tagen) ganz oben – vor Foto und Schnellknöpfen
+    const dueNow = care.filter(item => item.nextDue && daysUntil(item.nextDue) <= 7);
     const unused = SUGGESTIONS.filter(s => !lou.care.some(item => item.title.toLowerCase() === s.title.toLowerCase()));
     const phone = String(profile.vetPhone || '').replace(/[^\d+]/g, '');
     page.innerHTML = `
       <div class="section-back"><button data-ws-route="household">← Haushalt</button></div>
       <div class="ws-personal-title"><div><p class="eyebrow">Eure Hündin</p><h1>Lou.</h1><p>Tierarzt, Pflege und alles Wichtige auf einen Blick.</p></div><span class="ws-personal-badge lou-badge">🐾</span></div>
+      ${dueNow.length ? `<article class="card lou-due"><span class="kicker">Jetzt dran</span>${dueNow.map(item => { const st = status(item); return `<div class="lou-due-row ${st.cls}"><div><strong>${h(item.title)}</strong><small>${h(st.text)}</small></div><button class="primary lou-done" data-lou-done="${h(item.id)}">Erledigt ✓</button></div>`; }).join('')}</article>` : ''}
       ${lou.photoPath ? `<figure class="lou-hero"><img data-lou-photo alt="Lou" ${photoCache.path === lou.photoPath && photoCache.url ? `src="${h(photoCache.url)}"` : ''}><button class="lou-photo-change" data-lou-photo-change>📷 Foto ändern</button></figure>` : '<button class="card lou-photo-empty" data-lou-photo-change><span>📷</span><strong>Foto von Lou hinzufügen</strong><small>Macht ihren Bereich persönlicher. Das Bild bleibt privat bei euch.</small></button>'}
       <input type="file" accept="image/*" id="louPhotoInput" hidden>
       <div class="lou-grid">
@@ -70,7 +73,7 @@
         </article>
         <article class="card lou-quick"><span class="kicker">Schnell erledigt</span><h2>Für Lou</h2>
           <button class="secondary lou-wide" data-lou-food>🛒 Futter auf die Einkaufsliste</button>
-          <button class="secondary lou-wide" data-scan-here data-scan-folder="Lou">📄 Dokument scannen (Impfpass, Rechnung)</button>
+          <button class="secondary lou-wide" data-scan-here data-scan-folder="Lou">📄 Dokument scannen</button>
           <button class="secondary lou-wide" data-lou-docs>▤ Lous Dokumente öffnen</button>
         </article>
       </div>
@@ -154,8 +157,11 @@
     const b = event.target.closest('button'); if (!b) return; const d = b.dataset;
     if ('louDone' in d) {
       const item = data().care.find(entry => entry.id === d.louDone); if (!item) return;
+      // mit Rückgängig: ein Fehltipp würde sonst das nächste Mal um Wochen/Monate verschieben
+      const before = { lastDone: item.lastDone, history: [...(item.history || [])], nextDue: item.nextDue }, id = item.id;
       const today = todayIso(); item.lastDone = today; item.history = [today, ...(item.history || [])].slice(0, 10);
-      item.nextDue = addInterval(today, item.every, item.unit); save(); toast(`Erledigt – nächstes Mal ${niceDate(item.nextDue)}`);
+      item.nextDue = addInterval(today, item.every, item.unit); save();
+      toastUndo(`Erledigt – nächstes Mal ${niceDate(item.nextDue)}`, () => { const again = data().care.find(entry => entry.id === id); if (again) { Object.assign(again, before); save(); toast('Rückgängig gemacht'); } });
     }
     if ('louCareNew' in d) editCare();
     if ('louCareEdit' in d) editCare(d.louCareEdit);

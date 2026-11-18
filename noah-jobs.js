@@ -69,8 +69,8 @@
       </section>
       <section class="card ws-step"><div class="ws-step-heading"><span>🧾</span><div><small>Material</small><h2>Material · ${euro(t.material)}</h2></div></div>
         <button class="secondary scan-here" data-scan-here data-scan-folder="Noah" data-scan-actions="material" data-scan-order="${h(order.id)}">📄 Beleg scannen</button>
-        <form class="nj-material-form" data-nj-material-form="${h(order.id)}"><input name="name" required maxlength="120" placeholder="Material, z. B. Silikon" aria-label="Material"><input name="qty" inputmode="decimal" placeholder="Menge" value="1" aria-label="Menge"><input name="unit" maxlength="20" placeholder="Einheit" aria-label="Einheit"><input name="price" inputmode="decimal" required placeholder="€ je Einheit" aria-label="Preis je Einheit in Euro"><button class="primary" type="submit">＋ Material</button></form>
-        ${(order.materials || []).map(m => `<div class="nj-row"><div><strong>${h(m.name)}</strong><small>${h(String(m.qty).replace('.', ','))}${m.unit ? ` ${h(m.unit)}` : ''} × ${euro(m.price)}</small></div><b>${euro(num(m.qty) * num(m.price))}</b><button class="ws-van-edit" data-nj-material-edit="${h(order.id)}:${h(m.id)}" aria-label="Material bearbeiten">✎</button></div>`).join('') || '<p class="ws-muted">Noch kein Material.</p>'}
+        <form class="nj-material-form" data-nj-material-form="${h(order.id)}"><input name="name" required maxlength="120" placeholder="Material, z. B. Silikon" aria-label="Material"><input name="qty" inputmode="decimal" placeholder="Menge" value="1" aria-label="Menge"><input name="unit" maxlength="20" placeholder="Einheit" aria-label="Einheit"><input name="price" inputmode="decimal" required placeholder="€/Einh." aria-label="Preis je Einheit in Euro"><button class="primary" type="submit">＋ Material</button></form>
+        ${(order.materials || []).map(m => `<div class="nj-row"><div><strong>${h(m.name)}</strong><small>${m.fromScan ? '📄 aus Beleg · ' : ''}${h(String(m.qty).replace('.', ','))}${m.unit ? ` ${h(m.unit)}` : ''} × ${euro(m.price)}</small></div><b>${euro(num(m.qty) * num(m.price))}</b><button class="ws-van-edit" data-nj-material-edit="${h(order.id)}:${h(m.id)}" aria-label="Material bearbeiten">✎</button></div>`).join('') || '<p class="ws-muted">Noch kein Material.</p>'}
       </section>
       <section class="card ws-step nj-bill"><div class="ws-step-heading"><span>€</span><div><small>Abrechnung</small><h2>${euro(t.total)}</h2></div></div>
         <div class="nj-bill-lines"><span>Arbeitszeit ${hours(t.minutes)} × ${euro(rateOf(order))}${order.rate ? (order.rateFixed ? ' (festgeschrieben)' : ' (eigener Satz)') : ''}</span><b>${euro(t.labour)}</b><span>Material</span><b>${euro(t.material)}</b><span class="sum">Gesamt</span><b class="sum">${euro(t.total)}</b></div>
@@ -116,7 +116,11 @@
     const o = data().orders.find(x => x.id === orderId), m = o?.materials?.find(x => x.id === materialId); if (!m) return;
     dialog('Material bearbeiten', `${field('Material', 'name', m.name, 'text', 'required maxlength="120"')}<div class="lou-interval">${field('Menge', 'qty', String(m.qty).replace('.', ','), 'text', 'inputmode="decimal" required')}${field('Einheit', 'unit', m.unit || '', 'text', 'maxlength="20"')}</div>${field('Preis pro Einheit in €', 'price', String(m.price).replace('.', ','), 'text', 'inputmode="decimal" required')}`,
       f => { const name = String(f.get('name')).trim(); if (!name) return false; const m = data().orders.find(x => x.id === orderId)?.materials?.find(x => x.id === materialId); if (!m) return 'Dieses Material wurde inzwischen entfernt.'; Object.assign(m, { name, qty: String(f.get('qty')).trim() === '' ? 1 : num(f.get('qty')), unit: String(f.get('unit')).trim(), price: num(f.get('price')) }); save('Gespeichert'); },
-      { label: 'Material entfernen', run: () => { const o = data().orders.find(x => x.id === orderId); if (o) o.materials = (o.materials || []).filter(x => x.id !== materialId); save('Entfernt'); } });
+      { label: 'Material entfernen', run: () => {
+        const o = data().orders.find(x => x.id === orderId); if (!o) return; const index = (o.materials || []).findIndex(x => x.id === materialId); if (index < 0) return;
+        const [removed] = o.materials.splice(index, 1); persist(); render(); window.ZuhauseWorkspaces?.render?.();
+        toastUndo(`„${removed.name}“ entfernt`, () => { const again = data().orders.find(x => x.id === orderId); if (!again) return; (again.materials ||= []).splice(Math.min(index, again.materials.length), 0, removed); save('Wiederhergestellt'); });
+      } });
   }
 
   // ---------- Seite ----------

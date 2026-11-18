@@ -183,3 +183,12 @@
 .doc-tile strong{flex:1;min-width:0;font-size:14px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;overflow-wrap:normal}
 .doc-tile small{font-size:12px!important;flex:none;justify-self:auto!important}
 .doc-tile small .doc-word{display:none}
+.ws-step>.scan-here{margin:0 0 12px}
+.lou-due{display:grid;gap:10px;margin-bottom:18px;border-left:4px solid var(--clay)}
+.lou-due-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.lou-due-row>div{display:grid;gap:2px}.lou-due-row small{color:var(--muted)}.lou-due-row.overdue small{color:#9b4f3f;font-weight:700}
+.lou-due-row .primary{min-height:44px;flex:none}
+@media(max-width:760px){#study .page-title .ws-personal-badge{display:none}}
+/* Aufgabe: ✎ und × in derselben Zeile wie der Text (vorher rutschte × am Handy in eine eigene Zeile) */
+.check-row.feature-task{grid-template-columns:24px minmax(0,1fr) auto auto}
+.card.lou-due{padding:16px 18px}

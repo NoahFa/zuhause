@@ -160,6 +160,7 @@
       <article class="card ch-clock ${running ? 'running' : ''}"><div><span class="kicker">${h(job.name || 'Nebenjob')} · Stempeluhr</span>
         ${running ? `<h2>Eingestempelt seit ${h(running.start)} Uhr${running.date && running.date !== todayIso() ? ` (${h(niceDate(running.date, { weekday: 'short', day: 'numeric', month: 'short' }))})` : ''}</h2><p class="ch-elapsed" data-ch-elapsed>${h(hm(minutesBetween(running.start, nowTime())))}</p>${(running.date && running.date < todayIso()) || minutesBetween(running.start, nowTime()) > 720 ? '<p class="clock-warning">Läuft seit über 12 Stunden – vielleicht vergessen auszustempeln? Beim Ausstempeln kannst du die richtige Endzeit eintragen.</p>' : ''}` : `<h2>Nicht eingestempelt</h2><p class="ws-muted">Stundenlohn: ${job.rate ? euro(job.rate) : '<b>noch nicht festgelegt</b>'}</p>`}</div>
         <div class="ch-clock-actions">${running ? '<button class="primary ws-large" data-ch-clock-out>Ausstempeln</button>' : '<button class="primary ws-large" data-ch-clock-in>Einstempeln</button>'}<button class="secondary" data-ch-shift-new>＋ Schicht nachtragen</button><button class="secondary" data-ch-job-settings>Job & Stundenlohn</button></div>
+        <button class="ws-text-button" data-scan-here data-scan-folder="Charleen">📄 Lohnabrechnung scannen</button>
       </article>
       ${overtimeView(job)}
       <div class="ch-month-switch"><button class="secondary" data-ch-month="-1" aria-label="Vormonat">‹</button><strong>${h(monthLabel)}</strong><button class="secondary" data-ch-month="1" aria-label="Nächster Monat">›</button></div>
@@ -193,8 +194,9 @@
     const list = data().work, open = list.filter(t => !t.done).sort((a, b) => String(a.dueOn || '9999').localeCompare(String(b.dueOn || '9999'))), done = list.filter(t => t.done).sort((a, b) => String(b.doneAt || '').localeCompare(String(a.doneAt || '')));
     const row = t => { const overdue = !t.done && t.dueOn && t.dueOn < todayIso(); return `<label class="check-row shopping-feature ${t.done ? 'done' : ''} ${overdue ? 'overdue' : ''}"><input type="checkbox" data-ch-work-done="${h(t.id)}" ${t.done ? 'checked' : ''}><span class="check-dot"></span><span><strong>${h(t.title)}</strong><small>${t.dueOn ? (overdue ? `überfällig · ${h(niceDate(t.dueOn))}` : h(niceDate(t.dueOn))) : 'ohne Datum'}${t.note ? ` · ${h(t.note)}` : ''}</small></span><button type="button" class="row-edit" data-ch-work-edit="${h(t.id)}" aria-label="Ändern">✎</button><button type="button" class="row-delete" data-ch-work-delete="${h(t.id)}" aria-label="Löschen">×</button></label>`; };
     return `<article class="card ch-work"><span class="kicker">Caritasverband</span><h2>Horizont BeWo</h2>
-      <form id="chWorkForm" class="ch-work-form"><input name="title" required maxlength="200" placeholder="Was ist zu tun?" aria-label="To-do"><input name="dueOn" type="date" aria-label="Fällig am"><button class="primary" type="submit">＋</button></form>
+      <form id="chWorkForm" class="ch-work-form"><input name="title" required maxlength="200" placeholder="Was ist zu tun?" aria-label="To-do"><input name="dueOn" type="date" aria-label="Fällig am"><button class="primary" type="submit">＋ To-do</button></form>
       <div>${open.map(row).join('') || '<p class="ws-muted">Nichts offen.</p>'}</div>
+      <button class="ws-text-button" data-scan-here data-scan-folder="Charleen">📄 Unterlagen für Caritas scannen</button>
       ${done.length ? `<details class="ws-history"><summary>Erledigt (${done.length})</summary>${done.map(row).join('')}</details>` : ''}</article>`;
   }
   function editWork(id) {
@@ -239,7 +241,6 @@
     const anchor = page.querySelector('.page-title');
     [...page.children].forEach(child => { if (!child.matches('.page-title,.ws-intro,.section-back')) child.dataset.chNotes = '1'; });
     anchor.insertAdjacentHTML('afterend', '<nav class="ws-tabs ch-tabs" aria-label="Charleens Bereiche"><button data-ch-tab="study">🎓 Studium</button><button data-ch-tab="job">⏱ Nebenjob</button><button data-ch-tab="work">🤝 Caritas</button><button data-ch-tab="savings">💶 Sparziele</button><button data-ch-tab="notes">✓ Aufgaben</button></nav><div id="charleenPanel"></div>');
-    anchor.insertAdjacentHTML('beforeend', '<div class="document-actions"><button class="secondary scan-here" data-scan-here data-scan-folder="Charleen">📄 Dokument scannen</button></div>');
     const intro = page.querySelector('.ws-intro p'); if (intro) intro.textContent = 'Studium, Nebenjob, Caritas und Sparziele – alles an einem Ort. Termine und Dokumente bleiben mit eurem gemeinsamen Zuhause verbunden.';
   }
   function render() {

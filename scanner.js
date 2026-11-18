@@ -300,7 +300,9 @@
     if (a.reminder) list.push({ key: 'reminder', checked: on('reminder'), title: 'Erinnerung im Kalender', note: a.reminderNote, fields: `<input name="reminderTitle" value="${h(`${who}: Vertrag prüfen / kündigen?`)}" aria-label="Titel"><input name="reminderDate" type="date" value="${a.reminder}" aria-label="Datum">` });
     if (a.vaccination || on('lou')) list.push({ key: 'lou', checked: on('lou'), title: 'Bei Lou: Impfung erledigt', fields: `<input name="louDate" type="date" value="${a.docDate || plusDays(0)}" aria-label="Geimpft am">` });
     const orders = openOrders();
-    if (orders.length && (a.diy || on('material'))) list.push({ key: 'material', checked: on('material'), title: 'Als Material in Nebenjob-Auftrag', fields: `<select name="materialOrder" aria-label="Auftrag">${orders.map(o => `<option value="${h(o.id)}" ${o.id === context.orderId ? 'selected' : ''}>${h(o.title || 'Auftrag')}</option>`).join('')}</select><input name="materialName" value="${h(`${a.sender || 'Material'}${a.docDate ? ` ${A().german(a.docDate)}` : ''}`)}" aria-label="Bezeichnung"><input name="materialPrice" inputmode="decimal" value="${a.total ? String(a.total.toFixed(2)).replace('.', ',') : ''}" placeholder="Preis in €" aria-label="Preis">` });
+    const selectedOrder = orders.find(o => o.id === context.orderId) || orders[0];
+    const manual = (selectedOrder?.materials || []).filter(m => !m.fromScan).length;
+    if (orders.length && (a.diy || on('material'))) list.push({ key: 'material', checked: on('material'), title: 'Als Material in Nebenjob-Auftrag', note: manual ? `Im Auftrag ist schon Material von Hand eingetragen (${manual} ${manual === 1 ? 'Posten' : 'Posten'}). Steht es auch auf diesem Beleg, nicht doppelt zählen.` : '', fields: `<select name="materialOrder" aria-label="Auftrag">${orders.map(o => `<option value="${h(o.id)}" ${o.id === context.orderId ? 'selected' : ''}>${h(o.title || 'Auftrag')}</option>`).join('')}</select><input name="materialName" value="${h(materialName(a, analysisText))}" aria-label="Bezeichnung"><input name="materialPrice" inputmode="decimal" value="${a.total ? String(a.total.toFixed(2)).replace('.', ',') : ''}" placeholder="Preis in €" aria-label="Preis">` });
     if (a.kind === 'payslip' || on('payslip')) list.push({ key: 'payslip', checked: on('payslip'), title: 'Danach Charleens Nebenjob öffnen', note: a.total ? `Auszahlung laut Abrechnung: ${euro(a.total)} – Stunden dort vergleichen.` : 'Stunden mit der Abrechnung vergleichen.', fields: '' });
     return list;
   }
@@ -340,32 +342,48 @@
   }
   // Eine einzige laufende Auswertung je Scan – „PDF speichern“ wartet auf sie, statt neu anzufangen (sonst gingen Vorschläge und
   // vorgewählte Folgeaktionen verloren und jede Seite würde doppelt gelesen).
-  let analysisPromise = null, saving = false;
+  let analysisPromise = null, saving = false, analysisText = '';
   function startAnalysis(onProgress) {
     if (!analysisPromise) {
       const run = ocrRun;
       analysisPromise = ocrAll(text => onProgress?.(text)).then(text => {
         if (run !== ocrRun) return text;
-        analysis = A()?.analyse(text, state.customCategories?.documents || [], state.scanRules || {}) || null; return text;
+        analysisText = text; analysis = A()?.analyse(text, state.customCategories?.documents || [], state.scanRules || {}) || null; return text;
       });
     }
     return analysisPromise;
   }
   function resetAnalysis() { analysis = null; analysisPromise = null; ocrRun++; }
 
+  // Einzelartikel eines Kassenbons (Festlegung 10.10: im Beleg nachvollziehbar): Zeilen mit Text und Betrag, ohne Summen/Steuer/Zahlung
+  function receiptItems(text) {
+    return String(text || '').split(/\r?\n/).map(l => l.trim().replace(/\s{2,}/g, ' ')).filter(l => /[A-Za-zÄÖÜäöüß]{3}/.test(l) && /\d+[.,]\d{2}/.test(l) && !/summe|gesamt|zwischen|mwst|ust\b|steuer|netto|brutto|gegeben|rückgeld|ec-?karte|girocard|kartenzahlung|bar\b|visa|mastercard|datum|uhrzeit|bon-?nr|kasse\s*\d/i.test(l)).slice(0, 40);
+  }
+  // Nebenjob-Material aus einem Beleg: Bezeichnung mit den ersten Artikeln, damit man es wiedererkennt
+  function materialName(a, text) {
+    const items = receiptItems(text).map(l => l.replace(/[\d.,]+\s*(€|eur)?\s*[AB]?$/i, '').replace(/\s+\d+\s*(x|stk|st)\b.*$/i, '').trim()).filter(Boolean).slice(0, 3);
+    return `Beleg ${a?.sender || 'Material'}${items.length ? ` (${items.join(', ')}${receiptItems(text).length > 3 ? ' …' : ''})` : ''}`.slice(0, 110);
+  }
   function runActions(d, a, meta) {
     const done = [], value = name => d.querySelector(`[name=${name}]`)?.value?.trim() || '';
     const checked = key => d.querySelector(`[data-sc-action="${key}"]`)?.checked;
     const amount = name => { let s = value(name).replace(/[\s€]/g, ''); if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); const n = Number(s); return Number.isFinite(n) && n > 0 ? n : 0; };
     if (checked('task')) { const due = value('taskDue') || plusDays(14); state.householdTasks.unshift({ id: crypto.randomUUID(), seriesId: null, title: value('taskTitle') || 'Rechnung bezahlen', description: `Dokument: ${meta.name}`, person: 'Gemeinsam', dueOn: due, due, recurrenceAnchor: due, done: false, completedAt: null, recurrence: 'none', recurrenceInterval: 1, recurrenceUnit: 'weeks', alternate: false, createdAt: new Date().toISOString() }); done.push('Aufgabe'); }
-    if (checked('expense') && amount('expenseAmount')) { const category = value('expenseCategory') || 'Gemeinsamer Haushalt'; state.expenses.unshift({ id: crypto.randomUUID(), title: value('expenseTitle') || 'Einkauf', store: value('expenseTitle'), date: value('expenseDate') || plusDays(0), amount: amount('expenseAmount'), person: 'Gemeinsam', category, receipt: true, review: ['Nebengewerbe', 'Noch unklar'].includes(category), receiptOcrText: meta.ocrText.slice(0, 4000), createdAt: new Date().toISOString(), icon: '▣' }); done.push('Ausgabe'); }
+    if (checked('expense') && amount('expenseAmount')) {
+      const category = value('expenseCategory') || 'Gemeinsamer Haushalt', date = value('expenseDate') || plusDays(0);
+      // Monat schon abgeschlossen? Dann zählt die Ausgabe als Nachzügler im laufenden Monat – vorher nachfragen
+      const closed = state.budget?.closedMonths?.[date.slice(0, 7)];
+      if (!closed || confirm(`Der ${new Date(`${date}T12:00:00`).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })} ist schon abgeschlossen. Die Ausgabe wird dann im laufenden Monat abgezogen. Eintragen?`)) {
+        state.expenses.unshift({ id: crypto.randomUUID(), title: value('expenseTitle') || 'Einkauf', store: value('expenseTitle'), date, amount: amount('expenseAmount'), person: 'Gemeinsam', category, receipt: true, review: ['Nebengewerbe', 'Noch unklar'].includes(category), receiptItems: receiptItems(meta.ocrText), receiptOcrText: meta.ocrText.slice(0, 4000), receiptDocument: meta.name, createdAt: new Date().toISOString(), icon: '▣' }); done.push('Ausgabe');
+      }
+    }
     if (checked('lou')) {
       if (!state.lou || typeof state.lou !== 'object') state.lou = {}; if (!Array.isArray(state.lou.care)) state.lou.care = [];
       const date = value('louDate') || plusDays(0); let item = state.lou.care.find(x => /impf/i.test(x.title));
       if (!item) { item = { id: crypto.randomUUID(), title: 'Impfung auffrischen', every: 1, unit: 'years', nextDue: date, lastDone: null, history: [] }; state.lou.care.push(item); }
       item.lastDone = date; item.history = [date, ...(item.history || []).filter(x => x !== date)].slice(0, 10); item.nextDue = window.ZuhauseLou?.addInterval?.(date, item.every, item.unit) || date; done.push('Lou');
     }
-    if (checked('material')) { const order = (state.noahJobs?.orders || []).find(o => o.id === value('materialOrder')); if (order) { (order.materials ||= []).push({ id: crypto.randomUUID(), name: value('materialName') || 'Material', qty: 1, unit: '', price: amount('materialPrice') }); done.push('Material'); } }
+    if (checked('material')) { const order = (state.noahJobs?.orders || []).find(o => o.id === value('materialOrder')); if (order) { (order.materials ||= []).push({ id: crypto.randomUUID(), name: value('materialName') || 'Material', qty: 1, unit: '', price: amount('materialPrice'), fromScan: meta.name }); done.push('Material'); } }
     if (done.length) { persist(); try { renderAll(); } catch {} window.ZuhauseLou?.render?.(); window.ZuhauseNoahJobs?.render?.(); window.ZuhauseFeatures?.refresh?.(); }
     if (checked('reminder')) setTimeout(() => {
       window.ZuhauseCalendar?.openCreate?.(value('reminderDate') || plusDays(330)); const form = document.querySelector('#calendarEventForm'); if (!form) return;
