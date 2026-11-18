@@ -220,7 +220,8 @@
     pages = []; resetAnalysis(); editIndex = -1; view = 'pages'; dialog().close();
   }
   function open(options = {}) {
-    context = { folder: options.folder || document.querySelector('#documentFolder')?.value || 'Gemeinsam', fixedFolder: !!options.folder, category: options.category || document.querySelector('#documentCategory')?.value || '', name: options.name || '', actions: options.actions || [], orderId: options.orderId || null, onSaved: options.onSaved };
+    const categories = state.customCategories?.documents || [];
+    context = { folder: options.folder || 'Gemeinsam', fixedFolder: !!options.folder, category: options.category || (categories.includes('Sonstige Dokumente') ? 'Sonstige Dokumente' : categories[0] || ''), name: options.name || '', actions: options.actions || [], orderId: options.orderId || null, onSaved: options.onSaved };
     resetAnalysis(); pages = []; editIndex = -1; view = 'pages'; render(); dialog().showModal();
     if (options.startCamera !== false) setTimeout(() => pickFiles(false), 60);
   }
@@ -518,5 +519,5 @@
     event.preventDefault(); const ds = button.dataset;
     open({ folder: ds.scanFolder, actions: (ds.scanActions || '').split(',').filter(Boolean), orderId: ds.scanOrder || null });
   });
-  window.ZuhauseScanner = { open, flushQueue, queueAll, queueClear: () => queueOp('readwrite', st => st.clear()).catch(() => {}), showQueue, detectCorners, warp, enhance, quality, recognise };
+  window.ZuhauseScanner = { open, openWithFiles: async (files, options = {}) => { open({ ...options, startCamera: false }); for (const file of files) await addPage(file, files.length === 1); if (files.length > 1) { view = 'pages'; render(); } }, flushQueue, queueAll, queueClear: () => queueOp('readwrite', st => st.clear()).catch(() => {}), showQueue, detectCorners, warp, enhance, quality, recognise };
 })();

@@ -121,7 +121,7 @@
 /* Dokumente wiederfinden */
 .doc-tiles{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:0 0 14px}
 .doc-tile{display:grid;gap:3px;justify-items:start;text-align:left;border:1px solid var(--line);background:#fff;border-radius:16px;padding:12px;cursor:pointer;color:var(--ink);min-width:0}
-.doc-tile span{font-size:18px}.doc-tile strong{font-size:14px}.doc-tile small{color:var(--muted);font-size:11px}
+.doc-tile>span{font-size:18px}.doc-tile strong{font-size:14px;overflow-wrap:anywhere}.doc-tile small{color:var(--muted);font-size:11px}
 .doc-tile.active{border-color:var(--sage-dark);background:var(--sage-soft)}
 .doc-search{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:0 14px;margin-bottom:16px}
 .doc-search span{color:var(--muted);font-size:18px}
@@ -135,7 +135,7 @@
 .doc-snippet mark{background:var(--gold-soft);color:var(--ink);border-radius:3px;padding:0 2px}
 .doc-new{font-style:normal;font-size:10px;font-weight:800;background:var(--sage-soft);color:var(--sage-dark);border-radius:6px;padding:2px 6px;vertical-align:middle}
 .doc-section{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:750;margin:6px 0 8px}
-.doc-recent{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.doc-recent{display:grid;grid-template-columns:repeat(4,minmax(0,160px));gap:12px;margin-bottom:16px}
 .doc-recent-card{border:0;background:none;padding:0;display:grid;gap:6px;cursor:pointer;text-align:left;color:var(--ink);min-width:0}
 .doc-recent-card small{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .doc-thumb.big{width:100%}
@@ -166,3 +166,20 @@
 .scanner-progress:empty{display:none}
 .scanner-action-fields select{background:#fff;color:var(--ink)}
 @media(min-width:800px){.scanner-tools{width:100%;max-width:760px;margin-left:auto;margin-right:auto}.scanner-foot{padding-left:max(16px,calc(50% - 280px));padding-right:max(16px,calc(50% - 280px))}}
+
+.doc-chips{display:flex;gap:8px;overflow-x:auto;margin:-4px 0 14px;padding-bottom:2px;scrollbar-width:none}
+.doc-chip{flex:none;border:1px solid var(--line);background:#fff;border-radius:99px;padding:8px 14px;min-height:38px;font:inherit;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer}
+.doc-chip.active{background:var(--sage-soft);border-color:var(--sage-dark);color:var(--sage-dark)}
+.doc-storage.quiet{background:none;border:0;padding:10px 4px;margin:4px 0 16px}.doc-storage.quiet strong{font-size:12px;color:var(--muted);font-weight:700}
+.doc-detail .calendar-dialog-actions{gap:10px}
+.doc-detail .dialog-head .close{width:44px;height:44px;flex:none}
+#documents .document-actions .primary,#documents .document-actions .secondary{white-space:nowrap}
+.doc-settings .checklist-card{padding:0 0 12px;box-shadow:none;border:0;background:none}
+@media(max-width:430px){.doc-tile strong{font-size:13px}.doc-tile{padding:10px 6px}#documents .document-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}#documents .document-actions button{padding-left:8px;padding-right:8px;font-size:14px}}
+/* Ordner-Kacheln einzeilig (Symbol · Name · Anzahl) – passt auf Handy, Tablet und Desktop ohne Umbruch */
+.doc-tiles{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))!important;gap:8px!important}
+.doc-tile{display:flex!important;align-items:center;gap:8px;padding:10px 12px!important;min-height:48px;grid-column:auto!important}
+.doc-tile>span{font-size:16px;width:20px;text-align:center;flex:none}
+.doc-tile strong{flex:1;min-width:0;font-size:14px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;overflow-wrap:normal}
+.doc-tile small{font-size:12px!important;flex:none;justify-self:auto!important}
+.doc-tile small .doc-word{display:none}
