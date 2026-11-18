@@ -8,13 +8,15 @@
   const h = escapeHtml;
   const DEFAULT_BASICS = ['Salz', 'Pfeffer', 'Öl', 'Olivenöl', 'Zucker', 'Mehl', 'Wasser', 'Essig', 'Brühe'];
   const uid = () => crypto.randomUUID();
-  let cache = { recipes: {}, cursor: null, pending: {} }, cacheKey = '', query = '', tab = 'shopping', syncing = false;
+  let cache = { recipes: {}, cursor: null, pending: {} }, cacheKey = '', query = '', tab = 'shopping', syncing = false, categoryFilter = '';
+  const photoUrls = new Map(); // Fotopfad → kurzlebiger, signierter Link
+  const categories = () => Array.isArray(state.customCategories?.recipes) ? state.customCategories.recipes : [];
 
   // ---------- Zutaten verstehen ----------
   const FRACTIONS = { '½': 0.5, '¼': 0.25, '¾': 0.75, '⅓': 1 / 3, '⅔': 2 / 3, '⅛': 0.125 };
   const UNITS = [
     ['kg', /^(kg|kilo(gramm)?)$/i], ['g', /^(g|gr|gramm)$/i], ['mg', /^mg$/i], ['l', /^(l|liter)$/i], ['ml', /^(ml|milliliter)$/i], ['cl', /^cl$/i], ['dl', /^dl$/i],
-    ['EL', /^(el|essl(öffel)?\.?|esslöffel)$/i], ['TL', /^(tl|teel(öffel)?\.?|teelöffel)$/i], ['Prise', /^prisen?$/i], ['Msp.', /^(msp\.?|messerspitzen?)$/i],
+    ['EL', /^(el|essl(öffel)?\.?|esslöffel|tbsp|tablespoons?)$/i], ['TL', /^(tl|teel(öffel)?\.?|teelöffel|tsp|teaspoons?)$/i], ['Prise', /^prisen?$/i], ['Msp.', /^(msp\.?|messerspitzen?)$/i],
     ['Pck.', /^(pck\.?|pkg\.?|päckchen|packung(en)?)$/i], ['Dose', /^dosen?$/i], ['Bund', /^bunde?$/i], ['Zehe', /^zehen?$/i], ['Stück', /^(stück|stk\.?|st\.?)$/i],
     ['Scheibe', /^scheiben?$/i], ['Becher', /^becher$/i], ['Tasse', /^tassen?$/i], ['Glas', /^gl(as|äser)$/i], ['Handvoll', /^handvoll$/i], ['Blatt', /^bl(att|ätter)$/i],
     ['Zweig', /^zweige?$/i], ['Stange', /^stangen?$/i], ['Kopf', /^k(opf|öpfe)$/i], ['Knolle', /^knollen?$/i], ['Würfel', /^würfel$/i], ['Tropfen', /^tropfen$/i], ['Schuss', /^schuss$/i],
@@ -30,7 +32,8 @@
     return value > 0 && Number.isFinite(value) ? { value, rest: t.slice(m[0].length).trim() } : null;
   }
   function parseIngredient(line) {
-    const raw = String(line || '').replace(/^[-•*·]\s*/, '').trim(); if (!raw) return null;
+    // „100g Mehl“ → „100 g Mehl“ (Seiten schreiben Menge und Einheit oft zusammen)
+    const raw = String(line || '').replace(/^[-•*·]\s*/, '').trim().replace(/^(\d+(?:[.,]\d+)?|[½¼¾⅓⅔⅛])(?=[a-zA-ZäöüÄÖÜ])/, '$1 '); if (!raw) return null;
     const amount = parseAmount(raw); let rest = amount ? amount.rest : raw, unit = '';
     const first = rest.split(/\s+/)[0] || '', known = UNITS.find(([, re]) => re.test(first.replace(/[.,]$/, '')) || re.test(first));
     if (known && rest.split(/\s+/).length > 1) { unit = known[0]; rest = rest.slice(first.length).trim(); }
@@ -118,18 +121,46 @@
     card.querySelectorAll('[data-recipe-tab]').forEach(b => { b.classList.toggle('active', b.dataset.recipeTab === tab); b.setAttribute('aria-pressed', String(b.dataset.recipeTab === tab)); });
     if (tab !== 'recipes') return;
     if (panel.contains(document.activeElement) && document.activeElement.matches('input')) { renderList(panel); return; }
-    panel.innerHTML = `<div class="recipe-toolbar"><label class="doc-search"><span aria-hidden="true">⌕</span><input id="recipeSearch" type="search" placeholder="Suchen" aria-label="Rezepte durchsuchen" value="${h(query)}"></label><button class="primary" type="button" data-recipe-new>＋ Rezept</button></div><div id="recipeList"></div><button type="button" class="ws-text-button" data-recipe-basics>Basics bearbeiten (Salz, Pfeffer …)</button>`;
+    panel.innerHTML = `<div class="recipe-toolbar"><label class="doc-search"><span aria-hidden="true">⌕</span><input id="recipeSearch" type="search" placeholder="Suchen" aria-label="Rezepte durchsuchen" value="${h(query)}"></label><button class="primary" type="button" data-recipe-new>＋ Rezept</button></div><button type="button" class="secondary recipe-import-button" data-recipe-import>🔗 Aus Link übernehmen</button><div class="doc-chips" id="recipeChips" role="group" aria-label="Kategorie"></div><div id="recipeList"></div><div class="recipe-settings"><button type="button" class="ws-text-button" data-recipe-basics>Basics bearbeiten (Salz, Pfeffer …)</button><button type="button" class="ws-text-button" data-recipe-categories>Kategorien bearbeiten</button></div>`;
     panel.querySelector('#recipeSearch').addEventListener('input', event => { query = event.target.value.trim(); renderList(panel); });
     renderList(panel);
   }
   function renderList(panel) {
     const box = panel.querySelector('#recipeList'); if (!box) return;
-    const q = query.toLowerCase();
-    const shown = list().filter(r => !q || `${r.title} ${(r.data?.ingredients || []).map(i => i.name).join(' ')} ${(r.data?.categories || []).join(' ')}`.toLowerCase().includes(q))
+    const q = query.toLowerCase(), cats = categories().filter(c => list().some(r => (r.data?.categories || []).includes(c)));
+    if (categoryFilter && !cats.includes(categoryFilter)) categoryFilter = '';
+    const chips = panel.querySelector('#recipeChips');
+    if (chips) { chips.hidden = !cats.length; chips.innerHTML = cats.length ? ['', ...cats].map(c => `<button type="button" class="doc-chip ${categoryFilter === c ? 'active' : ''}" data-recipe-filter="${h(c)}" aria-pressed="${categoryFilter === c}">${c ? h(c) : 'Alle'}</button>`).join('') : ''; }
+    const shown = list().filter(r => !categoryFilter || (r.data?.categories || []).includes(categoryFilter)).filter(r => !q || `${r.title} ${(r.data?.ingredients || []).map(i => i.name).join(' ')} ${(r.data?.categories || []).join(' ')}`.toLowerCase().includes(q))
       .sort((a, b) => (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0) || String(a.title).localeCompare(String(b.title), 'de'));
-    box.innerHTML = shown.map(r => `<div class="recipe-row"><button type="button" class="recipe-heart ${r.favorite ? 'on' : ''}" data-recipe-fav="${h(r.id)}" aria-pressed="${!!r.favorite}" aria-label="${r.favorite ? 'Aus den Favoriten nehmen' : 'Als Favorit markieren'}">${r.favorite ? '♥' : '♡'}</button><button type="button" class="recipe-open" data-recipe-open="${h(r.id)}"><strong>${h(r.title)}</strong><small>${h(String(r.data?.servings || 2))} Portionen · ${(r.data?.ingredients || []).length} Zutaten${(r.data?.categories || []).length ? ` · ${h(r.data.categories.join(', '))}` : ''}</small></button><em aria-hidden="true">›</em></div>`).join('')
-      || (list().length ? `<p class="ws-muted">Nichts gefunden für „${h(query)}“.</p>` : '<div class="ws-empty"><strong>Noch keine Rezepte.</strong><p>Tippe auf „＋ Rezept“ und trag euer erstes Lieblingsessen ein – danach kommt es mit einem Tipp auf die Einkaufsliste.</p></div>');
+    box.innerHTML = shown.map(r => `<div class="recipe-row ${r.data?.photoPath ? 'with-photo' : ''}">${r.data?.photoPath ? `<img class="recipe-thumb" data-recipe-photo="${h(r.data.photoPath)}" alt="" ${photoUrls.get(r.data.photoPath) ? `src="${h(photoUrls.get(r.data.photoPath))}"` : ''}>` : ''}<button type="button" class="recipe-heart ${r.favorite ? 'on' : ''}" data-recipe-fav="${h(r.id)}" aria-pressed="${!!r.favorite}" aria-label="${r.favorite ? 'Aus den Favoriten nehmen' : 'Als Favorit markieren'}">${r.favorite ? '♥' : '♡'}</button><button type="button" class="recipe-open" data-recipe-open="${h(r.id)}"><strong>${h(r.title)}</strong><small>${h(String(r.data?.servings || 2))} Portionen · ${(r.data?.ingredients || []).length} Zutaten${(r.data?.categories || []).length ? ` · ${h(r.data.categories.join(', '))}` : ''}</small></button><em aria-hidden="true">›</em></div>`).join('')
+      || (list().length ? `<p class="ws-muted">Nichts gefunden${query ? ` für „${h(query)}“` : ''}${categoryFilter ? ` in „${h(categoryFilter)}“` : ''}.</p>` : '<div class="ws-empty"><strong>Noch keine Rezepte.</strong><p>Tippe auf „＋ Rezept“ oder übernimm eins per Link – danach kommt es mit einem Tipp auf die Einkaufsliste.</p></div>');
+    loadPhotos();
   }
+
+  // ---------- Fotos (geschützter Speicher, wie Dokumente: <haushalt>/shared/recipes/…) ----------
+  async function loadPhotos() {
+    if (typeof cloudReady === 'undefined' || !cloudReady || !cloud) return;
+    const missing = [...new Set(list().map(r => r.data?.photoPath).filter(p => p && !photoUrls.has(p)))];
+    if (missing.length) {
+      const { data } = await cloud.storage.from('receipts').createSignedUrls(missing, 3600).catch(() => ({ data: null }));
+      missing.forEach((p, i) => { if (data?.[i]?.signedUrl) photoUrls.set(p, data[i].signedUrl); });
+      setTimeout(() => missing.forEach(p => photoUrls.delete(p)), 50 * 60000);
+    }
+    document.querySelectorAll('[data-recipe-photo]').forEach(img => { const url = photoUrls.get(img.dataset.recipePhoto); if (url && img.getAttribute('src') !== url) img.src = url; });
+  }
+  async function shrinkPhoto(blob) {
+    const bitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' }).catch(() => createImageBitmap(blob));
+    const f = Math.min(1, 1200 / Math.max(bitmap.width, bitmap.height)), c = document.createElement('canvas');
+    c.width = Math.round(bitmap.width * f); c.height = Math.round(bitmap.height * f); c.getContext('2d').drawImage(bitmap, 0, 0, c.width, c.height); bitmap.close?.();
+    return new Promise(resolve => c.toBlob(resolve, 'image/jpeg', 0.8));
+  }
+  async function uploadPhoto(recipeId, blob) {
+    const path = `${currentHousehold.id}/shared/recipes/${recipeId}-${uid().slice(0, 8)}.jpg`;
+    const { error } = await cloud.storage.from('receipts').upload(path, blob, { contentType: 'image/jpeg', upsert: false, cacheControl: '3600' });
+    if (error) throw error; return path;
+  }
+  const removePhoto = path => { if (path && cloud && typeof cloudReady !== 'undefined' && cloudReady) cloud.storage.from('receipts').remove([path]).catch(() => {}); };
 
   // ---------- Dialog-Hilfe ----------
   function dialog(id, html) {
@@ -146,6 +177,8 @@
     const source = safeExternalUrl(r.data?.source || '');
     const d = dialog('recipeViewDialog', `<form method="dialog"><div class="dialog-head"><div><span class="kicker">Rezept</span><h2>${h(r.title)}</h2></div><button class="close" type="button" data-recipe-close aria-label="Schließen">×</button></div>
       <div class="ws-dialog-fields">
+        ${r.data?.photoPath ? `<img class="recipe-hero" data-recipe-photo="${h(r.data.photoPath)}" alt="" ${photoUrls.get(r.data.photoPath) ? `src="${h(photoUrls.get(r.data.photoPath))}"` : ''}>` : ''}
+        ${(r.data?.categories || []).length ? `<p class="recipe-cats">${r.data.categories.map(c => `<span>${h(c)}</span>`).join('')}</p>` : ''}
         <div class="recipe-servings"><span>Portionen</span><button type="button" class="secondary" data-recipe-servings="-1" aria-label="Weniger Portionen" ${servings <= 1 ? 'disabled' : ''}>−</button><strong aria-live="polite">${servings}</strong><button type="button" class="secondary" data-recipe-servings="1" aria-label="Mehr Portionen">＋</button>${servings !== base ? `<small>Rezept ist für ${base}</small>` : ''}</div>
         <button type="button" class="primary ws-large" data-recipe-shop="${h(r.id)}">🛒 Auf die Einkaufsliste</button>
         <section><h3>Zutaten</h3><ul class="recipe-ingredients">${(r.data?.ingredients || []).map(ing => `<li>${ing.amount || ing.unit ? `<b>${h(ing.amount ? formatAmount(ing.amount * factor, ing.unit) : ing.unit)}</b> ` : ''}${h(ing.name)}</li>`).join('') || '<li class="ws-muted">Keine Zutaten eingetragen.</li>'}</ul></section>
@@ -153,23 +186,44 @@
         ${source ? `<p class="ws-help">Quelle: <a href="${h(source)}" target="_blank" rel="noopener noreferrer">${h(new URL(source).hostname)}</a></p>` : ''}
       </div>
       <div class="calendar-dialog-actions"><button type="button" class="danger" data-recipe-delete="${h(r.id)}">Löschen</button><span></span><button type="button" class="secondary" data-recipe-edit="${h(r.id)}">Bearbeiten</button><button type="button" class="secondary" data-recipe-close>Schließen</button></div></form>`);
-    d.dataset.recipeId = id;
+    d.dataset.recipeId = id; loadPhotos();
   }
 
   // ---------- Eintippen / Bearbeiten ----------
-  function edit(id) {
-    const r = id ? recipe(id) : null, data = r?.data || {};
+  function edit(id, preset = null) {
+    const r = id ? recipe(id) : null, data = preset || r?.data || {};
+    let photo = { blob: preset?.photoBlob || null, remove: false }, chosenCats = new Set((data.categories || []).filter(c => categories().includes(c)));
     const d = dialog('recipeEditDialog', `<form><div class="dialog-head"><div><span class="kicker">Rezept</span><h2>${r ? 'Rezept bearbeiten' : 'Neues Rezept'}</h2></div><button class="close" type="button" data-recipe-close aria-label="Schließen">×</button></div>
       <div class="ws-dialog-fields">
-        <label class="ws-field"><span>Titel</span><input name="title" required maxlength="200" value="${h(r?.title || '')}" placeholder="z. B. Spaghetti Bolognese"></label>
+        ${preset ? '<p class="recipe-import-note">Bitte kurz prüfen – gespeichert wird erst mit „Speichern“.</p>' : ''}
+        <label class="ws-field"><span>Titel</span><input name="title" required maxlength="200" value="${h(preset?.title || r?.title || '')}" placeholder="z. B. Spaghetti Bolognese"></label>
+        <div class="ws-field"><span>Foto (optional)</span><div class="recipe-photo-edit"><img data-recipe-edit-photo alt="" hidden><div><button type="button" class="secondary" data-recipe-photo-pick>📷 Foto wählen</button><button type="button" class="ws-text-button" data-recipe-photo-remove hidden>Foto entfernen</button></div></div></div>
+        <div class="ws-field"><span>Kategorien</span><div class="doc-chips recipe-cat-pick" data-recipe-cat-pick></div><div class="recipe-cat-new"><input data-recipe-cat-new maxlength="40" placeholder="Neue Kategorie, z. B. Schnell" aria-label="Neue Kategorie"><button type="button" class="secondary" data-recipe-cat-add>＋</button></div></div>
         <label class="ws-field recipe-servings-field"><span>Für wie viele Portionen?</span><input name="servings" type="number" inputmode="numeric" min="1" max="99" required value="${h(String(data.servings || 2))}"></label>
-        <label class="ws-field"><span>Zutaten – eine pro Zeile</span><textarea name="ingredients" rows="8" placeholder="500 g Spaghetti&#10;1 Zwiebel&#10;2 EL Olivenöl&#10;Salz">${h((data.ingredients || []).map(ing => ingredientText(ing)).join('\n'))}</textarea><small class="ws-help">Menge und Einheit vorne, z. B. „200 g Mehl“, „1,5 l Milch“, „½ TL Salz“.</small></label>
+        <label class="ws-field"><span>Zutaten – eine pro Zeile</span><textarea name="ingredients" rows="8" placeholder="500 g Spaghetti&#10;1 Zwiebel&#10;2 EL Olivenöl&#10;Salz">${h((data.ingredients || []).map(ing => typeof ing === 'string' ? ing : ingredientText(ing)).join('\n'))}</textarea><small class="ws-help">Menge und Einheit vorne, z. B. „200 g Mehl“, „1,5 l Milch“, „½ TL Salz“.</small></label>
         <label class="ws-field"><span>Zubereitung – ein Schritt pro Absatz</span><textarea name="steps" rows="8" placeholder="Zwiebel würfeln und in Öl anschwitzen.&#10;&#10;Hackfleisch dazugeben …">${h((data.steps || []).join('\n\n'))}</textarea></label>
         <label class="ws-field"><span>Quelle (Link, optional)</span><input name="source" type="url" inputmode="url" maxlength="500" value="${h(data.source || '')}" placeholder="https://…"></label>
         <p class="auth-message" data-recipe-message></p>
       </div>
       <div class="calendar-dialog-actions"><span></span><span></span><button type="button" class="secondary" data-recipe-close>Abbrechen</button><button class="primary" type="submit">Speichern</button></div></form>`);
-    d.querySelector('form').onsubmit = event => {
+    // Foto-Vorschau
+    const img = d.querySelector('[data-recipe-edit-photo]'), removeButton = d.querySelector('[data-recipe-photo-remove]');
+    const showPhoto = () => {
+      const url = photo.blob ? URL.createObjectURL(photo.blob) : !photo.remove && data.photoPath ? photoUrls.get(data.photoPath) : '';
+      img.hidden = !url; if (url) img.src = url; removeButton.hidden = !(photo.blob || (!photo.remove && data.photoPath));
+    };
+    showPhoto(); if (!photo.blob && data.photoPath && !photoUrls.has(data.photoPath)) loadPhotos().then(showPhoto);
+    d.querySelector('[data-recipe-photo-pick]').onclick = () => { const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.onchange = () => { if (input.files?.[0]) { photo = { blob: input.files[0], remove: false }; showPhoto(); } }; input.click(); };
+    removeButton.onclick = () => { photo = { blob: null, remove: true }; showPhoto(); };
+    // Kategorien antippen / neu anlegen
+    const pick = d.querySelector('[data-recipe-cat-pick]');
+    const drawCats = () => { pick.innerHTML = categories().map(c => `<button type="button" class="doc-chip ${chosenCats.has(c) ? 'active' : ''}" data-cat="${h(c)}" aria-pressed="${chosenCats.has(c)}">${h(c)}</button>`).join('') || '<small class="ws-help">Noch keine Kategorien – unten eine anlegen.</small>'; };
+    drawCats();
+    pick.onclick = event => { const b = event.target.closest('[data-cat]'); if (!b) return; const c = b.dataset.cat; chosenCats.has(c) ? chosenCats.delete(c) : chosenCats.add(c); drawCats(); };
+    const addCat = () => { const input = d.querySelector('[data-recipe-cat-new]'), name = input.value.trim().slice(0, 40); if (!name) return; const existing = categories().find(c => c.toLowerCase() === name.toLowerCase()); if (!existing) { state.customCategories = { ...(state.customCategories || {}), recipes: [...categories(), name] }; persist(); } chosenCats.add(existing || name); input.value = ''; drawCats(); };
+    d.querySelector('[data-recipe-cat-add]').onclick = addCat;
+    d.querySelector('[data-recipe-cat-new]').onkeydown = event => { if (event.key === 'Enter') { event.preventDefault(); addCat(); } };
+    d.querySelector('form').onsubmit = async event => {
       event.preventDefault(); const f = new FormData(event.currentTarget), message = d.querySelector('[data-recipe-message]');
       const title = String(f.get('title')).trim(), servings = Math.min(99, Math.max(1, Math.round(Number(f.get('servings')) || 2)));
       if (!title) { message.textContent = 'Bitte einen Titel eingeben.'; return; }
@@ -179,15 +233,71 @@
       const steps = String(f.get('steps')).split(/\r?\n\s*\r?\n|\r?\n(?=\s*\d+[.)]\s)/).map(s => s.replace(/^\s*\d+[.)]\s*/, '').replace(/\s+/g, ' ').trim()).filter(Boolean).slice(0, 100);
       // beim Speichern frisch holen (der Abgleich kann den Stand inzwischen ersetzt haben)
       const current = id ? recipe(id) : null, newId = current?.id || uid();
-      change({ ...(current || {}), id: newId, title, favorite: !!current?.favorite, deleted_at: null, data: { ...(current?.data || {}), servings, ingredients, steps, source } });
-      d.close(); toast('Rezept gespeichert'); show(newId);
+      let photoPath = current?.data?.photoPath || '', photoNote = '';
+      if (photo.blob || photo.remove) {
+        if (photo.blob) {
+          if (typeof cloudReady === 'undefined' || !cloudReady || !navigator.onLine) photoNote = ' – das Foto braucht Internet, bitte später noch einmal hinzufügen';
+          else {
+            const button = d.querySelector('[type=submit]'); button.disabled = true; button.textContent = 'Foto wird gespeichert …';
+            try { const old = photoPath; photoPath = await uploadPhoto(newId, await shrinkPhoto(photo.blob)); removePhoto(old); }
+            catch { button.disabled = false; button.textContent = 'Speichern'; message.textContent = 'Das Foto konnte nicht gespeichert werden. Ohne Foto speichern? Dann „Foto entfernen“ tippen.'; return; }
+          }
+        } else { removePhoto(photoPath); photoPath = ''; }
+      }
+      const cats = categories().filter(c => chosenCats.has(c));
+      change({ ...(current || {}), id: newId, title, favorite: !!current?.favorite, deleted_at: null, data: { ...(current?.data || {}), servings, ingredients, steps, source, categories: cats, photoPath } });
+      d.close(); toast(`Rezept gespeichert${photoNote}`); show(newId);
     };
   }
   function remove(id) {
     const r = recipe(id); if (!r) return;
     const copy = JSON.parse(JSON.stringify(r));
     change({ ...r, deleted_at: new Date().toISOString() }); document.querySelector('#recipeViewDialog')?.close();
-    toastUndo(`„${r.title}“ gelöscht`, () => change({ ...copy, deleted_at: null }));
+    let undone = false;
+    toastUndo(`„${r.title}“ gelöscht`, () => { undone = true; change({ ...copy, deleted_at: null }); });
+    // Foto erst nach Ablauf von „Rückgängig“ aus dem Speicher entfernen
+    if (copy.data?.photoPath) setTimeout(() => { if (!undone && !recipe(id)) removePhoto(copy.data.photoPath); }, 8000);
+  }
+
+  // ---------- Aus Link übernehmen (Server-Funktion import-recipe) ----------
+  function importDialog() {
+    const d = dialog('recipeImportDialog', `<form><div class="dialog-head"><div><span class="kicker">Rezepte</span><h2>Aus Link übernehmen</h2></div><button class="close" type="button" data-recipe-close aria-label="Schließen">×</button></div>
+      <div class="ws-dialog-fields"><p class="ws-help">Link einer Rezeptseite einfügen (z. B. Chefkoch). Die App liest Titel, Portionen, Zutaten, Zubereitung und Foto aus – du prüfst alles, bevor gespeichert wird.</p>
+        <label class="ws-field"><span>Link</span><input name="url" type="url" inputmode="url" required maxlength="2000" placeholder="https://www.chefkoch.de/rezepte/…" autocomplete="off"></label>
+        <p class="auth-message" data-recipe-message aria-live="polite"></p></div>
+      <div class="calendar-dialog-actions"><span></span><span></span><button type="button" class="secondary" data-recipe-close>Abbrechen</button><button class="primary" type="submit">Übernehmen</button></div></form>`);
+    // eingefügten Link aus der Zwischenablage gleich vorschlagen ist am iPhone nicht erlaubt – also nur Fokus
+    setTimeout(() => d.querySelector('[name=url]')?.focus(), 50);
+    d.querySelector('form').onsubmit = async event => {
+      event.preventDefault(); const message = d.querySelector('[data-recipe-message]'), button = d.querySelector('[type=submit]');
+      const url = safeExternalUrl(String(new FormData(event.currentTarget).get('url')).trim());
+      if (!url) { message.textContent = 'Bitte einen Link mit http:// oder https:// einfügen.'; return; }
+      if (typeof cloudReady === 'undefined' || !cloudReady || !navigator.onLine) { message.textContent = 'Dafür braucht es Internet.'; return; }
+      button.disabled = true; button.textContent = 'Wird gelesen …'; message.textContent = '';
+      try {
+        const { data, error } = await cloud.functions.invoke('import-recipe', { body: { url } });
+        if (error) { let text = ''; try { text = (await error.context?.json())?.error || ''; } catch {} throw new Error(text || 'Die Seite konnte gerade nicht gelesen werden.'); }
+        let photoBlob = null;
+        // Foto kommt als Text (base64) – selbst umwandeln, denn die Sicherheitsregel der App erlaubt fetch() auf data:-Adressen nicht
+        const photoMatch = typeof data?.photo === 'string' && data.photo.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+        if (photoMatch) { try { const bin = atob(photoMatch[2]), bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i); photoBlob = new Blob([bytes], { type: photoMatch[1] }); } catch {} }
+        d.close();
+        edit(null, { title: String(data?.title || ''), servings: Number(data?.servings) || 2, ingredients: (data?.ingredients || []).map(String), steps: (data?.steps || []).map(String), source: safeExternalUrl(data?.source || url) || url, categories: (data?.categories || []).map(String), photoBlob });
+      } catch (err) { message.textContent = err?.message || 'Das hat nicht geklappt.'; button.disabled = false; button.textContent = 'Übernehmen'; }
+    };
+  }
+
+  // ---------- Kategorien bearbeiten ----------
+  function editCategories() {
+    const d = dialog('recipeCategoriesDialog', `<form><div class="dialog-head"><div><span class="kicker">Rezepte</span><h2>Kategorien</h2></div><button class="close" type="button" data-recipe-close aria-label="Schließen">×</button></div>
+      <div class="ws-dialog-fields"><div class="recipe-cat-list">${categories().map(c => `<div class="recipe-cat-row"><span>${h(c)}</span><small>${list().filter(r => (r.data?.categories || []).includes(c)).length} Rezepte</small><button type="button" class="ws-van-edit" data-cat-rename="${h(c)}" aria-label="${h(c)} umbenennen">✎</button><button type="button" class="ws-van-edit" data-cat-delete="${h(c)}" aria-label="${h(c)} löschen">×</button></div>`).join('') || '<p class="ws-muted">Noch keine Kategorien.</p>'}</div>
+        <div class="recipe-cat-new"><input data-recipe-cat-new maxlength="40" placeholder="Neue Kategorie, z. B. Für Gäste" aria-label="Neue Kategorie"><button type="button" class="secondary" data-recipe-cat-add>＋</button></div></div>
+      <div class="calendar-dialog-actions"><span></span><span></span><span></span><button type="button" class="primary" data-recipe-close>Fertig</button></div></form>`);
+    const setCats = next => { state.customCategories = { ...(state.customCategories || {}), recipes: next }; persist(); };
+    const renameIn = (from, to) => list().filter(r => (r.data?.categories || []).includes(from)).forEach(r => change({ ...r, data: { ...r.data, categories: [...new Set(r.data.categories.map(c => c === from ? to : c).filter(Boolean))] } }));
+    d.querySelector('[data-recipe-cat-add]').onclick = () => { const input = d.querySelector('[data-recipe-cat-new]'), name = input.value.trim().slice(0, 40); if (name && !categories().some(c => c.toLowerCase() === name.toLowerCase())) setCats([...categories(), name]); editCategories(); };
+    d.querySelectorAll('[data-cat-rename]').forEach(b => { b.onclick = () => { const from = b.dataset.catRename, to = prompt('Neuer Name', from)?.trim().slice(0, 40); if (!to || to === from) return; setCats([...new Set(categories().map(c => c === from ? to : c))]); renameIn(from, to); editCategories(); }; });
+    d.querySelectorAll('[data-cat-delete]').forEach(b => { b.onclick = () => { const name = b.dataset.catDelete; if (!confirm(`Kategorie „${name}“ löschen? Die Rezepte bleiben erhalten.`)) return; setCats(categories().filter(c => c !== name)); renameIn(name, ''); editCategories(); }; });
   }
 
   // ---------- Auf die Einkaufsliste ----------
@@ -257,10 +367,13 @@
 
   // ---------- Klicks ----------
   document.addEventListener('click', event => {
-    const b = event.target.closest('[data-recipe-tab],[data-recipe-new],[data-recipe-open],[data-recipe-fav],[data-recipe-edit],[data-recipe-delete],[data-recipe-shop],[data-recipe-servings],[data-recipe-basics]'); if (!b) return;
+    const b = event.target.closest('[data-recipe-import],[data-recipe-categories],[data-recipe-filter],[data-recipe-tab],[data-recipe-new],[data-recipe-open],[data-recipe-fav],[data-recipe-edit],[data-recipe-delete],[data-recipe-shop],[data-recipe-servings],[data-recipe-basics]'); if (!b) return;
     const ds = b.dataset;
     if ('recipeTab' in ds) { tab = ds.recipeTab; try { localStorage.setItem('zuhause-shopping-tab', tab); } catch {} render(); if (tab === 'recipes') sync(); }
     if ('recipeNew' in ds) edit(null);
+    if ('recipeImport' in ds) importDialog();
+    if ('recipeCategories' in ds) editCategories();
+    if ('recipeFilter' in ds) { categoryFilter = ds.recipeFilter; const panel = document.querySelector('#recipePanel'); if (panel) renderList(panel); }
     if ('recipeOpen' in ds) show(ds.recipeOpen);
     if ('recipeEdit' in ds) edit(ds.recipeEdit);
     if ('recipeDelete' in ds) remove(ds.recipeDelete);

@@ -117,6 +117,50 @@ server.listen(0, '127.0.0.1', async () => {
   check(await page.locator('.recipe-open').count() === 1, 'Löschen');
   await page.click('.toast-undo'); await page.waitForTimeout(100);
   check(await page.locator('.recipe-open').count() === 2, 'Löschen rückgängig');
+  // ---------- Schritt 2: Aus Link übernehmen (Server-Funktion nachgebildet), Kategorien, Foto ----------
+  const tinyJpeg = await page.evaluate(() => { const c = document.createElement('canvas'); c.width = 40; c.height = 30; const x = c.getContext('2d'); x.fillStyle = '#c84'; x.fillRect(0, 0, 40, 30); return c.toDataURL('image/jpeg', 0.8); });
+  await page.evaluate(photo => {
+    window.__uploads = [];
+    cloudReady = true; currentHousehold = { id: 'h1' };
+    const invoke = async (name, { body }) => body.url.includes('kaputt')
+      ? { data: null, error: { context: { json: async () => ({ error: 'Auf dieser Seite wurden keine Rezeptdaten gefunden. Das Rezept bitte selbst eintippen.' }) } } }
+      : { data: { title: 'Kartoffelgratin', servings: 4, ingredients: ['800 g Kartoffeln', '200ml Sahne', '1 TL Salz', '1/2 TL Muskat'], steps: ['Ofen vorheizen.', 'Kartoffeln schneiden.'], categories: ['Hauptgericht'], source: body.url, photo }, error: null };
+    Object.defineProperty(cloud, 'functions', { configurable: true, value: { invoke } });
+    const storage = { upload: async (path, blob, opts) => { window.__uploads.push({ path, type: opts.contentType, size: blob.size }); return { error: null }; }, remove: async () => ({}), createSignedUrls: async paths => ({ data: paths.map(() => ({ signedUrl: photo })) }) };
+    Object.defineProperty(cloud, 'storage', { configurable: true, value: { from: () => storage } });
+    const from = cloud.from.bind(cloud);
+    cloud.from = table => table === 'recipes' ? { upsert: async () => ({ error: null }), select() { return this; }, eq() { return this; }, order() { return this; }, limit() { return this; }, gt() { return this; }, then: res => res({ data: [], error: null }) } : from(table);
+  }, tinyJpeg);
+  await page.click('[data-recipe-import]');
+  await page.fill('#recipeImportDialog [name=url]', 'https://example.org/kaputt'); await page.click('#recipeImportDialog [type=submit]'); await page.waitForTimeout(150);
+  check(/keine Rezeptdaten/.test(await page.textContent('#recipeImportDialog [data-recipe-message]')), 'Import: verständliche Meldung, wenn die Seite kein Rezept hat');
+  await page.fill('#recipeImportDialog [name=url]', 'javascript:alert(1)'); await page.click('#recipeImportDialog [type=submit]'); await page.waitForTimeout(100);
+  check(/http/.test(await page.textContent('#recipeImportDialog [data-recipe-message]')), 'Import: nur http/https-Links');
+  await page.fill('#recipeImportDialog [name=url]', 'https://example.org/gratin'); await page.click('#recipeImportDialog [type=submit]'); await page.waitForTimeout(300);
+  const prefilled = await page.evaluate(() => ({ title: document.querySelector('#recipeEditDialog [name=title]').value, servings: document.querySelector('#recipeEditDialog [name=servings]').value, ing: document.querySelector('#recipeEditDialog [name=ingredients]').value, src: document.querySelector('#recipeEditDialog [name=source]').value, photo: !document.querySelector('[data-recipe-edit-photo]').hidden }));
+  check(prefilled.title === 'Kartoffelgratin' && prefilled.servings === '4' && prefilled.ing.includes('200ml Sahne') && prefilled.src === 'https://example.org/gratin' && prefilled.photo, 'Import füllt das Formular zur Kontrolle (inkl. Foto und Quelle)', JSON.stringify(prefilled));
+  check(await page.evaluate(() => Object.values(JSON.parse(JSON.stringify(window.ZuhauseRecipes ? {} : {}))).length === 0) && (await page.locator('.recipe-open').count()) === 2, 'Vor „Speichern“ ist noch nichts gespeichert');
+  await page.fill('#recipeEditDialog [data-recipe-cat-new]', 'Schnell'); await page.click('#recipeEditDialog [data-recipe-cat-add]');
+  await page.fill('#recipeEditDialog [data-recipe-cat-new]', 'Vegetarisch'); await page.press('#recipeEditDialog [data-recipe-cat-new]', 'Enter');
+  if (out) await page.screenshot({ path: path.join(out, 'import-kontrolle.png') });
+  await page.click('#recipeEditDialog [type=submit]'); await page.waitForTimeout(400);
+  const saved = await page.evaluate(() => { const title = document.querySelector('#recipeViewDialog h2')?.textContent; const items = [...document.querySelectorAll('#recipeViewDialog .recipe-ingredients li')].map(li => li.textContent.trim()); return { title, items, cats: [...document.querySelectorAll('#recipeViewDialog .recipe-cats span')].map(s => s.textContent), hero: !!document.querySelector('#recipeViewDialog .recipe-hero'), uploads: window.__uploads, catList: state.customCategories.recipes }; });
+  check(saved.title === 'Kartoffelgratin' && saved.items.includes('200 ml Sahne'), 'Importiertes Rezept gespeichert („200ml“ als 200 ml erkannt)', saved.items.join(' | '));
+  check(saved.uploads.length === 1 && /^h1\/shared\/recipes\/.+\.jpg$/.test(saved.uploads[0].path) && saved.uploads[0].type === 'image/jpeg' && saved.hero, 'Foto verkleinert in den geschützten Ordner des Haushalts', JSON.stringify(saved.uploads));
+  check(saved.cats.join(',') === 'Schnell,Vegetarisch' && saved.catList.includes('Schnell'), 'Kategorien angelegt und zugeordnet', saved.cats.join(','));
+  if (out) await page.screenshot({ path: path.join(out, 'import-gespeichert.png') });
+  await page.evaluate(() => document.querySelector('#recipeViewDialog').close());
+  await page.click('[data-recipe-filter="Schnell"]'); await page.waitForTimeout(100);
+  check(await page.locator('.recipe-open').count() === 1, 'Filter nach Kategorie');
+  if (out) await page.screenshot({ path: path.join(out, 'katalog-kategorien.png') });
+  await page.click('[data-recipe-filter=""]');
+  await page.click('[data-recipe-categories]');
+  page.once('dialog', dlg => dlg.accept('Blitzschnell'));
+  await page.click('[data-cat-rename="Schnell"]'); await page.waitForTimeout(150);
+  const renamed = await page.evaluate(() => ({ list: state.customCategories.recipes, recipe: Object.values(window).length && [...document.querySelectorAll('.recipe-open small')].map(s => s.textContent).join(' | ') }));
+  check(renamed.list.includes('Blitzschnell') && !renamed.list.includes('Schnell') && renamed.recipe.includes('Blitzschnell'), 'Kategorie umbenennen ändert auch die Rezepte', JSON.stringify(renamed));
+  await page.evaluate(() => document.querySelector('#recipeCategoriesDialog').close());
+
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
   check(!overflow && pending, 'Kein waagerechtes Überlaufen');
   check(!errors.length, 'Keine Skriptfehler', errors.join(' | '));
