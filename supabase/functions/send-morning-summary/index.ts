@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from 'npm:@supabase/supabase-js@2.118.0'
 import webpush from 'npm:web-push@3.6.7'
 
 // Morgen-Nachricht um 5 Uhr (Berlin): Termine, Hochschule, Müll, Fußball, Geburtstage, Montageaufträge (Noah), Prüfungen und Caritas-To-dos (Charleen), Lous fällige Pflege und offene Aufgaben des Tages.

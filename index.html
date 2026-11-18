@@ -11,12 +11,12 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Zuhause">
   <title>Zuhause · Euer Familien-Dashboard</title>
-  <link rel="manifest" href="manifest.webmanifest?v=48">
-  <link rel="icon" href="icon.svg?v=48" type="image/svg+xml">
-  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=48">
-  <link rel="stylesheet" href="styles.css?v=48">
-  <link rel="stylesheet" href="features.css?v=48">
-  <link rel="stylesheet" href="workspaces.css?v=48">
+  <link rel="manifest" href="manifest.webmanifest?v=49">
+  <link rel="icon" href="icon.svg?v=49" type="image/svg+xml">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=49">
+  <link rel="stylesheet" href="styles.css?v=49">
+  <link rel="stylesheet" href="features.css?v=49">
+  <link rel="stylesheet" href="workspaces.css?v=49">
 </head>
 <body>
   <div class="auth-screen" id="authScreen" aria-live="polite">
@@ -214,17 +214,17 @@
   <dialog id="calendarEventDialog" class="calendar-event-dialog" aria-labelledby="calendarEventDialogTitle"><form id="calendarEventForm"><div class="dialog-head"><div><span class="kicker" id="calendarEventDialogKicker">Kalender</span><h2 id="calendarEventDialogTitle">Termin eintragen</h2></div><button class="close" type="button" data-calendar-cancel aria-label="Schließen">×</button></div><div class="calendar-event-fields"><label class="field full"><span>Titel</span><input name="title" maxlength="160" required placeholder="Was steht an?"></label><div class="calendar-form-row"><label class="field"><span>Kalender</span><select name="calendarKey"><option value="shared">Gemeinsam</option><option value="person1" data-person-name="person1">Noah</option><option value="person2" data-person-name="person2">Charleen</option></select></label><label class="field"><span>Farblabel</span><select name="labelColor"><option value="calendar">Kalenderfarbe</option><option value="sage">Salbei</option><option value="blue">Blau</option><option value="coral">Koralle</option><option value="gold">Gold</option><option value="violet">Violett</option></select></label></div><label class="calendar-all-day"><input name="allDay" type="checkbox"><span>Ganztägig</span></label><div class="calendar-form-row"><label class="field"><span>Beginn</span><input name="startDate" type="date" required></label><label class="field calendar-time-field"><span>Uhrzeit</span><input name="startTime" type="time" value="09:00"></label></div><div class="calendar-form-row"><label class="field"><span>Ende</span><input name="endDate" type="date" required></label><label class="field calendar-time-field"><span>Uhrzeit</span><input name="endTime" type="time" value="10:00"></label></div><fieldset class="calendar-participants"><legend>Teilnehmer</legend><label><input type="checkbox" name="participant" value="person1" checked> <span data-person-name="person1">Noah</span></label><label><input type="checkbox" name="participant" value="person2" checked> <span data-person-name="person2">Charleen</span></label></fieldset><div class="calendar-form-row"><label class="field"><span>Wiederholung</span><select name="recurrence"><option value="none">Keine</option><option value="daily">Täglich</option><option value="weekly">Wöchentlich</option><option value="monthly">Monatlich</option><option value="yearly">Jährlich</option></select></label><label class="field calendar-recurrence-end" hidden><span>Endet am</span><input name="recurrenceEnd" type="date"></label></div><fieldset class="calendar-reminders"><legend>Meine Erinnerungen</legend><label><input type="checkbox" name="reminder" value="0"> Bei Beginn</label><label><input type="checkbox" name="reminder" value="10"> 10 Min.</label><label><input type="checkbox" name="reminder" value="30"> 30 Min.</label><label><input type="checkbox" name="reminder" value="60"> 1 Std.</label><label><input type="checkbox" name="reminder" value="1440"> 1 Tag</label><label><input type="checkbox" name="reminder" value="2880"> 2 Tage</label><label><input type="checkbox" name="reminder" value="10080"> 1 Woche</label></fieldset><label class="field full"><span>Ort</span><input name="location" maxlength="240" placeholder="Optional"></label><label class="field full"><span>Link</span><input name="url" type="url" maxlength="500" placeholder="https://…"></label><label class="field full"><span>Notiz</span><textarea name="notes" maxlength="4000" rows="4" placeholder="Optional"></textarea></label></div><p class="calendar-form-message" id="calendarFormMessage" role="status"></p><div class="dialog-actions calendar-dialog-actions"><button class="secondary danger" type="button" id="calendarDeleteButton" hidden>Löschen</button><span></span><button class="secondary" type="button" data-calendar-cancel>Abbrechen</button><button class="secondary" type="button" id="calendarCopyButton" hidden>Kopieren</button><button class="primary" type="submit">Speichern</button></div></form></dialog>
   <dialog id="calendarSeriesDialog" aria-labelledby="calendarSeriesTitle"><form method="dialog"><div class="dialog-head"><div><span class="kicker">Serientermin</span><h2 id="calendarSeriesTitle">Welche Termine ändern?</h2></div><button class="close" value="cancel" aria-label="Schließen">×</button></div><p>Wähle aus, ob nur dieser Termin oder die ganze Serie betroffen sein soll.</p><div class="calendar-series-actions"><button value="single">Nur dieser Termin</button><button value="future">Dieser und folgende</button><button value="all">Gesamte Serie</button><button class="secondary" value="cancel">Abbrechen</button></div></form></dialog>
   <div class="toast" id="toast">Gespeichert</div>
-  <script src="vendor/supabase.min.js?v=2.49.4"></script>
-  <script src="calendar.js?v=48"></script>
-  <script src="app.js?v=48"></script>
-  <script src="features.js?v=48"></script>
-  <script src="workspaces.js?v=48"></script>
-  <script src="lou.js?v=48"></script>
-  <script src="charleen.js?v=48"></script>
-  <script src="noah-jobs.js?v=48"></script>
-  <script src="scan-analyse.js?v=48"></script>
-  <script src="scanner.js?v=48"></script>
-  <script src="documents-view.js?v=48"></script>
-  <script src="recipes.js?v=48"></script>
+  <script src="vendor/supabase.min.js?v=2.118.0"></script>
+  <script src="calendar.js?v=49"></script>
+  <script src="app.js?v=49"></script>
+  <script src="features.js?v=49"></script>
+  <script src="workspaces.js?v=49"></script>
+  <script src="lou.js?v=49"></script>
+  <script src="charleen.js?v=49"></script>
+  <script src="noah-jobs.js?v=49"></script>
+  <script src="scan-analyse.js?v=49"></script>
+  <script src="scanner.js?v=49"></script>
+  <script src="documents-view.js?v=49"></script>
+  <script src="recipes.js?v=49"></script>
 </body>
 </html>

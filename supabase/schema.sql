@@ -1,3 +1,10 @@
+-- ============================================================================================================
+-- ACHTUNG (18.11.2026): Diese Datei zeigt den Stand der Übergabe vom 16.11.2026 und ist KEIN anwendbarer Patch.
+-- Spätere Änderungen stehen in supabase/migrations-claude/*.sql (u. a. strengere Speicher-Regeln vom 17.11.,
+-- Tabelle recipes, entzogene Rechte TRUNCATE/REFERENCES/TRIGGER). Beim Wiederaufbau: erst diese Datei, dann alle
+-- Migrationen in Datumsreihenfolge – sonst kämen z. B. die alten, weiteren Speicher-Ausnahmen zurück.
+-- ============================================================================================================
+
 -- Zuhause Familienapp: gemeinsamer, geschuetzter Datenbereich fuer zwei Personen.
 -- Diese Datei kann mehrfach ausgefuehrt werden, ohne vorhandene Daten zu loeschen.
 

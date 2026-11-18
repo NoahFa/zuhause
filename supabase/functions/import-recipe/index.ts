@@ -1,10 +1,14 @@
 // Rezept aus einem Link übernehmen (Rezeptkatalog Schritt 2, 18.11.2026).
 // Der Browser darf fremde Seiten nicht selbst laden – diese Funktion ruft die Seite ab, liest die schema.org-Recipe-Daten
 // (JSON-LD) und gibt Titel, Portionen, Zutaten, Schritte und ein verkleinertes Foto zurück. Gespeichert wird erst in der App.
+// Bewusste Grenze: Deno kann einen Abruf nicht an die geprüfte IP-Adresse binden; ein präparierter Name könnte zwischen Prüfung
+// und Abruf anders antworten (DNS-Rebinding). Gering, weil nur Haushaltsmitglieder aufrufen und Weiterleitungen einzeln geprüft werden.
 // Absicherung: nur angemeldete Mitglieder eines Haushalts (verify_jwt + Mitgliedschaft), nur http/https auf Port 80/443,
 // keine internen/privaten Adressen (auch nicht nach Weiterleitungen), Zeit- und Größenlimits. Instagram bewusst nicht.
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from 'npm:@supabase/supabase-js@2.118.0'
 
+// Eigene Fehlerart: nur diese (deutschen) Meldungen gehen an die App, alles andere wird zu einer allgemeinen Meldung
+class ImportError extends Error {}
 const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
 const ORIGINS = ['https://noahfa.github.io']
 const PAGE_LIMIT = 3 * 1024 * 1024, IMAGE_LIMIT = 5 * 1024 * 1024, TIMEOUT = 8000, MAX_REDIRECTS = 4
@@ -31,19 +35,19 @@ function privateIPv6(ip: string) {
 }
 async function checkUrl(raw: string): Promise<URL> {
   let url: URL
-  try { url = new URL(raw) } catch { throw new Error('Das ist kein gültiger Link.') }
-  if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Nur Links mit http:// oder https:// gehen.')
-  if (url.username || url.password) throw new Error('Links mit Zugangsdaten gehen nicht.')
-  if (url.port && !['80', '443'].includes(url.port)) throw new Error('Dieser Link geht nicht (ungewöhnlicher Port).')
-  const host = url.hostname.replace(/^\[|\]$/g, '').toLowerCase()
-  if (!host.includes('.') || /(^|\.)(localhost|local|internal|intranet|lan|home|corp)$/.test(host)) throw new Error('Interne Adressen gehen nicht.')
-  if (/(^|\.)(instagram\.com|instagr\.am)$/.test(host)) throw new Error('Instagram-Links werden nicht übernommen.')
-  if (/^[\d.]+$/.test(host)) { if (privateIPv4(host)) throw new Error('Interne Adressen gehen nicht.'); return url }
-  if (host.includes(':')) { if (privateIPv6(host)) throw new Error('Interne Adressen gehen nicht.'); return url }
+  try { url = new URL(raw) } catch { throw new ImportError('Das ist kein gültiger Link.') }
+  if (!['http:', 'https:'].includes(url.protocol)) throw new ImportError('Nur Links mit http:// oder https:// gehen.')
+  if (url.username || url.password) throw new ImportError('Links mit Zugangsdaten gehen nicht.')
+  if (url.port && !['80', '443'].includes(url.port)) throw new ImportError('Dieser Link geht nicht (ungewöhnlicher Port).')
+  const host = url.hostname.replace(/^\[|\]$/g, '').toLowerCase().replace(/\.+$/, '') // Punkt am Ende („instagram.com.“) entfernen
+  if (!host.includes('.') || /(^|\.)(localhost|local|internal|intranet|lan|home|corp)$/.test(host)) throw new ImportError('Interne Adressen gehen nicht.')
+  if (/(^|\.)(instagram\.com|instagr\.am)$/.test(host)) throw new ImportError('Instagram-Links werden nicht übernommen.')
+  if (/^[\d.]+$/.test(host)) { if (privateIPv4(host)) throw new ImportError('Interne Adressen gehen nicht.'); return url }
+  if (host.includes(':')) { if (privateIPv6(host)) throw new ImportError('Interne Adressen gehen nicht.'); return url }
   // Name auflösen und jede Adresse prüfen (sonst könnte ein Name auf ein internes Netz zeigen)
   const [v4, v6] = await Promise.all([Deno.resolveDns(host, 'A').catch(() => [] as string[]), Deno.resolveDns(host, 'AAAA').catch(() => [] as string[])])
-  if (!v4.length && !v6.length) throw new Error('Diese Seite wurde nicht gefunden.')
-  if (v4.some(privateIPv4) || v6.some(privateIPv6)) throw new Error('Interne Adressen gehen nicht.')
+  if (!v4.length && !v6.length) throw new ImportError('Diese Seite wurde nicht gefunden.')
+  if (v4.some(privateIPv4) || v6.some(privateIPv6)) throw new ImportError('Interne Adressen gehen nicht.')
   return url
 }
 // Abruf mit Weiterleitungen (jede wird erneut geprüft), Zeit- und Größenlimit
@@ -53,22 +57,24 @@ async function safeFetch(raw: string, limit: number, accept: string) {
     const response = await fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(TIMEOUT), headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ZuhauseRezeptImport/1.0)', Accept: accept, 'Accept-Language': 'de-DE,de;q=0.9' } })
     if ([301, 302, 303, 307, 308].includes(response.status)) {
       const next = response.headers.get('location'); await response.body?.cancel()
-      if (!next) throw new Error('Die Seite leitet ins Leere weiter.')
+      if (!next) throw new ImportError('Die Seite leitet ins Leere weiter.')
       url = await checkUrl(new URL(next, url).href); continue
     }
-    if (!response.ok) { await response.body?.cancel(); throw new Error(response.status === 403 ? 'Die Seite lässt den Abruf nicht zu.' : `Die Seite antwortet nicht richtig (${response.status}).`) }
+    if (!response.ok) { await response.body?.cancel(); throw new ImportError(response.status === 403 ? 'Die Seite lässt den Abruf nicht zu.' : `Die Seite antwortet nicht richtig (${response.status}).`) }
     const length = Number(response.headers.get('content-length') || 0)
-    if (length > limit) { await response.body?.cancel(); throw new Error('Die Seite ist zu groß.') }
+    if (length > limit) { await response.body?.cancel(); throw new ImportError('Die Seite ist zu groß.') }
     const reader = response.body!.getReader(), chunks: Uint8Array[] = []; let size = 0
-    for (;;) { const { done, value } = await reader.read(); if (done) break; size += value.length; if (size > limit) { await reader.cancel(); throw new Error('Die Seite ist zu groß.') } chunks.push(value) }
+    for (;;) { const { done, value } = await reader.read(); if (done) break; size += value.length; if (size > limit) { await reader.cancel(); throw new ImportError('Die Seite ist zu groß.') } chunks.push(value) }
     const bytes = new Uint8Array(size); let offset = 0; for (const c of chunks) { bytes.set(c, offset); offset += c.length }
     return { bytes, url, type: (response.headers.get('content-type') || '').toLowerCase() }
   }
-  throw new Error('Zu viele Weiterleitungen.')
+  throw new ImportError('Zu viele Weiterleitungen.')
 }
 
 // ---------- schema.org Recipe lesen ----------
-const decode = (s: string) => s.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#0?39;|&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n))).replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
+// Zeichen-Codes sicher umwandeln: kaputte Codes (z. B. &#99999999;) werden übersprungen statt den Import abzubrechen
+const codePoint = (n: number) => Number.isInteger(n) && n > 0 && n <= 0x10ffff && !(n >= 0xd800 && n <= 0xdfff) ? String.fromCodePoint(n) : ''
+const decode = (s: string) => s.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#0?39;|&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#(\d{1,8});/g, (_, n) => codePoint(Number(n))).replace(/&#x([0-9a-f]{1,6});/gi, (_, n) => codePoint(parseInt(n, 16)))
 const clean = (s: unknown) => decode(String(s ?? '').replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim()
 const isRecipe = (node: any) => node && typeof node === 'object' && [].concat(node['@type'] || []).some((t: string) => String(t).toLowerCase() === 'recipe')
 function findRecipe(node: any, depth = 0): any {
@@ -153,7 +159,7 @@ Deno.serve(async request => {
     const { imageUrl: _, ...rest } = recipe
     return reply(request, { ...rest, source: page.url.href, photo })
   } catch (error) {
-    const message = error instanceof Error && /^[A-ZÄÖÜ]/.test(error.message) && !/fetch|network|dns|timed?out|abort/i.test(error.message) ? error.message : 'Die Seite konnte gerade nicht geladen werden.'
+    const message = error instanceof ImportError ? error.message : 'Die Seite konnte gerade nicht geladen werden.'
     return fail(request, message, 422)
   }
 })

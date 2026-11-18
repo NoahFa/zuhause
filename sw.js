@@ -1,15 +1,20 @@
-const CACHE='zuhause-v48';
-const WORKSPACE_ASSETS=['./workspaces.css?v=48','./workspaces.js?v=48','./lou.js?v=48','./charleen.js?v=48','./noah-jobs.js?v=48','./scan-analyse.js?v=48','./scanner.js?v=48','./documents-view.js?v=48','./recipes.js?v=48'];
-const ASSETS=['./','./index.html','./styles.css?v=48','./features.css?v=48','./calendar.js?v=48','./app.js?v=48','./features.js?v=48','./vendor/supabase.min.js?v=2.49.4','./manifest.webmanifest?v=48','./icon.svg?v=48','./apple-touch-icon.png?v=48','./icon-192.png?v=48','./icon-512.png?v=48','./icon-maskable-512.png?v=48'];
+const CACHE='zuhause-v49';
+const WORKSPACE_ASSETS=['./workspaces.css?v=49','./workspaces.js?v=49','./lou.js?v=49','./charleen.js?v=49','./noah-jobs.js?v=49','./scan-analyse.js?v=49','./scanner.js?v=49','./documents-view.js?v=49','./recipes.js?v=49'];
+const ASSETS=['./','./index.html','./styles.css?v=49','./features.css?v=49','./calendar.js?v=49','./app.js?v=49','./features.js?v=49','./vendor/supabase.min.js?v=2.118.0','./manifest.webmanifest?v=49','./icon.svg?v=49','./apple-touch-icon.png?v=49','./icon-192.png?v=49','./icon-512.png?v=49','./icon-maskable-512.png?v=49'];
 // Werkzeuge für Scanner (PDF, Texterkennung) liegen in einem eigenen Zwischenspeicher, der bei App-Updates erhalten bleibt –
 // so klappt Scannen ohne Internet auch direkt nach einem Update. Beim Austausch einer Datei unter vendor/ VENDOR_CACHE hochzählen.
 const VENDOR_CACHE='zuhause-vendor-2';
 const VENDOR_ASSETS=['./vendor/jspdf.umd.min.js','./vendor/tesseract/tesseract.min.js','./vendor/tesseract/worker.min.js'];
+// Texterkennung (Rechenkern ~3,8 MB + deutsche Sprachdaten ~1,3 MB): nach der Installation im Hintergrund holen, damit der
+// allererste Scan auch ohne Internet Text erkennt. Einmalig – der Zwischenspeicher bleibt über App-Updates erhalten.
+const VENDOR_LATER=['./vendor/tesseract/tesseract-core-simd-lstm.wasm.js','./vendor/tesseract/lang/deu.traineddata.gz'];
 const isVendor=url=>/\/vendor\/(jspdf|tesseract)/.test(url.pathname);
 self.addEventListener('install',event=>event.waitUntil(Promise.all([
   caches.open(CACHE).then(cache=>cache.addAll([...ASSETS,...WORKSPACE_ASSETS])),
   caches.open(VENDOR_CACHE).then(cache=>Promise.allSettled(VENDOR_ASSETS.map(async asset=>{if(!await cache.match(asset))await cache.add(asset)})))
 ]).then(()=>self.skipWaiting())));
+// Die App bittet ein paar Sekunden nach dem Start darum (blockiert so weder Installation noch Aktivierung).
+self.addEventListener('message',event=>{if(event.data?.type==='precache-ocr')event.waitUntil(caches.open(VENDOR_CACHE).then(cache=>Promise.allSettled(VENDOR_LATER.map(async asset=>{if(!await cache.match(asset))await cache.add(asset)}))))});
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE&&key!==VENDOR_CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{
   if(event.request.method!=='GET'||new URL(event.request.url).origin!==self.location.origin)return;
@@ -21,7 +26,7 @@ self.addEventListener('fetch',event=>{
 self.addEventListener('push',event=>{
   let data={};try{data=event.data?.json()||{}}catch{data={body:event.data?.text()}}
   const title=data.title||'Zuhause';
-  event.waitUntil(self.registration.showNotification(title,{body:data.body||'Es gibt eine neue Erinnerung.',icon:'./icon-192.png?v=48',badge:'./icon-192.png?v=48',tag:data.tag||'zuhause-erinnerung',data:{url:data.url||'./?page=calendar'},renotify:false}));
+  event.waitUntil(self.registration.showNotification(title,{body:data.body||'Es gibt eine neue Erinnerung.',icon:'./icon-192.png?v=49',badge:'./icon-192.png?v=49',tag:data.tag||'zuhause-erinnerung',data:{url:data.url||'./?page=calendar'},renotify:false}));
 });
 self.addEventListener('notificationclick',event=>{
   event.notification.close();const target=new URL(event.notification.data?.url||'./?page=calendar',self.location.origin).href;

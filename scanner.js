@@ -538,5 +538,7 @@
     event.preventDefault(); const ds = button.dataset;
     open({ folder: ds.scanFolder, actions: (ds.scanActions || '').split(',').filter(Boolean), orderId: ds.scanOrder || null });
   });
+  // Texterkennung für den Fall ohne Internet vorab auf dem Handy speichern lassen (einmalig, im Hintergrund, ~5 MB)
+  setTimeout(() => { try { navigator.serviceWorker?.controller?.postMessage({ type: 'precache-ocr' }); } catch {} }, 15000);
   window.ZuhauseScanner = { open, openWithFiles: async (files, options = {}) => { open({ ...options, startCamera: false }); for (const file of files) await addPage(file, files.length === 1); if (files.length > 1) { view = 'pages'; render(); } }, flushQueue, queueAll, queueClear: () => queueOp('readwrite', st => st.clear()).catch(() => {}), showQueue, detectCorners, warp, enhance, quality, recognise };
 })();
