@@ -367,7 +367,8 @@
   function runActions(d, a, meta) {
     const done = [], value = name => d.querySelector(`[name=${name}]`)?.value?.trim() || '';
     const checked = key => d.querySelector(`[data-sc-action="${key}"]`)?.checked;
-    const amount = name => { let s = value(name).replace(/[\s€]/g, ''); if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); const n = Number(s); return Number.isFinite(n) && n > 0 ? n : 0; };
+    // deutsche Schreibweise wie in den anderen Bereichen: „1.250“ = 1250 €, „1.250,50“ = 1250,50 €
+    const amount = name => { let s = value(name).replace(/[\s€]/g, ''); if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, ''); const n = Number(s); return Number.isFinite(n) && n > 0 ? n : 0; };
     if (checked('task')) { const due = value('taskDue') || plusDays(14); state.householdTasks.unshift({ id: crypto.randomUUID(), seriesId: null, title: value('taskTitle') || 'Rechnung bezahlen', description: `Dokument: ${meta.name}`, person: 'Gemeinsam', dueOn: due, due, recurrenceAnchor: due, done: false, completedAt: null, recurrence: 'none', recurrenceInterval: 1, recurrenceUnit: 'weeks', alternate: false, createdAt: new Date().toISOString() }); done.push('Aufgabe'); }
     if (checked('expense') && amount('expenseAmount')) {
       const category = value('expenseCategory') || 'Gemeinsamer Haushalt', date = value('expenseDate') || plusDays(0);

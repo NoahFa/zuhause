@@ -243,10 +243,11 @@
     anchor.insertAdjacentHTML('afterend', '<nav class="ws-tabs ch-tabs" aria-label="Charleens Bereiche"><button data-ch-tab="study">🎓 Studium</button><button data-ch-tab="job">⏱ Nebenjob</button><button data-ch-tab="work">🤝 Caritas</button><button data-ch-tab="savings">💶 Sparziele</button><button data-ch-tab="notes">✓ Aufgaben</button></nav><div id="charleenPanel"></div>');
     const intro = page.querySelector('.ws-intro p'); if (intro) intro.textContent = 'Studium, Nebenjob, Caritas und Sparziele – alles an einem Ort. Termine und Dokumente bleiben mit eurem gemeinsamen Zuhause verbunden.';
   }
-  function render() {
+  // force: auch neu zeichnen, wenn gerade ein Eingabefeld aktiv ist (z. B. direkt nach „＋ To-do“, sonst blieb der neue Eintrag unsichtbar)
+  function render(force = false) {
     install();
     const page = document.querySelector('#study'), panel = document.querySelector('#charleenPanel'); if (!page || !panel) return;
-    if (panel.contains(document.activeElement) && document.activeElement.matches('input,textarea,select')) return;
+    if (force !== true && panel.contains(document.activeElement) && document.activeElement.matches('input,textarea,select')) return;
     page.querySelectorAll('[data-ch-tab]').forEach(b => { b.classList.toggle('active', b.dataset.chTab === tab); b.setAttribute('aria-pressed', String(b.dataset.chTab === tab)); });
     page.querySelectorAll('[data-ch-notes]').forEach(el => { el.hidden = tab !== 'notes'; });
     panel.hidden = tab === 'notes';
@@ -300,7 +301,7 @@
     if (event.target.id !== 'chWorkForm') return; event.preventDefault();
     const f = new FormData(event.target), title = String(f.get('title')).trim(); if (!title) return;
     data().work.push({ id: uid(), title, dueOn: String(f.get('dueOn') || ''), note: '', done: false, createdAt: new Date().toISOString() });
-    event.target.reset(); persist(); render(); window.ZuhauseFeatures?.refresh?.(); document.querySelector('#chWorkForm input[name=title]')?.focus(); toast('Hinzugefügt');
+    event.target.reset(); persist(); render(true); window.ZuhauseFeatures?.refresh?.(); document.querySelector('#chWorkForm input[name=title]')?.focus(); toast('Hinzugefügt');
   });
 
   const originalGo = go;

@@ -110,6 +110,14 @@ assert.equal(run(`window.ZuhauseFeatures.calculateMonth('2026-09').available`), 
 assert.equal(run(`window.ZuhauseFeatures.calculateMonth('2026-10').expenseItems.length`), 0);
 console.log('Automatischer Budgetübertrag und unveränderlicher Verlauf: OK');
 
+// Nachzügler (Datum in abgeschlossenem Monat) zählt genau einmal: im laufenden Monat und nach dessen Abschluss nicht noch einmal
+run(`state.budget={monthlyAmount:500, startMonth:'2026-09',closedMonths:{}};state.fixedCosts=[];state.expenses=[];window.ZuhauseFeatures.closePastBudgetMonths();state.expenses=[{id:'late',date:'2026-10-20',amount:100}];`);
+assert.equal(run(`window.ZuhauseFeatures.calculateMonth('2026-11').expenses`), 100, 'Nachzügler zählt im laufenden Monat');
+run(`state.budget.closedMonths['2026-11']={...window.ZuhauseFeatures.calculateMonth('2026-11'),closedAt:'x'}`);
+assert.equal(run(`state.budget.closedMonths['2026-11'].expenseItems.length`), 1, 'Nachzügler steht im Abschluss');
+assert.equal(run(`window.ZuhauseFeatures.calculateMonth('2026-12').expenses`), 0, 'Nachzügler zählt danach nicht noch einmal');
+console.log('Nachträgliche Ausgaben werden genau einmal gebucht: OK');
+
 run(`cloudReady=false;currentUser=null;state.householdTasks=[{id:'repeat',seriesId:'series',title:'Routine',person:'Gemeinsam',dueOn:'2026-11-13',recurrence:'daily',done:false}];ZuhauseFeatures.refresh();ZuhauseFeatures.refresh();`);
 const ids = run(`state.householdTasks.map(item=>item.id)`);
 assert.equal(new Set(ids).size, ids.length);

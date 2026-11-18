@@ -26,7 +26,8 @@
   }
   // Betrag: 1.234,56 · 75,00 · 75.00 – aber nicht Teil eines Datums (26.11.2026) oder einer längeren Zahl
   const AMOUNT = /(^|[^\d,.])(\d{1,3}(?:[.\s]\d{3})*,\d{2}|\d+,\d{2}|\d+\.\d{2})(?![\d]|[.,]\d)/g;
-  const DATE_LIKE = /\b\d{1,2}\s?[./-]\s?\d{1,2}\s?[./-]\s?\d{2,4}\b|\b\d{4}-\d{2}-\d{2}\b/g;
+  // Datumsangaben vor der Betragssuche entfernen – auch ohne Jahr („bis 26.11.“), sonst würde daraus 26,11 €
+  const DATE_LIKE = /\b\d{1,2}\s?[./-]\s?\d{1,2}\s?[./-]\s?\d{2,4}\b|\b\d{4}-\d{2}-\d{2}\b|\b(?:0?[1-9]|[12]\d|3[01])\.(?:0?[1-9]|1[0-2])\.(?!\d)/g;
   const parseAmount = s => { s = s.replace(/\s/g, ''); if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); return Number(s); };
   function amountsIn(line) { return [...cleanNumber(line).replace(DATE_LIKE, ' ').matchAll(AMOUNT)].map(m => parseAmount(m[2])).filter(n => Number.isFinite(n) && n > 0 && n < 1e6); }
 
@@ -35,6 +36,9 @@
     const keys = kind === 'payslip' ? /auszahlung|netto\s*(betrag|verdienst|bezug)?|überweisung/i : /gesamt\s*(betrag|summe)?|endbetrag|rechnungsbetrag|zu zahlen|zahlbetrag|summe|total|betrag/i;
     for (let i = lines.length - 1; i >= 0; i--) {
       if (!keys.test(lines[i]) || /zwischen|netto(?!.*gesamt)|mwst|ust|steuer\s*\d/i.test(lines[i]) && kind !== 'payslip') continue;
+      // mehrere Zahlen in der Zeile: die mit Euro-Zeichen bzw. Komma-Schreibweise bevorzugen
+      const euro = [...cleanNumber(lines[i]).replace(DATE_LIKE, ' ').matchAll(/(\d{1,3}(?:[.\s]\d{3})*,\d{2}|\d+,\d{2}|\d+\.\d{2})\s*(?:€|eur\b)/gi)].map(m => parseAmount(m[1])).filter(n => n > 0);
+      if (euro.length) return euro[euro.length - 1];
       const own = amountsIn(lines[i]); if (own.length) return own[own.length - 1];
       const next = amountsIn(lines[i + 1] || ''); if (next.length) return next[0];
     }
@@ -83,19 +87,26 @@
     const kind = best?.key || 'other';
     const dates = findDates(all), sender = findSender(lines);
     const near = re => { const m = all.match(re); if (!m) return null; const after = dates.find(d => d.index >= m.index && d.index - m.index < 80); return after?.value || null; };
-    let due = near(/zahlbar\s*(bis|am)?|fällig\s*(am|bis)?|zahlungsziel|spätestens|bis zum/i);
+    let due = near(/zahlbar\s*(bis|am)?|zu zahlen\s*(bis|am)?|fällig\s*(am|bis)?|zahlungsziel|spätestens|bis zum/i);
     // Dokumentdatum: zuerst ausdrückliches Rechnungs-/Belegdatum, dann „Datum“ (nicht Liefer-/Leistungsdatum), sonst erstes Datum, das keine Frist ist
     const plainDate = (() => { const re = /(^|[^a-zäöü])(datum|vom)\b/gi; let m; while ((m = re.exec(all))) { const i = m.index; const after = dates.find(d => d.index >= i && d.index - i < 80); if (after) return after.value; } return null; })();
     const deadlines = new Set([due, near(/vertragsende|laufzeit\s*bis|endet\s*am|gültig bis|lieferdatum|leistungsdatum/i)].filter(Boolean));
     const docDate = near(/(rechnungs|beleg|ausstellungs|bescheid)datum/i) || plainDate || dates.find(d => !deadlines.has(d.value))?.value || null;
     const days = all.match(/(?:innerhalb|binnen)\s+(?:von\s+)?(\d{1,3})\s+tag/i); if (!due && days && docDate) due = addDays(docDate, +days[1]);
+    // „zahlbar bis 26.11.“ ohne Jahr: Jahr vom Dokumentdatum (bzw. heute), liegt es davor, das Folgejahr
+    if (!due) { const m = all.match(/(?:zahlbar|zu zahlen|fällig)[^\n\d]{0,20}(\d{1,2})\.(\d{1,2})\.(?!\d)/i); if (m) { const base = docDate || today(); let y = Number(base.slice(0, 4)); if (validDate(y, +m[2], +m[1])) { let d = iso(y, +m[2], +m[1]); if (d < base && validDate(y + 1, +m[2], +m[1])) d = iso(y + 1, +m[2], +m[1]); due = d; } } }
     const total = findTotal(lines, kind);
     // Vertrag: Ende + Kündigungsfrist → Erinnerung zwei Wochen vor Fristende
     let reminder = null, reminderNote = '';
     if (kind === 'contract' || kind === 'insurance') {
       const end = near(/vertragsende|laufzeit\s*bis|endet\s*am|ablauf|bis zum|gültig bis/i);
-      const notice = all.match(/kündigungsfrist[^.\n]{0,40}?(\d{1,2})\s*(monat|woche|tag)/i);
-      if (end) { let last = end; if (notice) last = notice[2].toLowerCase().startsWith('monat') ? addMonths(end, -notice[1]) : addDays(end, -(notice[1] * (notice[2].toLowerCase().startsWith('woche') ? 7 : 1))); reminder = addDays(last, -14); reminderNote = `Vertragsende ${german(end)}${notice ? `, Kündigungsfrist ${notice[1]} ${notice[2]}${+notice[1] > 1 ? (notice[2].toLowerCase().startsWith('monat') ? 'e' : 'n') : ''}` : ''}`; }
+      // Frist als Ziffer oder Wort („drei Monate“); steht nur „Kündigungsfrist“ ohne Zahl da, vorsichtshalber 3 Monate
+      const WORDS = { ein: 1, eine: 1, einen: 1, einem: 1, einer: 1, zwei: 2, drei: 3, vier: 4, fünf: 5, sechs: 6, sieben: 7, acht: 8, neun: 9, zehn: 10, elf: 11, zwölf: 12 };
+      let notice = all.match(/kündigungsfrist[^.\n]{0,40}?(\d{1,2}|ein(?:e[mnr]?)?|zwei|drei|vier|fünf|sechs|sieben|acht|neun|zehn|elf|zwölf)\s+(monat|woche|tag)/i);
+      if (notice && !/^\d/.test(notice[1])) notice = [notice[0], String(WORDS[notice[1].toLowerCase()] || 1), notice[2]];
+      let assumed = false;
+      if (!notice && /kündigungsfrist/i.test(all)) { notice = ['', '3', 'Monat']; assumed = true; }
+      if (end) { let last = end; if (notice) last = notice[2].toLowerCase().startsWith('monat') ? addMonths(end, -notice[1]) : addDays(end, -(notice[1] * (notice[2].toLowerCase().startsWith('woche') ? 7 : 1))); reminder = addDays(last, -14); reminderNote = `Vertragsende ${german(end)}${notice ? `, Kündigungsfrist ${notice[1]} ${notice[2]}${+notice[1] > 1 ? (notice[2].toLowerCase().startsWith('monat') ? 'e' : 'n') : ''}${assumed ? ' (angenommen – Frist bitte im Vertrag prüfen)' : ''}` : ''}`; }
       if (!reminder || reminder < today()) { reminder = addMonths(today(), 11); reminderNote ||= 'Vertrag prüfen (Laufzeit/Kündigung)'; }
     }
     // Ordner: zuerst gelernte Regel, dann Stichworte

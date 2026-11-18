@@ -46,6 +46,11 @@ server.listen(0, '127.0.0.1', async () => {
   check(p[8] === '2|Pck.|Vanillezucker', 'Päckchen', p[8]);
   check(p[9] === '200|g|Mehl', 'Aufzählungszeichen und „gr“', p[9]);
   check(p[10] === '1|Dose|Tomaten (400 g)', 'Dose mit Zusatz', p[10]);
+  // Prüfung 18.11. (v45): gemischte Brüche, Tausenderpunkt, „bis“, englische Einheiten, Klammer vor Einheit, unter 1 g
+  const more = await page.evaluate(() => ['1 1/2 TL Zucker', '1.000 g Mehl', '2 bis 3 Zwiebeln', '2 cups flour', '8 oz butter', '1 (400 g) Dose Tomaten', '1 Box Erdbeeren'].map(l => { const x = window.ZuhauseRecipes.parseIngredient(l); return `${x.amount}|${x.unit}|${x.name}`; }));
+  check(more.join(' / ') === '1.5|TL|Zucker / 1000|g|Mehl / 2||Zwiebeln / 2|cup|flour / 8|oz|butter / 1|Dose|Tomaten (400 g) / 1|Box|Erdbeeren', 'Weitere Schreibweisen (1 1/2, 1.000 g, bis, cups, oz, Klammer, Box)', more.join(' / '));
+  const small = await page.evaluate(() => [window.ZuhauseRecipes.formatAmount(0.25, 'g'), window.ZuhauseRecipes.formatAmount(3, 'Dose'), window.ZuhauseRecipes.formatAmount(1, 'Dose')]);
+  check(small.join(' / ') === '0,3 g / 3 Dosen / 1 Dose', 'Unter 1 g mit Komma, Mehrzahl „Dosen“', small.join(' / '));
   const formatted = await page.evaluate(() => { const R = window.ZuhauseRecipes; return [R.formatAmount(250 * 4 / 2, 'g'), R.formatAmount(1.5 * 2, 'l'), R.formatAmount(0.5 * 3, ''), R.formatAmount(0.75, 'TL'), R.formatAmount(1200, 'ml'), R.formatAmount(333.33, 'g')]; });
   check(formatted.join(' / ') === '500 g / 3 l / 1½ / ¾ TL / 1,2 l / 335 g', 'Mengen lesbar umgerechnet', formatted.join(' / '));
   const basics = await page.evaluate(() => ['Salz', 'Meersalz', 'Olivenöl', 'Pfeffer, schwarz', 'Gemüsebrühe', 'Butter', 'Zwiebeln'].map(n => window.ZuhauseRecipes.isBasic(n)));
@@ -60,22 +65,31 @@ server.listen(0, '127.0.0.1', async () => {
       { id: 's3', title: 'Zwiebeln', quantity: '2 ×', category: 'Obst und Gemüse', done: false },
       { id: 's4', title: 'Sahne', quantity: '1 Becher', category: 'Kühlprodukte', done: false },
       { id: 's5', title: 'Milch', quantity: '1 l', category: 'Kühlprodukte', done: true },
+      { id: 's6', title: 'Zucker', quantity: '1.000 g', category: 'Trockenwaren', done: false },
+      { id: 's7', title: 'Erdbeeren', quantity: '1 Box', category: 'Obst und Gemüse', done: false },
     ];
     const result = R.addToShopping([
       { amount: 250, unit: 'g', name: 'Hackfleisch' }, { amount: 500, unit: 'g', name: 'Mehl' }, { amount: 1, unit: '', name: 'Zwiebel' },
-      { amount: 200, unit: 'ml', name: 'Sahne' }, { amount: 500, unit: 'ml', name: 'Milch' }, { amount: 2, unit: 'Zehe', name: 'Knoblauch' }, { amount: 400, unit: 'g', name: 'Spaghetti' },
+      { amount: 200, unit: 'ml', name: 'Sahne' }, { amount: 500, unit: 'ml', name: 'Milch' }, { amount: 1, unit: 'Box', name: 'Erdbeeren' }, { amount: 200, unit: 'g', name: 'Zucker' }, { amount: 2, unit: '', name: 'große Zwiebeln' }, { amount: 2, unit: 'Zehe', name: 'Knoblauch' }, { amount: 400, unit: 'g', name: 'Spaghetti' },
     ], 1, 'Test');
     const q = t => state.shopping.filter(i => i.title.toLowerCase().startsWith(t)).map(i => `${i.quantity}${i.done ? '(erledigt)' : ''}`).join(' + ');
-    return { result, hack: q('hack'), mehl: q('mehl'), zwiebel: q('zwiebel'), sahne: q('sahne'), milch: q('milch'), knoblauch: state.shopping.find(i => i.title === 'Knoblauch'), spaghetti: state.shopping.find(i => i.title === 'Spaghetti') };
+    return { result, zucker: q('zucker'), erdbeeren: q('erdbeer'), zwiebelAll: q('zwiebel'), hack: q('hack'), mehl: q('mehl'), zwiebel: q('zwiebel'), sahne: q('sahne'), milch: q('milch'), knoblauch: state.shopping.find(i => i.title === 'Knoblauch'), spaghetti: state.shopping.find(i => i.title === 'Spaghetti') };
   });
   check(merged.hack === '750 g', '500 g + 250 g Hackfleisch = 750 g', merged.hack);
   check(merged.mehl === '1,5 kg', '1 kg + 500 g Mehl = 1,5 kg', merged.mehl);
-  check(merged.zwiebel === '3 ×', '2 × Zwiebeln + 1 Zwiebel = 3 ×', merged.zwiebel);
+  check(merged.zwiebel === '5 ×', '2 × Zwiebeln + 1 Zwiebel + 2 große Zwiebeln = 5 ×', merged.zwiebel);
+  check(merged.zucker === '1,2 kg', '„1.000 g“ Zucker + 200 g = 1,2 kg (Tausenderpunkt)', merged.zucker);
+  check(merged.erdbeeren === '2 Boxen', '1 Box + 1 Box Erdbeeren = 2 Boxen („Box“ bleibt Box)', merged.erdbeeren);
   check(merged.sahne.split(' + ').length === 2, 'Becher + ml nicht umrechenbar → eigene Zeile', merged.sahne);
   check(merged.milch.includes('500 ml') && merged.milch.includes('(erledigt)'), 'Schon eingekaufte Milch zählt nicht – neue Zeile', merged.milch);
-  check(merged.knoblauch?.quantity === '2 Zehe' && merged.knoblauch?.category, 'Neue Zutat mit Menge und Bereich', JSON.stringify(merged.knoblauch));
+  check(merged.knoblauch?.quantity === '2 Zehen' && merged.knoblauch?.category, 'Neue Zutat mit Menge und Bereich', JSON.stringify(merged.knoblauch));
   check(merged.spaghetti?.category === 'Trockenwaren', 'Bereich über bestehende Zuordnung (Spaghetti → Trockenwaren)', merged.spaghetti?.category);
-  check(merged.result.added === 4 && merged.result.merged === 3, 'Zählung neu/zusammengerechnet', JSON.stringify(merged.result));
+  check(merged.result.added === 4 && merged.result.merged === 6, 'Zählung neu/zusammengerechnet', JSON.stringify(merged.result));
+
+  // ---------- Supermarktbereiche: Teilwort-Fallen (Prüfung 18.11.2026) ----------
+  const areas = await page.evaluate(() => { const saved = state.customCategories.shopping; state.customCategories.shopping = { rum: 'Getränke' }; const r = ['Apfelsaft', 'Tomatenmark', 'Gemüsebrühe', 'Dose Tomaten', 'Reis', 'Vanilleeis', 'Salbei', 'Weißwein', 'Weißbrot', 'Holzkohle', 'Wassermelone', 'Rumpsteak', 'Rum', 'Eier'].map(w => window.ZuhauseFeatures.parseShoppingItem(w).category); state.customCategories.shopping = saved; return r; });
+  const expected = ['Getränke', 'Trockenwaren', 'Trockenwaren', 'Trockenwaren', 'Trockenwaren', 'Tiefkühlprodukte', 'Obst und Gemüse', 'Getränke', 'Trockenwaren', 'Haushaltsartikel', 'Obst und Gemüse', 'Kühlprodukte', 'Getränke', 'Kühlprodukte'];
+  check(areas.join() === expected.join(), 'Supermarktbereiche ohne Teilwort-Fehler (Saft, Tomatenmark, Reis/Eis, Salbei, Holzkohle, gemerktes „Rum“ ≠ Rumpsteak)', areas.map((a, i) => a === expected[i] ? '' : `#${i}:${a}`).filter(Boolean).join(' '));
 
   // ---------- Ablauf in der Oberfläche ----------
   await page.evaluate(() => { state.shopping = []; go('household'); });

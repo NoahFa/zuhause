@@ -189,17 +189,22 @@
     const quantity = quantityMatch ? quantityMatch[1].replace(/\bx\b/i, '×').trim() : '';
     const title = (quantityMatch ? quantityMatch[2] : raw).trim();
     const value = title.toLowerCase();
+    // Reihenfolge zählt: genauere Wörter zuerst (Saft vor Apfel, Tomatenmark vor Tomate, Reis vor „eis“, Holzkohle vor Kohl).
+    // „(?:^|[^a-zäöüß])…(?![a-zäöüß])“ = ganzes Wort – so trifft „ei“ nicht Salbei/Weißwein und „pute“ nicht Computer (Prüfung 18.11.2026).
     const groups = [
-      // Wortlisten um typische Rezeptzutaten ergänzt (18.11.2026); „eis“ nur als eigenes Wort (sonst landete „Reis“ bei Tiefkühl)
-      ['Obst und Gemüse', /apfel|äpfel|banane|beere|salat|gurke|tomate|paprika|kartoffel|zwiebel|obst|gemüse|avocado|zitrone|orange|knoblauch|ingwer|möhre|karotte|lauch|porree|zucchini|aubergine|brokkoli|blumenkohl|spinat|pilz|champignon|kürbis|sellerie|petersilie|basilikum|schnittlauch|koriander|dill|minze|rosmarin|thymian|frühlingszwiebel|limette|mango|ananas|traube|birne|radieschen|rucola|kohl/],
-      ['Tiefkühlprodukte', /tiefkühl|tk[- ]|pizza|(?:^|\s)eis(?:würfel|\b)|pommes|frost/],
-      ['Kühlprodukte', /milch|joghurt|käse|butter|sahne|quark|wurst|fleisch|tofu|ei(?:er)?\b|hack|hähnchen|huhn|pute|schinken|speck|lachs|fisch|garnele|mozzarella|parmesan|feta|frischkäse|crème fraîche|creme fraiche|schmand|hefe|margarine/],
-      ['Trockenwaren', /brot|nudel|reis|mehl|zucker|müsli|kaffee|tee|konserve|gewürz|öl|hafer|spaghetti|pasta|penne|fusilli|lasagne|linsen|kichererbse|bohnen|couscous|bulgur|quinoa|backpulver|vanille|brühe|essig|senf|ketchup|honig|schokolade|kakao|nüsse|mandel|paniermehl|semmelbrösel|dose|tomatenmark|passierte|oregano|paprikapulver|zimt|salz|pfeffer/],
-      ['Getränke', /wasser|saft|cola|limo|bier|wein|getränk/],
+      ['Trockenwaren', /tomatenmark|passierte|paprikapulver|currypulver|brühe|essig|konserve|\bdose|dosen|(?:^|[^a-zäöüß])reis(?![a-zäöüß])|basmati|apfelmus|mus$/],
+      ['Haushaltsartikel', /holzkohle|grillkohle|grillanzünder|kerze|batterie/],
+      ['Getränke', /saft|schorle|limo|cola|bier|wein(?!traube)|sekt|(?:^|[^a-zäöüß])wasser(?!melone)|mineralwasser|getränk|eistee|smoothie|sirup/],
+      ['Tiefkühlprodukte', /tiefkühl|tk[- ]|pizza|pommes|frost|eiscreme|eiswürfel|(?:^|[^a-zäöüß])eis(?![a-zäöüß])|[a-zäöüß]eis$/],
+      ['Obst und Gemüse', /apfel|äpfel|banane|beere|salat|gurke|tomate|paprika|kartoffel|zwiebel|obst|gemüse|avocado|zitrone|orange|knoblauch|ingwer|möhre|karotte|lauch|porree|zucchini|aubergine|brokkoli|blumenkohl|spinat|pilz|champignon|kürbis|sellerie|petersilie|basilikum|schnittlauch|koriander|dill|minze|rosmarin|thymian|salbei|frühlingszwiebel|limette|mango|ananas|traube|birne|radieschen|rucola|kohl|melone|kiwi|pfirsich|pflaume|kirsche|mais/],
+      ['Kühlprodukte', /milch|joghurt|käse|butter|sahne|quark|wurst|fleisch|tofu|(?:^|[^a-zäöüß])ei(?:er)?(?![a-zäöüß])|hack|hähnchen|huhn|(?:^|[^a-zäöüß])pute|steak|schnitzel|filet|rind|schwein|geschnetzelt|schinken|speck|lachs|fisch|garnele|mozzarella|parmesan|feta|frischkäse|crème fraîche|creme fraiche|schmand|hefe|margarine/],
+      ['Trockenwaren', /brot|nudel|mehl|zucker|müsli|kaffee|tee|gewürz|öl|hafer|spaghetti|pasta|penne|fusilli|lasagne|linsen|kichererbse|bohnen|couscous|bulgur|quinoa|backpulver|vanille|senf|ketchup|honig|schokolade|kakao|nüsse|mandel|paniermehl|semmelbrösel|oregano|zimt|salz|pfeffer/],
       ['Haushaltsartikel', /papier|reiniger|spül|waschmittel|müllbeutel|zahnpasta|seife|schwamm|hundefutter|tierfutter/]
     ];
+    // Gemerkte Zuordnungen nur für ganze Wörter bzw. Wortenden („Rum“ trifft „Kokosrum“, aber nicht „Rumpsteak“)
     const custom = state.customCategories?.shopping || {};
-    const customCategory = Object.entries(custom).find(([keyword]) => value.includes(keyword.toLowerCase()))?.[1];
+    const escape = text => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const customCategory = Object.entries(custom).find(([keyword]) => { const k = keyword.toLowerCase().trim(); return k && new RegExp(`${escape(k)}(?![a-zäöüß])`).test(value); })?.[1];
     const category = customCategory || groups.find(([, pattern]) => pattern.test(value))?.[0] || 'Sonstiges';
     return { raw, quantity, title, category };
   }
@@ -375,13 +380,17 @@
   // Ausgaben eines Monats. Nachzügler (Datum in einem schon abgeschlossenen Monat, dort aber nicht verbucht)
   // zählen im laufenden Monat – sonst würden sie nirgends vom Budget abgezogen.
   function expenseMonth(expense) { return String(expense.date || '').slice(0, 7); }
+  // In irgendeinem abgeschlossenen Monat schon fest gebucht? (dann zählt die Ausgabe nirgends mehr ein zweites Mal)
+  function bookedInClosedMonth(id) { return Object.values(state.budget.closedMonths || {}).some(month => (month.expenseItems || []).some(item => item.id === id)); }
   function isLateExpense(expense, current = monthKey()) {
-    const month = expenseMonth(expense), closed = state.budget.closedMonths?.[month];
-    return month < current && !!closed && !(closed.expenseItems || []).some(item => item.id === expense.id);
+    const month = expenseMonth(expense);
+    return month < current && !!state.budget.closedMonths?.[month] && !bookedInClosedMonth(expense.id);
   }
+  // Nachzügler zählen im ersten noch offenen Monat nach ihrem Datum – auch wenn dieser Monat später abgeschlossen wird
+  // (vorher fehlten sie im Abschluss und wanderten jeden Monat weiter).
   function expensesForMonth(key) {
     const own = state.expenses.filter(expense => expenseMonth(expense) === key);
-    if (key !== monthKey() || state.budget.closedMonths?.[key]) return own;
+    if (state.budget.closedMonths?.[key]) return own;
     return [...own, ...state.expenses.filter(expense => isLateExpense(expense, key))];
   }
 
@@ -446,8 +455,53 @@
     target.innerHTML = list.length ? list.map(expense => `<button class="expense-row" data-feature-expense="${escapeHtml(expense.id)}"><span class="expense-icon">${expense.receipt ? '▣' : '€'}</span><span><strong>${escapeHtml(expense.store || expense.title)}</strong><small>${displayDate(expense.date)}${isLateExpense(expense, key) ? ' · nachgetragen, zählt in diesem Monat' : ''}${expense.receiptItems?.length ? ` · ${expense.receiptItems.length} erkannte Artikel` : ''}</small></span><strong>${money(Number(expense.amount) || 0)}</strong><em class="tag">${expense.receipt ? 'Beleg' : 'Ausgabe'}</em></button>`).join('') : '<p>Noch keine Ausgabe in diesem Monat.</p>';
     target.querySelectorAll('[data-feature-expense]').forEach(button => button.addEventListener('click', () => {
       const expense = list.find(item => String(item.id) === button.dataset.featureExpense); if (!expense) return;
-      openDetail(expense.store || expense.title, `<p><strong>${money(Number(expense.amount) || 0)}</strong> · ${displayDate(expense.date)}</p>${expense.receiptItems?.length ? `<ul class="detail-list">${expense.receiptItems.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>` : '<p>Manuell eingetragene Ausgabe.</p>'}`);
+      editExpense(expense.id);
     }));
+  }
+
+  // Ausgabe ändern oder löschen. Ist sie in einem abgeschlossenen Monat schon fest gebucht, bleibt der Verlauf unverändert
+  // und die Korrektur wird als Gegenbuchung im laufenden Monat eingetragen.
+  const parseEuro = value => { let s = String(value ?? '').trim().replace(/[\s€]/g, ''); if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); else if (/^-?\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, ''); const n = Number(s); return Number.isFinite(n) ? roundMoney(n) : NaN; };
+  function editExpense(id) {
+    const expense = state.expenses.find(item => String(item.id) === String(id)) || Object.values(state.budget.closedMonths || {}).flatMap(m => m.expenseItems || []).find(item => String(item.id) === String(id));
+    if (!expense) return;
+    const frozen = bookedInClosedMonth(expense.id), categories = ['Gemeinsamer Haushalt', 'Persönlich', 'Nebengewerbe', 'Noch unklar'];
+    let dialog = document.querySelector('#expenseEditDialog');
+    if (!dialog) { dialog = document.createElement('dialog'); dialog.id = 'expenseEditDialog'; dialog.className = 'calendar-event-dialog'; document.body.append(dialog); }
+    dialog.innerHTML = `<form><div class="dialog-head"><div><span class="kicker">Ausgabe</span><h2>${escapeHtml(expense.store || expense.title || 'Ausgabe')}</h2></div><button class="close" type="button" data-close-expense aria-label="Schließen">×</button></div>
+      <div class="ws-dialog-fields">
+        ${frozen ? '<p class="recipe-import-note">Dieser Monat ist schon abgeschlossen. Änderungen werden als Korrektur im laufenden Monat verbucht – der alte Monat bleibt, wie er war.</p>' : ''}
+        <label class="ws-field"><span>Wofür</span><input name="title" required maxlength="120" value="${escapeHtml(expense.store || expense.title || '')}"></label>
+        <div class="lou-interval"><label class="ws-field"><span>Betrag in €</span><input name="amount" inputmode="decimal" required value="${escapeHtml(String(Number(expense.amount) || 0).replace('.', ','))}"></label>
+        <label class="ws-field"><span>Datum</span><input name="date" type="date" required value="${escapeHtml(expense.date || todayIso())}" ${frozen ? 'disabled' : ''}></label></div>
+        <label class="ws-field"><span>Bereich</span><select name="category">${categories.map(c => `<option ${c === (expense.category || 'Gemeinsamer Haushalt') ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
+        ${expense.receiptItems?.length ? `<details class="doc-ocr"><summary>${expense.receiptItems.length} erkannte Artikel</summary><ul class="detail-list">${expense.receiptItems.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul></details>` : ''}
+        <p class="auth-message" data-expense-message></p>
+      </div>
+      <div class="calendar-dialog-actions"><button type="button" class="danger" data-delete-expense>Löschen</button><span></span><button type="button" class="secondary" data-close-expense>Abbrechen</button><button class="primary" type="submit">Speichern</button></div></form>`;
+    dialog.querySelectorAll('[data-close-expense]').forEach(b => { b.onclick = () => dialog.close(); });
+    const correction = (difference, note) => state.expenses.unshift({ id: crypto.randomUUID(), title: `Korrektur: ${expense.store || expense.title}`, store: `Korrektur: ${expense.store || expense.title}`, date: todayIso(), amount: roundMoney(difference), person: expense.person || 'Gemeinsam', category: expense.category || 'Gemeinsamer Haushalt', receipt: false, correctionOf: expense.id, note, createdAt: new Date().toISOString(), icon: '€' });
+    dialog.querySelector('[data-delete-expense]').onclick = () => {
+      if (frozen) { if (!confirm(`„${expense.store || expense.title}“ stornieren? Der Betrag wird im laufenden Monat gutgeschrieben.`)) return; correction(-(Number(expense.amount) || 0), 'Storno'); persist(); renderAll(); dialog.close(); toast('Storniert – im laufenden Monat gutgeschrieben'); return; }
+      const index = state.expenses.findIndex(item => item.id === expense.id); if (index < 0) return;
+      const [removed] = state.expenses.splice(index, 1); persist(); renderAll(); dialog.close();
+      toastUndo(`„${removed.store || removed.title}“ gelöscht`, () => { if (!state.expenses.some(item => item.id === removed.id)) state.expenses.splice(Math.min(index, state.expenses.length), 0, removed); persist(); renderAll(); });
+    };
+    dialog.querySelector('form').onsubmit = event => {
+      event.preventDefault(); const data = Object.fromEntries(new FormData(event.currentTarget)), amount = parseEuro(data.amount), message = dialog.querySelector('[data-expense-message]');
+      if (!Number.isFinite(amount) || amount <= 0) { message.textContent = 'Bitte einen Betrag über 0 € eingeben.'; return; }
+      const title = String(data.title || '').trim(); if (!title) { message.textContent = 'Bitte eintragen, wofür.'; return; }
+      if (frozen) {
+        const difference = roundMoney(amount - (Number(expense.amount) || 0));
+        if (difference) correction(difference, 'Betrag geändert');
+        persist(); renderAll(); dialog.close(); toast(difference ? `Korrektur ${money(difference)} im laufenden Monat verbucht` : 'Nichts geändert'); return;
+      }
+      const current = state.expenses.find(item => item.id === expense.id); if (!current) { dialog.close(); return; }
+      if (data.date !== current.date && state.budget.closedMonths?.[String(data.date).slice(0, 7)] && !confirm('Dieser Monat ist schon abgeschlossen. Die Ausgabe zählt dann im laufenden Monat. Trotzdem?')) return;
+      Object.assign(current, { title, store: current.store ? title : current.store, amount, date: data.date, category: data.category, review: ['Nebengewerbe', 'Noch unklar'].includes(data.category) });
+      persist(); renderAll(); dialog.close(); toast('Ausgabe gespeichert');
+    };
+    dialog.showModal();
   }
 
   function renderFinances() {

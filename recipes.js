@@ -8,7 +8,7 @@
   const h = escapeHtml;
   const DEFAULT_BASICS = ['Salz', 'Pfeffer', 'Öl', 'Olivenöl', 'Zucker', 'Mehl', 'Wasser', 'Essig', 'Brühe'];
   const uid = () => crypto.randomUUID();
-  let cache = { recipes: {}, cursor: null, pending: {} }, cacheKey = '', query = '', tab = 'shopping', syncing = false, categoryFilter = '';
+  let cache = { recipes: {}, cursor: null, pending: {} }, cacheKey = '', query = '', tab = 'shopping', syncing = false, categoryFilter = '', uploadProblem = '';
   const photoUrls = new Map(); // Fotopfad → kurzlebiger, signierter Link
   const categories = () => Array.isArray(state.customCategories?.recipes) ? state.customCategories.recipes : [];
 
@@ -19,38 +19,47 @@
     ['EL', /^(el|essl(öffel)?\.?|esslöffel|tbsp|tablespoons?)$/i], ['TL', /^(tl|teel(öffel)?\.?|teelöffel|tsp|teaspoons?)$/i], ['Prise', /^prisen?$/i], ['Msp.', /^(msp\.?|messerspitzen?)$/i],
     ['Pck.', /^(pck\.?|pkg\.?|päckchen|packung(en)?)$/i], ['Dose', /^dosen?$/i], ['Bund', /^bunde?$/i], ['Zehe', /^zehen?$/i], ['Stück', /^(stück|stk\.?|st\.?)$/i],
     ['Scheibe', /^scheiben?$/i], ['Becher', /^becher$/i], ['Tasse', /^tassen?$/i], ['Glas', /^gl(as|äser)$/i], ['Handvoll', /^handvoll$/i], ['Blatt', /^bl(att|ätter)$/i],
-    ['Zweig', /^zweige?$/i], ['Stange', /^stangen?$/i], ['Kopf', /^k(opf|öpfe)$/i], ['Knolle', /^knollen?$/i], ['Würfel', /^würfel$/i], ['Tropfen', /^tropfen$/i], ['Schuss', /^schuss$/i],
+    ['Zweig', /^zweige?$/i], ['Stange', /^stangen?$/i], ['Box', /^box(en)?$/i], ['cup', /^cups?$/i], ['oz', /^(oz|ounces?)$/i], ['lb', /^(lbs?|pounds?)$/i], ['pint', /^pints?$/i], ['Kopf', /^k(opf|öpfe)$/i], ['Knolle', /^knollen?$/i], ['Würfel', /^würfel$/i], ['Tropfen', /^tropfen$/i], ['Schuss', /^schuss$/i],
   ];
+  // Menge am Zeilenanfang: „1 ½“, „1½“, „½“, „1/2“, „1 1/2“, „1,5“, „1.000“ (Tausenderpunkt), „2-3“ / „2 bis 3“ (erste Zahl)
+  const number = token => /^\d{1,3}(\.\d{3})+$/.test(token) ? Number(token.replace(/\./g, '')) : Number(token.replace(',', '.'));
   function parseAmount(text) {
     const t = String(text || '').trim().replace(/\s+/g, ' ');
-    // „1 ½“, „1½“, „½“, „1/2“, „1,5“, „2-3“ (erste Zahl)
-    const m = t.match(/^(\d+(?:[.,]\d+)?)?\s*([½¼¾⅓⅔⅛])?(?:\s*\/\s*(\d+))?(?:\s*[-–]\s*\d+(?:[.,]\d+)?)?(?=\s|$)/);
-    if (!m || (!m[1] && !m[2])) return null;
-    let value = m[1] ? Number(m[1].replace(',', '.')) : 0;
-    if (m[3] && m[1]) value = Number(m[1].replace(',', '.')) / Number(m[3]);
-    if (m[2]) value += FRACTIONS[m[2]];
-    return value > 0 && Number.isFinite(value) ? { value, rest: t.slice(m[0].length).trim() } : null;
+    let rest = t, value = 0, m;
+    if ((m = rest.match(/^(\d+(?:[.,]\d+)*)/))) {
+      value = number(m[1]); rest = rest.slice(m[0].length);
+      if ((m = rest.match(/^\s*\/\s*(\d+)/))) { value = value / Number(m[1]); rest = rest.slice(m[0].length); }          // 1/2
+      else if ((m = rest.match(/^\s+(\d+)\s*\/\s*(\d+)/))) { value += Number(m[1]) / Number(m[2]); rest = rest.slice(m[0].length); } // 1 1/2
+      else if ((m = rest.match(/^\s*([½¼¾⅓⅔⅛])/))) { value += FRACTIONS[m[1]]; rest = rest.slice(m[0].length); }        // 1½ / 1 ½
+    } else if ((m = rest.match(/^([½¼¾⅓⅔⅛])/))) { value = FRACTIONS[m[1]]; rest = rest.slice(m[0].length); }
+    else return null;
+    if ((m = rest.match(/^\s*(?:[-–]|bis)\s*\d+(?:[.,]\d+)?(?:\s*\/\s*\d+)?/i))) rest = rest.slice(m[0].length); // Spanne: erste Zahl gilt
+    if (rest && !/^\s/.test(rest)) return null;
+    return value > 0 && Number.isFinite(value) ? { value, rest: rest.trim() } : null;
   }
   function parseIngredient(line) {
     // „100g Mehl“ → „100 g Mehl“ (Seiten schreiben Menge und Einheit oft zusammen)
     const raw = String(line || '').replace(/^[-•*·]\s*/, '').trim().replace(/^(\d+(?:[.,]\d+)?|[½¼¾⅓⅔⅛])(?=[a-zA-ZäöüÄÖÜ])/, '$1 '); if (!raw) return null;
-    const amount = parseAmount(raw); let rest = amount ? amount.rest : raw, unit = '';
+    const amount = parseAmount(raw); let rest = amount ? amount.rest : raw, unit = '', note = '';
+    // „1 (400 g) Dose Tomaten“: Zusatz in Klammern vor der Einheit ans Ende stellen
+    const paren = rest.match(/^\(([^)]{1,40})\)\s*/); if (paren) { note = ` (${paren[1]})`; rest = rest.slice(paren[0].length); }
     const first = rest.split(/\s+/)[0] || '', known = UNITS.find(([, re]) => re.test(first.replace(/[.,]$/, '')) || re.test(first));
     if (known && rest.split(/\s+/).length > 1) { unit = known[0]; rest = rest.slice(first.length).trim(); }
-    return { amount: amount ? Math.round(amount.value * 1000) / 1000 : null, unit, name: rest || raw };
+    return { amount: amount ? Math.round(amount.value * 1000) / 1000 : null, unit, name: `${rest || raw}${note}` };
   }
   const fractionText = { 0.25: '¼', 0.5: '½', 0.75: '¾' };
   function formatAmount(value, unit) {
     if (value === null || value === undefined || !Number.isFinite(value)) return '';
     let v = value, u = unit;
     if (u === 'g' && v >= 1000) { v /= 1000; u = 'kg'; } else if (u === 'ml' && v >= 1000) { v /= 1000; u = 'l'; }
-    if (['g', 'ml'].includes(u)) v = v >= 100 ? Math.round(v / 5) * 5 : Math.round(v);
+    if (['g', 'ml'].includes(u)) v = v >= 100 ? Math.round(v / 5) * 5 : v >= 1 ? Math.round(v) : Math.max(0.1, Math.round(v * 10) / 10); // unter 1 g mit Komma statt „0 g“
     let text;
     const whole = Math.floor(v + 1e-9), part = Math.round((v - whole) * 4) / 4;
     if (!['g', 'ml', 'kg', 'l'].includes(u) && Math.abs(v - (whole + part)) < 0.04 && (part in fractionText || part === 0)) text = `${whole || ''}${part ? fractionText[part] : ''}` || '0';
     else text = (Math.round(v * 100) / 100).toLocaleString('de-DE');
-    return `${text}${u ? ` ${u}` : ''}`;
+    return `${text}${u ? ` ${v > 1 ? PLURAL[u] || u : u}` : ''}`;
   }
+  const PLURAL = { Dose: 'Dosen', Zehe: 'Zehen', Prise: 'Prisen', Scheibe: 'Scheiben', Tasse: 'Tassen', Stange: 'Stangen', Knolle: 'Knollen', Zweig: 'Zweige', Kopf: 'Köpfe', Glas: 'Gläser', Blatt: 'Blätter', Box: 'Boxen', cup: 'cups' };
   const ingredientText = (ing, factor = 1) => `${ing.amount ? `${formatAmount(ing.amount * factor, ing.unit)} ` : ing.unit ? `${ing.unit} ` : ''}${ing.name}`;
 
   // Gleiche Zutat erkennen: Kleinschreibung, Zusätze nach Komma/Klammer weg, einfache Mehrzahl-Endungen kürzen
@@ -58,6 +67,9 @@
   // Einheiten, die sich ineinander umrechnen lassen (Grundeinheit, Faktor)
   const BASE = { g: ['g', 1], kg: ['g', 1000], mg: ['g', 0.001], ml: ['ml', 1], l: ['ml', 1000], cl: ['ml', 10], dl: ['ml', 100], '': ['stk', 1], 'Stück': ['stk', 1], '×': ['stk', 1] };
   const baseOf = unit => BASE[unit] || [unit, 1];
+  // gleiche Zutat? ganzer Name gleich, oder ein einzelnes Wort passt zum letzten Wort des anderen („2 große Zwiebeln“ ↔ „Zwiebeln“)
+  const lastWord = name => stem(String(name || '').replace(/\(.*?\)/g, '').split(',')[0].trim().split(/\s+/).pop());
+  const sameIngredient = (a, b) => { if (stem(a) === stem(b)) return true; const wa = String(a).trim().split(/\s+/).length, wb = String(b).trim().split(/\s+/).length; return (wa === 1 || wb === 1) && lastWord(a) === lastWord(b) && lastWord(a).length >= 3; };
 
   // ---------- Daten und Abgleich ----------
   function key() { return typeof scopedStorageKey === 'function' ? scopedStorageKey('recipes') : ''; }
@@ -82,8 +94,17 @@
       const pending = Object.values(cache.pending);
       if (pending.length) {
         const rows = pending.map(r => ({ id: r.id, household_id: currentHousehold.id, title: String(r.title || 'Rezept').slice(0, 200), favorite: !!r.favorite, data: r.data || {}, deleted_at: r.deleted_at || null }));
+        const done = r => { if (cache.pending[r.id] === r) delete cache.pending[r.id]; };
         const { error } = await cloud.from('recipes').upsert(rows, { onConflict: 'id' });
-        if (!error) { pending.forEach(r => { if (cache.pending[r.id] === r) delete cache.pending[r.id]; }); storeCache(); }
+        if (!error) { pending.forEach(done); uploadProblem = ''; }
+        else if (navigator.onLine) {
+          // einzeln versuchen: ein abgelehntes Rezept (z. B. zu groß) soll die anderen nicht aufhalten
+          let failed = 0;
+          for (let i = 0; i < rows.length; i++) { const { error: one } = await cloud.from('recipes').upsert([rows[i]], { onConflict: 'id' }); if (one) failed++; else done(pending[i]); }
+          uploadProblem = failed ? `${failed} ${failed === 1 ? 'Rezept konnte' : 'Rezepte konnten'} nicht gespeichert werden – bitte kürzen oder später erneut versuchen.` : '';
+          render();
+        }
+        if (key() === cacheKey) storeCache();
       }
       // 2. Neues vom anderen Handy holen (nur seit dem letzten Mal, mit 5 s Überlappung)
       let request = cloud.from('recipes').select('id,household_id,title,favorite,data,updated_at,deleted_at').eq('household_id', currentHousehold.id).order('updated_at', { ascending: true }).limit(1000);
@@ -97,7 +118,7 @@
           if (!old || old.updated_at !== row.updated_at || old.deleted_at !== row.deleted_at) { changed = true; if (row.deleted_at) delete cache.recipes[row.id]; else cache.recipes[row.id] = row; }
           if (!cache.cursor || row.updated_at > cache.cursor) cache.cursor = row.updated_at;
         }
-        storeCache(); if (changed) render();
+        if (key() === cacheKey) { storeCache(); if (changed) render(); } // inzwischen abgemeldet/gewechselt? dann nichts mehr speichern
       }
     } catch { /* nächster Versuch beim nächsten Abgleich */ } finally { syncing = false; }
   }
@@ -121,7 +142,7 @@
     card.querySelectorAll('[data-recipe-tab]').forEach(b => { b.classList.toggle('active', b.dataset.recipeTab === tab); b.setAttribute('aria-pressed', String(b.dataset.recipeTab === tab)); });
     if (tab !== 'recipes') return;
     if (panel.contains(document.activeElement) && document.activeElement.matches('input')) { renderList(panel); return; }
-    panel.innerHTML = `<div class="recipe-toolbar"><label class="doc-search"><span aria-hidden="true">⌕</span><input id="recipeSearch" type="search" placeholder="Suchen" aria-label="Rezepte durchsuchen" value="${h(query)}"></label><button class="primary" type="button" data-recipe-new>＋ Rezept</button></div><button type="button" class="secondary recipe-import-button" data-recipe-import>🔗 Aus Link übernehmen</button><div class="doc-chips" id="recipeChips" role="group" aria-label="Kategorie"></div><div id="recipeList"></div><div class="recipe-settings"><button type="button" class="ws-text-button" data-recipe-basics>Basics bearbeiten (Salz, Pfeffer …)</button><button type="button" class="ws-text-button" data-recipe-categories>Kategorien bearbeiten</button></div>`;
+    panel.innerHTML = `<div class="recipe-toolbar"><label class="doc-search"><span aria-hidden="true">⌕</span><input id="recipeSearch" type="search" placeholder="Suchen" aria-label="Rezepte durchsuchen" value="${h(query)}"></label><button class="primary" type="button" data-recipe-new>＋ Rezept</button></div><button type="button" class="secondary recipe-import-button" data-recipe-import>🔗 Aus Link übernehmen</button>${uploadProblem ? `<p class="scan-queue-note problem">⚠️ ${h(uploadProblem)}</p>` : ''}<div class="doc-chips" id="recipeChips" role="group" aria-label="Kategorie"></div><div id="recipeList"></div><div class="recipe-settings"><button type="button" class="ws-text-button" data-recipe-basics>Basics bearbeiten (Salz, Pfeffer …)</button><button type="button" class="ws-text-button" data-recipe-categories>Kategorien bearbeiten</button></div>`;
     panel.querySelector('#recipeSearch').addEventListener('input', event => { query = event.target.value.trim(); renderList(panel); });
     renderList(panel);
   }
@@ -320,7 +341,7 @@
   // Menge eines Einkaufsartikels („2 ×“, „500 g“, „1,5 kg“) lesen
   function shoppingAmount(quantity) {
     const q = String(quantity || '').trim(); if (!q) return { value: null, unit: '' };
-    const amount = parseAmount(q.replace(/×|x$/i, '').trim()); if (!amount) return { value: null, unit: q };
+    const amount = parseAmount(q.replace(/×/g, '').replace(/(\d|\s)x$/i, '$1').trim()); if (!amount) return { value: null, unit: q }; // „x“ nur als Mal-Zeichen, nicht in „Box“
     const rest = amount.rest.replace(/^×|^x\b/i, '').trim(), unit = UNITS.find(([, re]) => re.test(rest))?.[0] || rest;
     return { value: amount.value, unit: /×|x/i.test(q) && !rest ? '' : unit };
   }
@@ -331,7 +352,7 @@
       // Stückzahlen zum Einkaufen aufrunden (eine halbe Zwiebel oder Dose kauft man nicht); Gewicht, Löffel usw. bleiben genau
       const unit = ing.unit || '', countable = ['', 'Stück', 'Dose', 'Pck.', 'Bund', 'Becher', 'Glas', 'Kopf', 'Knolle', 'Stange', 'Tasse'].includes(unit);
       const value = ing.amount ? (countable ? Math.ceil(ing.amount * factor - 1e-9) : ing.amount * factor) : null;
-      const existing = state.shopping.find(item => !item.done && stem(item.title) === stem(ing.name));
+      const existing = state.shopping.find(item => !item.done && sameIngredient(item.title, ing.name));
       if (existing) {
         const have = shoppingAmount(existing.quantity), [baseA, fA] = baseOf(have.unit), [baseB, fB] = baseOf(unit);
         if (value === null) { merged++; continue; } // steht schon drauf, Menge offen
@@ -384,5 +405,5 @@
   });
 
   render(); setTimeout(() => { render(); sync(); }, 0);
-  window.ZuhauseRecipes = { render, sync, parseIngredient, formatAmount, shoppingAmount, addToShopping, isBasic, _setRecipes: rows => { loadCache(); rows.forEach(r => { cache.recipes[r.id] = r; }); render(); } };
+  window.ZuhauseRecipes = { render, sync, pendingCount: () => { loadCache(); return Object.keys(cache.pending).length; }, parseIngredient, formatAmount, shoppingAmount, addToShopping, isBasic, _setRecipes: rows => { loadCache(); rows.forEach(r => { cache.recipes[r.id] = r; }); render(); } };
 })();
