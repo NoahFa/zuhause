@@ -78,11 +78,14 @@ server.listen(0, '127.0.0.1', async () => {
       let text = '';
       if (k.ocr) { const flat = S.enhance(S.warp(k.c, found.corners), 'document'); text = (await S.recognise(flat)).text; }
       const flat = S.warp(k.c, found.corners);
-      res.push({ name: k.name, error, ocrOk: k.ocr ? k.ocr.test(text) : null, text: text.slice(0, 60).replace(/\s+/g, ' '), blurry: q.blurry, dark: q.dark, expectBlurry: !!k.expectBlurry, expectDark: !!k.expectDark, preview: flat.width > 900 ? null : null, size: [flat.width, flat.height], img: S.enhance(flat, 'document').toDataURL('image/jpeg', .6) });
+      const t = S.warp(k.c, found.corners), tc = t.getContext('2d'), edgeLum = (x, y, w, h) => { const d = tc.getImageData(x, y, w, h).data; let s = 0; for (let i = 0; i < d.length; i += 4) s += d[i] * .299 + d[i + 1] * .587 + d[i + 2] * .114; return s / (d.length / 4); };
+      const edges = Math.min(edgeLum(0, 0, t.width, 2), edgeLum(0, t.height - 2, t.width, 2), edgeLum(0, 0, 2, t.height), edgeLum(t.width - 2, 0, 2, t.height));
+      res.push({ name: k.name, edges, error, ocrOk: k.ocr ? k.ocr.test(text) : null, text: text.slice(0, 60).replace(/\s+/g, ' '), blurry: q.blurry, dark: q.dark, expectBlurry: !!k.expectBlurry, expectDark: !!k.expectDark, preview: flat.width > 900 ? null : null, size: [flat.width, flat.height], img: S.enhance(flat, 'document').toDataURL('image/jpeg', .6) });
     }
     return res;
   });
   for (const r of results) {
+    if (r.error !== null && !r.expectDark && !r.expectBlurry && r.name !== 'Blatt füllt ganzes Bild') check(r.edges > 150, `Kein dunkler Tischrand: ${r.name}`, `Randhelligkeit ${Math.round(r.edges)}`);
     if (r.error !== null) check(r.error < 0.03, `Ecken: ${r.name}`, `Abweichung ${(r.error * 100).toFixed(1)} % der Bilddiagonale`);
     if (r.ocrOk !== null) check(r.ocrOk, `Texterkennung: ${r.name}`, r.text);
     if (r.expectBlurry) check(r.blurry, `Warnung unscharf: ${r.name}`);
@@ -102,6 +105,10 @@ server.listen(0, '127.0.0.1', async () => {
       diy: A.analyse('HORNBACH Baumarkt AG\nSchrauben 6,49\nSilikon 8,99\nSumme 15,48 EUR\nKartenzahlung\n14.11.2026', cats),
       days: A.analyse('Rechnung\nMalerbetrieb Beispiel\nRechnungsdatum 10.11.2026\nBetrag 120,00 €\nZahlbar innerhalb von 14 Tagen', cats),
       learned: A.analyse('Kassenbon\nREWE Markt GmbH\nSumme 3,28 EUR', cats, { 'rewe markt': { folder: 'Noah', category: 'Rechnungen' } }),
+      dateLine: A.analyse('Rechnung\nPraxis Beispiel\nGesamt 75,00 €\nBitte überweisen Sie den Betrag von 75,00 € bis zum 26.11.2026', cats),
+      dateOnly: A.analyse('Rechnung\nPraxis Beispiel\nBetrag bis zum 26.11.2026', cats),
+      delivery: A.analyse('Rechnung\nFirma Beispiel GmbH\nLieferdatum 01.11.2026\nRechnungsdatum 05.11.2026\nSumme 1.234,56 EUR\nSteuer-ID 12 345 678 901', cats),
+      keys: [A.senderKey('Evangelische Kirche e.V.'), A.senderKey('Coca Cola GmbH & Co. KG'), A.senderKey('Tierarztpraxis Muster')],
     };
   });
   const a = analysed;
@@ -112,6 +119,10 @@ server.listen(0, '127.0.0.1', async () => {
   check(a.diy.diy && a.diy.total === 15.48, 'Baumarkt-Beleg: als Material erkannt', JSON.stringify([a.diy.diy, a.diy.total]));
   check(a.days.due === '2026-11-24' && a.days.total === 120, 'Zahlungsziel „innerhalb von 14 Tagen“', JSON.stringify([a.days.due, a.days.total]));
   check(a.learned.folder === 'Noah' && a.learned.learned, 'Gelernter Absender bestimmt den Ordner');
+  check(a.dateLine.total === 75 && a.dateLine.due === '2026-11-26', 'Datum in der Betragszeile wird nicht als Betrag gelesen', JSON.stringify([a.dateLine.total, a.dateLine.due]));
+  check(a.dateOnly.total === null, 'Nur Datum, kein Betrag → kein Betrag vorgeschlagen', String(a.dateOnly.total));
+  check(a.delivery.kind === 'invoice' && a.delivery.docDate === '2026-11-05' && a.delivery.total === 1234.56, 'Rechnungsdatum statt Lieferdatum, Steuer-ID bleibt Rechnung', JSON.stringify([a.delivery.kind, a.delivery.docDate, a.delivery.total]));
+  check(a.keys.join('|') === 'evangelische kirche|coca cola|tierarztpraxis muster', 'Absender-Schlüssel nicht mitten im Wort gekürzt', a.keys.join('|'));
 
   // ---------- Kompletter Ablauf mit Folgeaktionen, danach ohne Internet ----------
   const photo = await page.evaluate(() => { const c = document.createElement('canvas'); c.width = 1500; c.height = 2000; const x = c.getContext('2d'); x.fillStyle = '#4a3523'; x.fillRect(0, 0, 1500, 2000); x.fillStyle = '#eeeae0'; x.fillRect(220, 220, 1060, 1500); x.fillStyle = '#222'; x.font = 'bold 56px sans-serif'; ['RECHNUNG Nr. 4711', 'Tierarztpraxis Muster', 'Datum: 12.11.2026', 'Impfung Lou 45,00 EUR', 'Gesamt 75,00 EUR', 'Zahlbar bis 26.11.2026'].forEach((t, i) => x.fillText(t, 300, 400 + i * 140)); return c.toDataURL('image/jpeg', .9); });
@@ -144,6 +155,23 @@ server.listen(0, '127.0.0.1', async () => {
   await page.evaluate(async () => { cloudReady = true; currentHousehold = currentHousehold || { id: 'test' }; await window.ZuhauseScanner.flushQueue(true); });
   const after = await page.evaluate(async () => ({ left: (await window.ZuhauseScanner.queueAll()).length, uploads: window.__uploads.length }));
   check(after.left === 0 && after.uploads === 2, 'Wieder online: wartender Scan wird hochgeladen', JSON.stringify(after));
+
+  // Aus dem Nebenjob-Auftrag gescannt und sofort „PDF speichern“ getippt (bevor Vorschläge da sind): Material wird trotzdem eingetragen
+  await page.evaluate(() => { state.noahJobs = { rate: 30, orders: [{ id: 'o1', title: 'Testauftrag', status: 'open', times: [], materials: [] }] }; cloudReady = true; });
+  await page.evaluate(() => window.ZuhauseScanner.open({ folder: 'Noah', actions: ['material'], orderId: 'o1', startCamera: false }));
+  { const chooser = page.waitForEvent('filechooser'); await page.click('[data-sc-camera]'); await (await chooser).setFiles(tmp); }
+  await page.waitForSelector('[data-sc-accept]'); await page.click('.scanner-accept-row [data-sc-accept]'); await page.click('[data-sc-next]'); await page.click('[data-sc-save]');
+  await page.waitForFunction(() => window.__uploads.length === 3, null, { timeout: 60000 });
+  const material = await page.evaluate(() => state.noahJobs.orders[0].materials);
+  check(material.length === 1 && material[0].price === 75, 'Sofort gespeichert: vorgewähltes Material trotzdem eingetragen', JSON.stringify(material));
+
+  // Server lehnt ab (z. B. Speicher voll): kein „Kein Internet“, nichts in der Warteschlange, Fenster bleibt offen mit Grund
+  await scanOnce();
+  await page.evaluate(() => { window.uploadDocument = async () => { window.__uploadFailure = { kind: 'full', message: 'quota exceeded' }; return false; }; });
+  await page.click('[data-sc-save]'); await page.waitForFunction(() => /Speicher ist voll/.test(document.querySelector('.scanner-progress')?.textContent || ''), null, { timeout: 60000 });
+  const refused = await page.evaluate(async () => ({ open: document.querySelector('#scannerDialog').open, queue: (await window.ZuhauseScanner.queueAll()).length }));
+  check(refused.open && refused.queue === 0, 'Server lehnt ab: Grund wird genannt, nicht als „Kein Internet“ gesichert', JSON.stringify(refused));
+  await page.evaluate(() => { document.querySelector('#scannerDialog').close(); });
 
   check(!errors.length, 'Keine Skriptfehler', errors.join(' | '));
   fs.rmSync(tmp, { force: true });

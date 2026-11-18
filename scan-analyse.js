@@ -12,8 +12,9 @@
   const today = () => { const t = new Date(); return iso(t.getFullYear(), t.getMonth() + 1, t.getDate()); };
   const german = value => value ? value.split('-').reverse().join('.') : '';
 
-  // Typische Lesefehler der Texterkennung in Zahlen ausgleichen (O→0, l/I→1)
-  const cleanNumber = s => s.replace(/[Oo](?=[\d,.])|(?<=[\d,.])[Oo]/g, '0').replace(/[lI|](?=\d)|(?<=\d)[lI|]/g, '1');
+  // Typische Lesefehler der Texterkennung in Zahlen ausgleichen (O→0, l/I→1).
+  // Ohne „Lookbehind“ geschrieben, damit es auch auf iPhones vor iOS 16.4 läuft.
+  const cleanNumber = s => s.replace(/([\d,.])[Oo]/g, '$10').replace(/[Oo](?=[\d,.])/g, '0').replace(/(\d)[lI|]/g, '$11').replace(/[lI|](?=\d)/g, '1');
 
   // Alle Datumsangaben mit Position: 12.11.2026 · 12.11.26 · 12. November 2026 · 2026-11-12
   function findDates(text) {
@@ -23,9 +24,11 @@
     for (const m of t.matchAll(/\b(\d{4})-(\d{2})-(\d{2})\b/g)) if (validDate(+m[1], +m[2], +m[3])) out.push({ value: iso(+m[1], +m[2], +m[3]), index: m.index });
     return out.sort((a, b) => a.index - b.index);
   }
-  const AMOUNT = /(?<![\d,.])(\d{1,3}(?:[.\s]\d{3})*,\d{2}|\d+,\d{2}|\d+\.\d{2})(?![\d])/g;
+  // Betrag: 1.234,56 · 75,00 · 75.00 – aber nicht Teil eines Datums (26.11.2026) oder einer längeren Zahl
+  const AMOUNT = /(^|[^\d,.])(\d{1,3}(?:[.\s]\d{3})*,\d{2}|\d+,\d{2}|\d+\.\d{2})(?![\d]|[.,]\d)/g;
+  const DATE_LIKE = /\b\d{1,2}\s?[./-]\s?\d{1,2}\s?[./-]\s?\d{2,4}\b|\b\d{4}-\d{2}-\d{2}\b/g;
   const parseAmount = s => { s = s.replace(/\s/g, ''); if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); return Number(s); };
-  function amountsIn(line) { return [...cleanNumber(line).matchAll(AMOUNT)].map(m => parseAmount(m[1])).filter(n => Number.isFinite(n) && n > 0 && n < 1e6); }
+  function amountsIn(line) { return [...cleanNumber(line).replace(DATE_LIKE, ' ').matchAll(AMOUNT)].map(m => parseAmount(m[2])).filter(n => Number.isFinite(n) && n > 0 && n < 1e6); }
 
   // Der Gesamtbetrag: Zeile mit „Gesamt/Summe/Endbetrag/zu zahlen …“, sonst der größte Betrag mit Euro-Bezug
   function findTotal(lines, kind) {
@@ -65,7 +68,8 @@
     const raw = (marked || first || '').replace(/[|_~*#]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
     return raw.replace(/\s*[-–,]\s*$/, '').slice(0, 45);
   }
-  const senderKey = sender => String(sender || '').toLowerCase().replace(/gmbh|&|co\.?|kg|\bag\b|e\.?\s?v\.?/g, '').replace(/[^a-zäöüß0-9]+/g, ' ').trim().split(' ').slice(0, 3).join(' ');
+  // nur ganze Rechtsform-Wörter entfernen (sonst wird z. B. „Evangelische“ zu „angelische“)
+  const senderKey = sender => ` ${String(sender || '').toLowerCase()} `.replace(/[\s,]+(gmbh|co\.?|kg|ag|e\.\s?v\.?|ev|ug|ohg|mbh)(?=[\s,.]|$)/g, ' ').replace(/&/g, ' ').replace(/[^a-zäöüß0-9]+/g, ' ').trim().split(' ').slice(0, 3).join(' ');
 
   function analyse(text, categories = [], rules = {}) {
     const lines = String(text || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean), all = lines.join('\n');
@@ -74,12 +78,16 @@
     // Kassenbon schlägt Rechnung nur mit deutlichen Kassen-Merkmalen; Lohnabrechnung/Steuer/Impfung haben Vorrang
     const has = key => TYPES.find(x => x.key === key).test.test(all);
     const invoiceLike = /rechnung|zahlbar|zahlungsziel|bitte überweisen/i.test(all);
-    for (const key of ['payslip', 'tax', 'vaccination']) { if (key === 'vaccination' && invoiceLike) continue; if (has(key)) { best = TYPES.find(x => x.key === key); break; } }
+    const realTax = /finanzamt|steuerbescheid|einkommensteuer|lohnsteuerbescheinigung/i.test(all);
+    for (const key of ['payslip', 'tax', 'vaccination']) { if (key === 'vaccination' && invoiceLike) continue; if (key === 'tax' && invoiceLike && !realTax) continue; if (has(key)) { best = TYPES.find(x => x.key === key); break; } }
     const kind = best?.key || 'other';
     const dates = findDates(all), sender = findSender(lines);
     const near = re => { const m = all.match(re); if (!m) return null; const after = dates.find(d => d.index >= m.index && d.index - m.index < 80); return after?.value || null; };
-    const docDate = near(/(rechnungs|beleg|ausstellungs|bescheid)?datum|vom\b|datum/i) || dates[0]?.value || null;
     let due = near(/zahlbar\s*(bis|am)?|fällig\s*(am|bis)?|zahlungsziel|spätestens|bis zum/i);
+    // Dokumentdatum: zuerst ausdrückliches Rechnungs-/Belegdatum, dann „Datum“ (nicht Liefer-/Leistungsdatum), sonst erstes Datum, das keine Frist ist
+    const plainDate = (() => { const re = /(^|[^a-zäöü])(datum|vom)\b/gi; let m; while ((m = re.exec(all))) { const i = m.index; const after = dates.find(d => d.index >= i && d.index - i < 80); if (after) return after.value; } return null; })();
+    const deadlines = new Set([due, near(/vertragsende|laufzeit\s*bis|endet\s*am|gültig bis|lieferdatum|leistungsdatum/i)].filter(Boolean));
+    const docDate = near(/(rechnungs|beleg|ausstellungs|bescheid)datum/i) || plainDate || dates.find(d => !deadlines.has(d.value))?.value || null;
     const days = all.match(/(?:innerhalb|binnen)\s+(?:von\s+)?(\d{1,3})\s+tag/i); if (!due && days && docDate) due = addDays(docDate, +days[1]);
     const total = findTotal(lines, kind);
     // Vertrag: Ende + Kündigungsfrist → Erinnerung zwei Wochen vor Fristende

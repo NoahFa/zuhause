@@ -390,11 +390,14 @@ $('#fileInput').addEventListener('change',e=>{if(e.target.files[0])uploadDocumen
 $('#cameraInput').addEventListener('change',e=>{if(e.target.files[0])uploadDocument(e.target.files[0]);e.target.value=''});
 function escapeHtml(value=''){return String(value).replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]))}
 function readableSize(bytes=0){if(bytes<1024)return bytes+' B';if(bytes<1048576)return Math.round(bytes/1024)+' KB';return (bytes/1048576).toFixed(1).replace('.',',')+' MB'}
+// Grund für ein gescheitertes Hochladen merken: Netzproblem (→ Scan wartet und geht später hoch) oder etwas anderes (→ Grund anzeigen)
+function uploadFailed(error,kind){const message=String(error?.message||error||'');window.__uploadFailure={kind:kind||(!navigator.onLine||/fetch|network|load failed|timed? ?out|abort|connection/i.test(message)?'network':/quota|exceed|size|too large|payload|413/i.test(message)?'full':'other'),message};return false}
 async function uploadDocument(file){
-  if(!cloudReady||!currentHousehold||!currentUser){toast('Bitte zuerst anmelden');return}
+  window.__uploadFailure=null;
+  if(!cloudReady||!currentHousehold||!currentUser){toast('Bitte zuerst anmelden');return uploadFailed('nicht angemeldet','network')}
   const allowed=['application/pdf','image/jpeg','image/png','image/webp'];
-  if(!allowed.includes(file.type)){toast('Bitte ein PDF oder Foto auswählen');return false}
-  if(file.size>10485760){toast('Die Datei darf höchstens 10 MB groß sein');return false}
+  if(!allowed.includes(file.type)){toast('Bitte ein PDF oder Foto auswählen');return uploadFailed('Dateityp','other')}
+  if(file.size>10485760){toast('Die Datei darf höchstens 10 MB groß sein');return uploadFailed('zu groß','full')}
   setSyncStatus('Datei wird geschützt abgelegt …','syncing');
   const cleanName=file.name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9._-]/g,'-').slice(-100)||'dokument';
   const visibility='shared',meta=window.__pendingDocumentMeta||{},originalPaths=[];
@@ -403,16 +406,16 @@ async function uploadDocument(file){
     const originalName=original.name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9._-]/g,'-').slice(-100)||'original';
     const originalPath=`${currentHousehold.id}/shared/originals/${crypto.randomUUID()}-${originalName}`;
     const {error}=await cloud.storage.from('receipts').upload(originalPath,original,{cacheControl:'3600',upsert:false,contentType:original.type});
-    if(error){if(originalPaths.length)await cloud.storage.from('receipts').remove(originalPaths);setSyncStatus('Originale konnten nicht gesichert werden','error');toast('Die Originalfotos konnten nicht vollständig gespeichert werden');return false}
+    if(error){if(originalPaths.length)await cloud.storage.from('receipts').remove(originalPaths);setSyncStatus('Originale konnten nicht gesichert werden','error');toast('Die Originalfotos konnten nicht vollständig gespeichert werden');return uploadFailed(error)}
     originalPaths.push(originalPath);
   }
   const {error:uploadError}=await cloud.storage.from('receipts').upload(path,file,{cacheControl:'3600',upsert:false,contentType:file.type});
-  if(uploadError){if(originalPaths.length)await cloud.storage.from('receipts').remove(originalPaths);setSyncStatus('Upload fehlgeschlagen','error');toast('Die Datei konnte nicht hochgeladen werden');return false}
+  if(uploadError){if(originalPaths.length)await cloud.storage.from('receipts').remove(originalPaths);setSyncStatus('Upload fehlgeschlagen','error');toast('Die Datei konnte nicht hochgeladen werden');return uploadFailed(uploadError)}
   if(meta.thumb)await cloud.storage.from('receipts').upload(`${path}.thumb.jpg`,meta.thumb,{cacheControl:'3600',upsert:true,contentType:'image/jpeg'}).catch(()=>{});
   const record={household_id:currentHousehold.id,uploaded_by:currentUser.id,owner_user_id:currentUser.id,visibility,storage_path:path,file_name:meta.name||file.name,mime_type:file.type,size_bytes:file.size,category:meta.category||'Sonstige Dokumente',folder:meta.folder||'Gemeinsam',ocr_text:meta.ocrText||'',original_paths:originalPaths};
   let {error:metaError}=await cloud.from('documents').insert(record);
   if(metaError&&/folder|ocr_text|original_paths/i.test(metaError.message||'')){delete record.folder;delete record.ocr_text;delete record.original_paths;({error:metaError}=await cloud.from('documents').insert(record))}
-  if(metaError){await cloud.storage.from('receipts').remove([path,...originalPaths]);setSyncStatus('Upload zurückgenommen','error');toast('Die Datei konnte nicht vollständig gespeichert werden');return false}
+  if(metaError){await cloud.storage.from('receipts').remove([path,`${path}.thumb.jpg`,...originalPaths]).catch(()=>{});setSyncStatus('Upload zurückgenommen','error');toast('Die Datei konnte nicht vollständig gespeichert werden');return uploadFailed(metaError)}
   window.__pendingDocumentMeta=null;await loadDocuments();setSyncStatus('Sicher gespeichert','connected');toast('Dokument sicher abgelegt');return path;
 }
 async function loadDocuments(){
@@ -485,7 +488,7 @@ $('#joinHouseholdForm').addEventListener('submit',async e=>{
   const {error}=await cloud.rpc('join_household',{invite_code:data.inviteCode,member_name:data.memberName});button.disabled=false;
   if(error){$('#householdMessage').textContent=/Einladungscode/i.test(error.message)?'Der Einladungscode stimmt nicht. Bitte noch einmal prüfen.':friendlyError(error.message);return}await loadHousehold();
 });
-document.addEventListener('click',async e=>{if(e.target.closest('[data-sign-out]')){await disableCurrentPush();await cloud.auth.signOut();$('#detailDialog').close()}});
+document.addEventListener('click',async e=>{if(e.target.closest('[data-sign-out]')){const waiting=(await window.ZuhauseScanner?.queueAll?.())?.length||0;if(waiting&&!confirm(`${waiting===1?'1 Scan wartet':`${waiting} Scans warten`} noch aufs Hochladen. Beim Abmelden werden ${waiting===1?'er':'sie'} von diesem Handy gelöscht. Trotzdem abmelden?`))return;if(waiting)await window.ZuhauseScanner.queueClear();await disableCurrentPush();await cloud.auth.signOut();$('#detailDialog').close()}});
 $('#exportData').addEventListener('click',()=>{const year=new Date().getFullYear(),data={hinweis:'Kontrolldatei. Noch keine ELSTER-Datei.',steuerjahr:year,personen:[personNames.person1,personNames.person2],ausgaben:state.expenses,einnahmen:state.incomes,aufgaben:state.taxTasks};const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`zuhause-steuer-${year}-kontrolle.json`;a.click();URL.revokeObjectURL(a.href);toast('Kontroll-Datei geladen')});
 function renderAll(){
   setGreeting();renderTimeline();renderTasks();renderShopping();renderCalendar();renderExpenses();renderTaxTasks();bindDocumentChecklist();

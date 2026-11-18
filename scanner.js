@@ -6,7 +6,7 @@
   'use strict';
   const h = escapeHtml;
   const VENDOR = new URL('vendor/', document.baseURI).href;
-  const WORK_SIDE = 2200;      // längste Seite der Arbeitskopie (Speicher am iPhone schonen)
+  const WORK_SIDE = 1800;      // längste Seite der Arbeitskopie (Speicher am iPhone schonen, ~170 dpi auf A4)
   const DETECT_SIDE = 480;
   const ORIGINAL_SIDE = 1600;  // Originalfoto (bleibt laut Festlegung erhalten) – kleiner gespeichert, spart etwa 2/3 Platz     // Größe für die Ecken-Erkennung
   const A4 = 297 / 210;
@@ -98,7 +98,7 @@
     return b.map((v, k) => v / A[k][k]).concat(1);
   }
   const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
-  function warp(source, cornersNorm) {
+  function warp(source, cornersNorm, trim = true) {
     const W = source.width, H = source.height, q = cornersNorm.map(([x, y]) => [x * (W - 1), y * (H - 1)]);
     let outW = (dist(q[0], q[1]) + dist(q[3], q[2])) / 2, outH = (dist(q[0], q[3]) + dist(q[1], q[2])) / 2;
     // fast DIN A4? Dann genau A4-Verhältnis (hoch oder quer)
@@ -114,7 +114,27 @@
       for (let c = 0; c < 3; c++) dst[d + c] = (src[p00 + c] * (1 - fx) + src[p10 + c] * fx) * (1 - fy) + (src[p01 + c] * (1 - fx) + src[p11 + c] * fx) * fy;
       dst[d + 3] = 255;
     }
-    octx.putImageData(img, 0, 0); return out;
+    octx.putImageData(img, 0, 0);
+    const full = cornersNorm.every(([x, y], k) => Math.abs(x - [0, 1, 1, 0][k]) < 0.002 && Math.abs(y - [0, 0, 1, 1][k]) < 0.002);
+    return trim && !full ? trimDarkEdges(out, dst) : out;
+  }
+  // Schmaler dunkler Streifen vom Tisch am Rand (entsteht, weil die Ecken bewusst etwas großzügig gesetzt werden):
+  // höchstens 4 % je Seite abschneiden, und nur, solange die Randzeile deutlich dunkler als die Blattmitte ist.
+  function trimDarkEdges(canvas, data) {
+    const W = canvas.width, H = canvas.height, lum = i => data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+    const rowMean = y => { let s = 0, n = 0; for (let x = Math.floor(W * 0.1); x < W * 0.9; x += 2) { s += lum((y * W + x) * 4); n++; } return s / n; };
+    const colMean = x => { let s = 0, n = 0; for (let y = Math.floor(H * 0.1); y < H * 0.9; y += 2) { s += lum((y * W + x) * 4); n++; } return s / n; };
+    let centre = 0, n = 0; for (let y = Math.floor(H * 0.3); y < H * 0.7; y += 7) for (let x = Math.floor(W * 0.3); x < W * 0.7; x += 7) { centre += lum((y * W + x) * 4); n++; } centre /= n;
+    // Hintergrund der Blattränder: hellster Wert der inneren Randzeilen als Maßstab (Text in der Mitte stört so nicht)
+    const limit = Math.max(40, Math.min(centre, Math.max(rowMean(Math.floor(H * 0.05)), colMean(Math.floor(W * 0.05)))) * 0.88);
+    let top = 0, bottom = H - 1, left = 0, right = W - 1;
+    while (top < H * 0.04 && rowMean(top) < limit) top++;
+    while (bottom > H * 0.96 && rowMean(bottom) < limit) bottom--;
+    while (left < W * 0.04 && colMean(left) < limit) left++;
+    while (right > W * 0.96 && colMean(right) < limit) right--;
+    if (!top && !left && bottom === H - 1 && right === W - 1) return canvas;
+    const pad = 1; top = Math.min(H - 2, top + (top ? pad : 0)); left = Math.min(W - 2, left + (left ? pad : 0)); bottom = Math.max(top + 1, bottom - (bottom < H - 1 ? pad : 0)); right = Math.max(left + 1, right - (right < W - 1 ? pad : 0));
+    const out = canvasOf(right - left + 1, bottom - top + 1); out.getContext('2d').drawImage(canvas, left, top, out.width, out.height, 0, 0, out.width, out.height); return out;
   }
   function rotate(canvas, quarterTurns) {
     const t = ((quarterTurns % 4) + 4) % 4; if (!t) return canvas;
@@ -146,10 +166,15 @@
     }
     const out = canvasOf(width, height); out.getContext('2d').putImageData(img, 0, 0); return out;
   }
+  // Ergebnisbild nach dem Bearbeiten als JPEG ablegen statt als großes Bild im Speicher – sonst wird es am iPhone ab ~10 Seiten eng.
+  const toBlob = (canvas, quality) => new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
+  const blobToDataUrl = blob => new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = reject; r.readAsDataURL(blob); });
   function processPage(page) {
     const flat = warp(page.source, page.corners);
-    page.result = rotate(enhance(flat, page.mode), page.rotation);
-    page.thumb = scaled(page.result, 360).toDataURL('image/jpeg', 0.8);
+    const result = rotate(enhance(flat, page.mode), page.rotation);
+    page.result = result; page.size = [result.width, result.height];
+    page.thumb = scaled(result, 360).toDataURL('image/jpeg', 0.8);
+    page.blob = null; page.compacting = toBlob(result, page.mode === 'document' ? 0.8 : 0.85).then(blob => { if (page.result === result) { page.blob = blob; page.result = null; } return blob; });
   }
 
   // ---------- Texterkennung ----------
@@ -163,7 +188,7 @@
   }
   async function recognise(canvas, onProgress) {
     try { ocrProgress = onProgress; const w = await worker(); const { data } = await w.recognize(canvas); return { text: data.text || '', words: (data.words || []).filter(word => word.confidence > 35 && word.text.trim()) }; }
-    catch { return { text: '', words: [] }; } finally { ocrProgress = null; }
+    catch { return { text: '', words: [], failed: true }; } finally { ocrProgress = null; }
   }
 
   // ---------- Oberfläche ----------
@@ -173,28 +198,30 @@
     if (!d) { d = document.createElement('dialog'); d.id = 'scannerDialog'; d.className = 'scanner-dialog'; document.body.append(d); d.addEventListener('cancel', event => { event.preventDefault(); close(); }); }
     return d;
   }
-  function pickFiles(multiple) {
+  // replaceIndex: „Neu aufnehmen“ – die alte Seite bleibt, bis das neue Foto wirklich da ist (Kamera abgebrochen → nichts verloren)
+  function pickFiles(multiple, replaceIndex = null) {
     const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*';
     if (multiple) input.multiple = true; else input.capture = 'environment';
-    input.addEventListener('change', async () => { const files = [...(input.files || [])]; if (!files.length) return; for (const file of files) await addPage(file, files.length === 1); if (files.length > 1) { view = 'pages'; render(); } });
+    input.addEventListener('change', async () => { const files = [...(input.files || [])]; if (!files.length) return; for (const file of files) await addPage(file, files.length === 1, replaceIndex); if (files.length > 1) { view = 'pages'; render(); } });
     input.click();
   }
-  async function addPage(file, edit = true) {
+  async function addPage(file, edit = true, replaceIndex = null) {
     const d = dialog(); d.querySelector('.scanner-busy')?.removeAttribute('hidden');
     try {
       const source = await loadImage(file), found = detectCorners(source);
       const page = { id: uid(), file, source, corners: found.corners, sure: found.sure, mode: 'document', rotation: 0, quality: quality(source) };
-      processPage(page); pages.push(page); analysis = null;
-      if (edit) { editIndex = pages.length - 1; view = 'edit'; } render();
+      processPage(page); resetAnalysis();
+      if (replaceIndex !== null && pages[replaceIndex]) pages[replaceIndex] = page; else pages.push(page);
+      if (edit) { editIndex = replaceIndex !== null && pages[replaceIndex] === page ? replaceIndex : pages.length - 1; view = 'edit'; } render();
     } catch { toast('Das Foto konnte nicht gelesen werden'); render(); }
   }
   function close() {
     if (pages.length && !confirm('Scan verwerfen? Die aufgenommenen Seiten gehen verloren.')) return;
-    pages = []; analysis = null; ocrRun++; editIndex = -1; view = 'pages'; dialog().close();
+    pages = []; resetAnalysis(); editIndex = -1; view = 'pages'; dialog().close();
   }
   function open(options = {}) {
     context = { folder: options.folder || document.querySelector('#documentFolder')?.value || 'Gemeinsam', fixedFolder: !!options.folder, category: options.category || document.querySelector('#documentCategory')?.value || '', name: options.name || '', actions: options.actions || [], orderId: options.orderId || null, onSaved: options.onSaved };
-    analysis = null; ocrRun++; pages = []; editIndex = -1; view = 'pages'; render(); dialog().showModal();
+    resetAnalysis(); pages = []; editIndex = -1; view = 'pages'; render(); dialog().showModal();
     if (options.startCamera !== false) setTimeout(() => pickFiles(false), 60);
   }
 
@@ -211,12 +238,13 @@
 
   function renderEdit(d, page) {
     d.innerHTML = `<div class="scanner-head"><button class="scanner-text" data-sc-retake>Neu aufnehmen</button><strong>Seite ${editIndex + 1}</strong><button class="scanner-text strong" data-sc-accept>Übernehmen ✓</button></div>
-      ${page.quality.blurry || page.quality.dark ? `<p class="scanner-hint warn">${page.quality.blurry ? 'Das Foto wirkt unscharf.' : 'Das Foto ist recht dunkel.'} Lieber noch einmal aufnehmen?</p>` : `<p class="scanner-hint">${page.sure ? 'Ecken erkannt – bei Bedarf mit dem Finger verschieben.' : 'Ränder nicht sicher erkannt – ziehe die Ecken an die Blattecken.'}</p>`}
+      ${page.quality.blurry || page.quality.dark ? `<p class="scanner-hint warn">${page.quality.dark && page.quality.blurry ? 'Das Foto ist recht dunkel und wirkt unscharf.' : page.quality.dark ? 'Das Foto ist recht dunkel.' : 'Das Foto wirkt unscharf.'} Lieber noch einmal aufnehmen?</p>` : `<p class="scanner-hint">${page.sure ? 'Ecken erkannt – bei Bedarf mit dem Finger verschieben.' : 'Ränder nicht sicher erkannt – ziehe die Ecken an die Blattecken.'}</p>`}
       <div class="scanner-stage"><canvas class="scanner-photo"></canvas><canvas class="scanner-lines"></canvas>${page.corners.map((_, k) => `<button class="scanner-handle" data-corner="${k}" aria-label="Ecke ${k + 1}"></button>`).join('')}<canvas class="scanner-loupe" width="120" height="120" hidden></canvas></div>
       <div class="scanner-tools"><div class="scanner-modes" role="group" aria-label="Bildmodus">${[['document', 'Dokument'], ['color', 'Farbe'], ['original', 'Original']].map(([k, l]) => `<button data-sc-mode="${k}" class="${page.mode === k ? 'active' : ''}" aria-pressed="${page.mode === k}">${l}</button>`).join('')}</div>
-        <div class="scanner-row"><button class="secondary" data-sc-rotate>↻ Drehen${page.rotation ? ` (${page.rotation * 90}°)` : ''}</button><button class="secondary" data-sc-full>Ganze Seite</button><button class="secondary" data-sc-preview>Vorschau</button></div></div>`;
+        <div class="scanner-row"><button class="secondary" data-sc-rotate>↻ Drehen${page.rotation ? ` (${page.rotation * 90}°)` : ''}</button><button class="secondary" data-sc-full>Ganze Seite</button><button class="secondary" data-sc-preview>Vorschau</button></div>
+        <div class="scanner-accept-row"><button class="primary" data-sc-accept>Übernehmen ✓</button><button class="secondary" data-sc-accept-next>Übernehmen + nächste Seite</button></div></div>`;
     const stage = d.querySelector('.scanner-stage'), photo = d.querySelector('.scanner-photo'), lines = d.querySelector('.scanner-lines'), loupe = d.querySelector('.scanner-loupe');
-    const maxW = Math.min(window.innerWidth - 32, 760), maxH = Math.max(260, window.innerHeight - 330), f = Math.min(maxW / page.source.width, maxH / page.source.height);
+    const maxW = Math.min(window.innerWidth - 32, 760), maxH = Math.max(240, window.innerHeight - 400), f = Math.min(maxW / page.source.width, maxH / page.source.height);
     const W = Math.round(page.source.width * f), H = Math.round(page.source.height * f);
     for (const c of [photo, lines]) { c.width = W; c.height = H; c.style.width = `${W}px`; c.style.height = `${H}px`; }
     stage.style.width = `${W}px`; stage.style.height = `${H}px`;
@@ -249,12 +277,13 @@
   const euro = n => Number(n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
   const ocrKey = page => `${page.corners.flat().map(v => v.toFixed(3)).join(',')}|${page.rotation}`;
   let analysis = null, ocrRun = 0;
-  function ocrCanvasOf(page) { return page.mode === 'document' ? page.result : rotate(enhance(warp(page.source, page.corners), 'document'), page.rotation); }
+  async function ocrSourceOf(page) { return page.mode === 'document' ? (page.result || await page.compacting) : rotate(enhance(warp(page.source, page.corners), 'document'), page.rotation); }
   async function ocrAll(progress) {
     for (let i = 0; i < pages.length; i++) {
       const page = pages[i]; if (page.ocr && page.ocrKey === ocrKey(page)) continue;
       progress?.(`Seite ${i + 1} von ${pages.length}: Text wird gelesen …`);
-      page.ocr = await recognise(ocrCanvasOf(page), m => { if (m.status === 'recognizing text') progress?.(`Seite ${i + 1} von ${pages.length}: Text wird gelesen … ${Math.round(m.progress * 100)} %`); }); page.ocrKey = ocrKey(page);
+      const result = await recognise(await ocrSourceOf(page), m => { if (m.status === 'recognizing text') progress?.(`Seite ${i + 1} von ${pages.length}: Text wird gelesen … ${Math.round(m.progress * 100)} %`); });
+      if (result.failed) { page.ocr = null; continue; } page.ocr = result; page.ocrKey = ocrKey(page);
     }
     return pages.map(p => p.ocr?.text || '').join('\n');
   }
@@ -278,6 +307,7 @@
     const box = d.querySelector('.scanner-suggest'); if (!box || !analysis) return;
     const list = suggestions(analysis);
     box.innerHTML = `${analysis.kind !== 'other' || analysis.sender ? `<p class="scanner-found">Erkannt: <b>${h(analysis.label)}</b>${analysis.sender ? ` von ${h(analysis.sender)}` : ''}${analysis.docDate ? ` · ${h(A().german(analysis.docDate))}` : ''}${analysis.total ? ` · ${h(euro(analysis.total))}` : ''}${analysis.learned ? ' · <span>Ordner gemerkt</span>' : ''}</p>` : '<p class="scanner-found">Kein bekannter Dokumenttyp erkannt – bitte Name und Ordner selbst wählen.</p>'}
+      ${dialog().querySelector('.scanner-suggested') ? '<p class="scanner-legend"><i></i>Grün umrandet = Vorschlag der App – zum Ändern einfach antippen.</p>' : ''}
       ${list.length ? `<p class="scanner-sub">Gleich mit erledigen?</p>${list.map(s => `<div class="scanner-action"><label><input type="checkbox" data-sc-action="${s.key}" ${s.checked ? 'checked' : ''}><span>${h(s.title)}</span></label>${s.note ? `<small>${h(s.note)}</small>` : ''}${s.fields ? `<div class="scanner-action-fields">${s.fields}</div>` : ''}</div>`).join('')}` : ''}`;
   }
   function fillFields(d) {
@@ -300,13 +330,27 @@
       <div class="scanner-foot"><button class="secondary" data-sc-back>Zurück</button><button class="primary" data-sc-save>PDF speichern</button></div>`;
     d.querySelectorAll('.scanner-save > label input, .scanner-save > label select').forEach(el => el.addEventListener('input', () => { el.dataset.touched = '1'; el.classList.remove('scanner-suggested'); }));
     if (analysis) { fillFields(d); renderSuggestions(d); return; }
-    const run = ++ocrRun, progress = d.querySelector('.scanner-progress');
-    ocrAll(text => { if (run === ocrRun) progress.textContent = text; }).then(text => {
-      if (run !== ocrRun || view !== 'save') return;
-      analysis = A()?.analyse(text, state.customCategories?.documents || [], state.scanRules || {}) || null;
+    const progress = d.querySelector('.scanner-progress');
+    progress.textContent = 'Text wird gelesen – Vorschläge kommen gleich …';
+    startAnalysis(text => { if (view === 'save' && !saving) progress.textContent = `${text} Vorschläge kommen gleich.`; }).then(() => {
+      if (view !== 'save' || saving || !dialog().contains(progress)) return;
       progress.textContent = ''; fillFields(d); renderSuggestions(d);
     });
   }
+  // Eine einzige laufende Auswertung je Scan – „PDF speichern“ wartet auf sie, statt neu anzufangen (sonst gingen Vorschläge und
+  // vorgewählte Folgeaktionen verloren und jede Seite würde doppelt gelesen).
+  let analysisPromise = null, saving = false;
+  function startAnalysis(onProgress) {
+    if (!analysisPromise) {
+      const run = ocrRun;
+      analysisPromise = ocrAll(text => onProgress?.(text)).then(text => {
+        if (run !== ocrRun) return text;
+        analysis = A()?.analyse(text, state.customCategories?.documents || [], state.scanRules || {}) || null; return text;
+      });
+    }
+    return analysisPromise;
+  }
+  function resetAnalysis() { analysis = null; analysisPromise = null; ocrRun++; }
 
   function runActions(d, a, meta) {
     const done = [], value = name => d.querySelector(`[name=${name}]`)?.value?.trim() || '';
@@ -345,11 +389,13 @@
     flushing = true;
     try {
       // automatisch höchstens 5 Versuche je Scan (sonst käme alle zwei Minuten eine Fehlermeldung); „Jetzt versuchen“ geht immer
-      const items = (await queueAll()).filter(item => manual === true || (item.attempts || 0) < 5); let sent = 0;
+      // nur Scans dieses Kontos und dieses Zuhauses hochladen (falls sich am Handy jemand anderes anmeldet)
+      const mine = item => (!item.household || item.household === currentHousehold.id) && (!item.owner || item.owner === currentUser?.id);
+      const items = (await queueAll()).filter(item => mine(item) && (manual === true || (item.attempts || 0) < 5)); let sent = 0;
       for (const item of items) {
         window.__pendingDocumentMeta = item.meta;
         if (await uploadDocument(new File([item.pdf], item.fileName, { type: 'application/pdf' }))) { await queueDelete(item.id); sent++; }
-        else { item.attempts = (item.attempts || 0) + 1; await queueAdd(item).catch(() => {}); break; }
+        else { const f = window.__uploadFailure; item.attempts = (item.attempts || 0) + 1; item.problem = f && f.kind !== 'network' ? failureText(f) : ''; await queueAdd(item).catch(() => {}); break; }
       }
       if (sent) toast(sent === 1 ? 'Wartender Scan wurde hochgeladen' : `${sent} wartende Scans wurden hochgeladen`);
     } finally { flushing = false; showQueue(); }
@@ -358,7 +404,10 @@
     const items = await queueAll(), tiles = document.querySelector('#docFolderTiles'); let note = document.querySelector('#scanQueueNote');
     if (!items.length) { note?.remove(); return; }
     if (!note && tiles) { note = document.createElement('p'); note.id = 'scanQueueNote'; note.className = 'scan-queue-note'; tiles.before(note); }
-    if (note) note.innerHTML = `⏳ ${items.length === 1 ? '1 Scan wartet' : `${items.length} Scans warten`} auf Internet und wird automatisch hochgeladen. <button class="ws-text-button" data-scan-flush>Jetzt versuchen</button>`;
+    const problem = items.find(item => item.problem || (item.attempts || 0) >= 5);
+    if (note) { note.classList.toggle('problem', !!problem); note.innerHTML = problem
+      ? `⚠️ ${items.length === 1 ? '1 Scan' : `${items.length} Scans`} konnte${items.length === 1 ? '' : 'n'} nicht hochgeladen werden${problem.problem ? `: ${h(problem.problem)}` : ''}. Sie liegen sicher auf diesem Handy. <button class="ws-text-button" data-scan-flush>Jetzt versuchen</button>`
+      : `⏳ ${items.length === 1 ? '1 Scan wartet' : `${items.length} Scans warten`} auf Internet und ${items.length === 1 ? 'wird' : 'werden'} automatisch hochgeladen. <button class="ws-text-button" data-scan-flush>Jetzt versuchen</button>`; }
   }
   window.addEventListener('online', () => setTimeout(flushQueue, 1500));
   setInterval(flushQueue, 120000); setTimeout(flushQueue, 8000);
@@ -366,52 +415,73 @@
 
   const toFile = (canvas, name, quality) => new Promise(resolve => canvas.toBlob(blob => resolve(new File([blob], name, { type: 'image/jpeg' })), 'image/jpeg', quality));
   let cancelled = false;
+  function cancelOcr() {
+    // laufende Texterkennung sofort beenden (sonst dauert „Abbrechen“, bis alle Seiten gelesen sind)
+    const running = ocrWorker; ocrWorker = null; running?.then(w => w.terminate()).catch(() => {});
+    pages.forEach(p => { if (!p.ocr?.text) p.ocr = null; }); resetAnalysis();
+  }
+  const failureText = f => f?.kind === 'full' ? 'Der Speicher ist voll oder die Datei zu groß.' : f?.kind === 'other' ? 'Der Server hat das Dokument abgelehnt.' : 'Keine Verbindung.';
   async function save() {
-    const d = dialog(), name = d.querySelector('[name=name]').value.trim(), folder = d.querySelector('[name=folder]').value, category = d.querySelector('[name=category]').value, progress = d.querySelector('.scanner-progress');
+    const d = dialog(), progress = d.querySelector('.scanner-progress'), folder = d.querySelector('[name=folder]').value, category = d.querySelector('[name=category]').value;
+    // Ausgabe angehakt, aber kein Betrag → lieber gleich sagen, statt still nichts einzutragen
+    const expense = d.querySelector('[data-sc-action="expense"]');
+    if (expense?.checked && !(d.querySelector('[name=expenseAmount]')?.value || '').trim()) { progress.textContent = 'Für „Als Ausgabe ins Budget“ fehlt noch der Betrag.'; d.querySelector('[name=expenseAmount]')?.focus(); return; }
     const enable = on => d.querySelectorAll('button, input, select').forEach(b => { if (!b.matches('[data-sc-cancel-save]')) b.disabled = !on; });
-    enable(false); cancelled = false;
+    saving = true; enable(false); cancelled = false;
     const saveButton = d.querySelector('[data-sc-save]'); saveButton.insertAdjacentHTML('beforebegin', '<button class="secondary" data-sc-cancel-save>Abbrechen</button>');
     const stop = () => { if (cancelled) throw new Error('abgebrochen'); };
     try {
-      ocrRun++; const text = await ocrAll(t => { if (!cancelled) progress.textContent = t; }); stop();
+      progress.textContent = 'Text wird gelesen …';
+      const text = await startAnalysis(t => { if (!cancelled) progress.textContent = t; }); stop();
+      // Vorschläge und vorgewählte Folgeaktionen auch dann übernehmen, wenn sie noch nicht angezeigt waren
+      if (analysis && !d.querySelector('.scanner-suggest')?.children.length) { fillFields(d); renderSuggestions(d); d.querySelectorAll('.scanner-suggest input, .scanner-suggest select').forEach(el => { el.disabled = true; }); }
+      const name = d.querySelector('[name=name]').value.trim();
       progress.textContent = 'PDF wird erstellt …';
-      await loadScript(VENDOR + 'jspdf.umd.min.js');
+      try { await loadScript(VENDOR + 'jspdf.umd.min.js'); } catch { throw new Error('pdf-werkzeug'); }
       const { jsPDF } = window.jspdf; let pdf = null;
-      const quality = pages.length > 12 ? 0.62 : 0.8; // viele Seiten: kleiner, damit das PDF unter 10 MB bleibt
       for (const page of pages) {
-        const canvas = page.result, words = page.ocr?.words || [];
+        const blob = page.blob || await page.compacting, [cw, ch] = page.size, words = page.ocr?.words || [];
         // Seitenformat: A4 (hoch/quer) oder passend zum Blatt (z. B. lange Kassenbons)
-        const ratio = canvas.height / canvas.width, a4 = Math.abs(ratio - A4) / A4 < 0.02, a4q = Math.abs(1 / ratio - A4) / A4 < 0.02;
+        const ratio = ch / cw, a4 = Math.abs(ratio - A4) / A4 < 0.02, a4q = Math.abs(1 / ratio - A4) / A4 < 0.02;
         const pw = a4 ? 210 : a4q ? 297 : 210, ph = a4 ? 297 : a4q ? 210 : Math.min(5000, 210 * ratio);
         if (!pdf) pdf = new jsPDF({ unit: 'mm', format: [pw, ph], orientation: pw > ph ? 'landscape' : 'portrait', compress: true }); else pdf.addPage([pw, ph], pw > ph ? 'landscape' : 'portrait');
-        pdf.addImage(canvas.toDataURL('image/jpeg', page.mode === 'document' ? quality : quality + 0.05), 'JPEG', 0, 0, pw, ph, undefined, 'FAST');
+        pdf.addImage(await blobToDataUrl(blob), 'JPEG', 0, 0, pw, ph, undefined, 'FAST');
         // unsichtbare Textebene: macht das PDF durchsuchbar und den Text markierbar
-        const sx = pw / canvas.width, sy = ph / canvas.height;
+        const sx = pw / cw, sy = ph / ch;
         for (const word of words) { const { x0, y0, x1, y1 } = word.bbox, height = (y1 - y0) * sy; if (height <= 0) continue; pdf.setFontSize(Math.max(2, height * 2.6)); try { pdf.text(word.text, x0 * sx, y1 * sy, { renderingMode: 'invisible', maxWidth: (x1 - x0) * sx * 1.2 }); } catch {} }
       }
       stop();
       const finalName = name || `Scan ${new Date().toLocaleDateString('de-DE')}`;
       const blob = pdf.output('blob'), fileName = `${finalName.replace(/[^\wäöüÄÖÜß .-]+/g, '-')}.pdf`;
-      if (blob.size > 10485760) { progress.textContent = 'Das PDF ist zu groß (über 10 MB). Bitte auf zwei Scans aufteilen.'; enable(true); d.querySelector('[data-sc-cancel-save]')?.remove(); return; }
-      // Originalfotos als JPEG in Arbeitsgröße sichern (iPhone-Fotos können sonst zu groß oder im falschen Format sein)
+      if (blob.size > 10485760) { progress.textContent = 'Das PDF ist zu groß (über 10 MB). Bitte auf zwei Scans aufteilen.'; saving = false; enable(true); d.querySelector('[data-sc-cancel-save]')?.remove(); return; }
+      // Originalfotos als JPEG sichern (iPhone-Fotos können sonst zu groß oder im falschen Format sein)
       const originalFiles = await Promise.all(pages.map((p, i) => toFile(scaled(p.source, ORIGINAL_SIDE), `original-${i + 1}.jpg`, 0.72)));
-      const thumb = await window.ZuhauseDocuments?.imageThumb?.(pages[0].result);
+      const thumb = await window.ZuhauseDocuments?.imageThumb?.(pages[0].blob || await pages[0].compacting);
       const meta = { folder, category, ocrText: text.trim(), name: finalName, originalFiles, thumb };
       stop(); d.querySelector('[data-sc-cancel-save]')?.remove(); progress.textContent = 'Wird gespeichert …';
+      // Nur bei echtem Verbindungsproblem in die Warteschlange; sonst den Grund nennen und das Fenster offen lassen
       let queued = false;
-      if (navigator.onLine && typeof cloudReady !== 'undefined' && cloudReady) { window.__pendingDocumentMeta = meta; queued = !(await uploadDocument(new File([blob], fileName, { type: 'application/pdf' }))); } else queued = true;
+      if (navigator.onLine && typeof cloudReady !== 'undefined' && cloudReady) {
+        window.__pendingDocumentMeta = meta;
+        if (!(await uploadDocument(new File([blob], fileName, { type: 'application/pdf' })))) {
+          const failure = window.__uploadFailure;
+          if (failure && failure.kind !== 'network') { progress.textContent = `Speichern hat nicht geklappt: ${failureText(failure)} Bitte später noch einmal versuchen.`; saving = false; enable(true); return; }
+          queued = true;
+        }
+      } else queued = true;
       if (queued) {
-        try { await queueAdd({ id: crypto.randomUUID(), pdf: blob, fileName, meta, createdAt: new Date().toISOString() }); }
+        try { await queueAdd({ id: crypto.randomUUID(), pdf: blob, fileName, meta, owner: currentUser?.id || null, household: currentHousehold?.id || null, createdAt: new Date().toISOString() }); }
         catch { throw new Error('Zwischenspeichern fehlgeschlagen'); }
       }
       if (analysis?.senderKey) { A()?.learn(analysis.senderKey, folder, category); persist(); }
       const a = analysis, actions = runActions(d, a, meta), callback = context.onSaved;
-      pages = []; analysis = null; d.close(); showQueue();
-      toast(queued ? 'Kein Internet – der Scan ist auf dem Handy gesichert und wird später automatisch hochgeladen' : actions.length ? `Gespeichert · ${actions.join(', ')} angelegt` : 'Dokument gespeichert');
+      pages = []; resetAnalysis(); saving = false; d.close(); showQueue();
+      const done = actions.length ? `${actions.join(', ')} angelegt` : '';
+      toast(queued ? `Kein Internet – Scan auf dem Handy gesichert, wird automatisch hochgeladen${done ? ` · ${done}` : ''}` : done ? `Gespeichert · ${done}` : 'Dokument gespeichert');
       callback?.({ name: finalName, folder, category, text });
     } catch (error) {
-      d.querySelector('[data-sc-cancel-save]')?.remove(); enable(true);
-      progress.textContent = cancelled ? 'Abgebrochen – nichts gespeichert.' : 'Das Speichern hat nicht geklappt. Bitte noch einmal versuchen.';
+      saving = false; d.querySelector('[data-sc-cancel-save]')?.remove(); enable(true);
+      progress.textContent = cancelled ? 'Abgebrochen – nichts gespeichert.' : error?.message === 'pdf-werkzeug' ? 'Das PDF-Werkzeug ist noch nicht auf dem Handy. Bitte einmal mit Internet speichern – danach geht es auch ohne.' : 'Das Speichern hat nicht geklappt. Bitte noch einmal versuchen.';
     }
   }
 
@@ -421,16 +491,16 @@
     if ('scCamera' in ds) pickFiles(false);
     if ('scPhotos' in ds) pickFiles(true);
     if ('scEdit' in ds) { editIndex = +ds.scEdit; view = 'edit'; render(); }
-    if ('scMove' in ds) { const [i, step] = ds.scMove.split(':').map(Number); const j = i + step; if (pages[j]) { [pages[i], pages[j]] = [pages[j], pages[i]]; render(); } }
-    if ('scDelete' in ds) { pages.splice(+ds.scDelete, 1); analysis = null; render(); }
+    if ('scMove' in ds) { const [i, step] = ds.scMove.split(':').map(Number); const j = i + step; if (pages[j]) { [pages[i], pages[j]] = [pages[j], pages[i]]; resetAnalysis(); render(); } }
+    if ('scDelete' in ds) { pages.splice(+ds.scDelete, 1); resetAnalysis(); render(); }
     if ('scNext' in ds) { view = 'save'; render(); }
     if ('scBack' in ds) { view = 'pages'; render(); }
     if ('scSave' in ds) save();
-    if ('scCancelSave' in ds) { cancelled = true; b.disabled = true; b.textContent = 'Wird abgebrochen …'; }
+    if ('scCancelSave' in ds) { cancelled = true; b.disabled = true; b.textContent = 'Wird abgebrochen …'; cancelOcr(); }
     const page = pages[editIndex];
     if (!page || view !== 'edit') return;
-    if ('scRetake' in ds) { pages.splice(editIndex, 1); view = 'pages'; render(); pickFiles(false); }
-    if ('scAccept' in ds) { processPage(page); analysis = null; view = 'pages'; render(); }
+    if ('scRetake' in ds) { pickFiles(false, editIndex); }
+    if ('scAccept' in ds || 'scAcceptNext' in ds) { processPage(page); resetAnalysis(); view = 'pages'; render(); if ('scAcceptNext' in ds) pickFiles(false); }
     if ('scMode' in ds) { page.mode = ds.scMode; renderEdit(dialog(), page); }
     if ('scRotate' in ds) { page.rotation = (page.rotation + 1) % 4; renderEdit(dialog(), page); }
     if ('scFull' in ds) { page.corners = [[0, 0], [1, 0], [1, 1], [0, 1]]; renderEdit(dialog(), page); }
@@ -448,5 +518,5 @@
     event.preventDefault(); const ds = button.dataset;
     open({ folder: ds.scanFolder, actions: (ds.scanActions || '').split(',').filter(Boolean), orderId: ds.scanOrder || null });
   });
-  window.ZuhauseScanner = { open, flushQueue, queueAll, showQueue, detectCorners, warp, enhance, quality, recognise };
+  window.ZuhauseScanner = { open, flushQueue, queueAll, queueClear: () => queueOp('readwrite', st => st.clear()).catch(() => {}), showQueue, detectCorners, warp, enhance, quality, recognise };
 })();
