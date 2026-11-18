@@ -192,3 +192,10 @@
 /* Aufgabe: ✎ und × in derselben Zeile wie der Text (vorher rutschte × am Handy in eine eigene Zeile) */
 .check-row.feature-task{grid-template-columns:24px minmax(0,1fr) auto auto}
 .card.lou-due{padding:16px 18px}
+.doc-chips{flex-wrap:wrap;overflow-x:visible}
+/* größere Tippflächen (Prüfung 18.11.): Zurück-Links, Stifte bei Kategorien, Häkchen im Dokumenten-Check */
+.section-back button{min-height:44px;padding-top:10px;padding-bottom:10px}
+.category-manager button{min-width:44px;min-height:44px}
+.simple-checks input[type=checkbox]{appearance:auto;width:22px;height:22px;accent-color:var(--sage-dark);flex:none}
+.simple-checks label{min-height:44px;display:flex;align-items:center;gap:10px}
+.scan-queue-note .ws-text-button{min-height:36px}

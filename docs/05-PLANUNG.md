@@ -64,7 +64,7 @@ Prüfung vom 17.11.2026 umgesetzt (Versionen 32–34, siehe oben). Offen bzw. nu
 - **Prüfung auf geleakte Passwörter** ist erst im kostenpflichtigen Supabase-Tarif möglich.
 - Nächste Prüfung: `/pruefen`.
 
-**Prüfung vom 18.11.2026 (v39, alle vier Prüf-Agenten) – offen, wartet auf Noahs Auswahl:**
+**Prüfung vom 18.11.2026 (v39, alle vier Prüf-Agenten) – ✅ alles umgesetzt am 18.11.2026 (Noah: „alle“), v40 (A + Scanner-Bedienung), v41 (C Dokumente), v42 (D Bereiche), v43 (E Aufräumen: Sicherheitsregel ohne fremde Download-Seiten, jsPDF 4.2.1, Warteschlange an Konto/Zuhause gebunden + Nachfrage beim Abmelden, ui-check mit neuer Dokumente-Ansicht, größere Tippflächen). Bewusst nicht: Dokumentdatum als eigene Spalte (bräuchte Datenbankänderung – das erkannte Datum steht im Namen); persönliche Stichworte in scan-analyse.js bleiben (keine Geheimnisse). Ursprüngliche Liste:**
 - **A – Falsches und Verlust (dringend):**
   - Scanner liest bei „Betrag … bis zum 26.11.2026“ das Datum als Betrag (26,11 €) – `scan-analyse.js` Betragssuche.
   - Ohne Internet nach App-Update: PDF-/Texterkennungs-Dateien nicht vorab gespeichert → Scan geht nicht in die Warteschlange (`sw.js`).
