@@ -56,6 +56,8 @@ Claude hat über einen Supabase-Zugangsschlüssel von Noah (Access Token „Clau
 - **16.11.2026 – Charleen ins gemeinsame Zuhause verschoben.** Ursache des fehlenden Abgleichs: Charleens Konto gehörte zu einem eigenen, zweiten Zuhause. Noah hat im Supabase-SQL-Editor ihre Mitgliedschaft in sein Zuhause verschoben (Rolle `member`). Sicherung vorher: `sicherung.household_members_20261116`. Ihr altes Zuhause existiert ohne Mitglieder weiter (Daten nicht gelöscht).
 - Für später sinnvoll: Knopf „Zuhause wechseln“ in der App, damit so etwas ohne SQL geht (braucht neue Datenbankfunktion).
 
+**Morgen-Nachricht jeden Tag (18.11.2026, Wunsch Noah):** Am 18.11. kam keine Nachricht, weil nichts anstand (so war es gebaut). Seitdem kommt sie jeden Morgen um 5 Uhr, mit Wetter für Bergisch Gladbach (open-meteo) als erster Zeile, an leeren Tagen „Heute steht nichts an.“ (`send-morning-summary`, Version 9).
+
 ## Geplant (Reihenfolge nach Nutzen)
 
 Prüfung vom 17.11.2026 umgesetzt (Versionen 32–34, siehe oben). Offen bzw. nur von Noah erledigbar:

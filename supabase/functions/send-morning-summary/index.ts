@@ -54,6 +54,20 @@ function repeatsOn(event: any, recurrence: any, candidate: string) {
 
 const time = (value: string | null) => String(value || '').slice(0, 5)
 
+// Wetter des Tages für Bergisch Gladbach (dieselbe Quelle wie die Wetterkarte in der App). Fehlt es, kommt die Nachricht trotzdem.
+const WEATHER: Record<number, [string, string]> = { 0: ['☀️', 'sonnig'], 1: ['🌤', 'überwiegend sonnig'], 2: ['⛅', 'teils bewölkt'], 3: ['☁️', 'bewölkt'], 45: ['🌫', 'neblig'], 48: ['🌫', 'neblig mit Reif'], 51: ['🌦', 'leichter Niesel'], 53: ['🌦', 'Niesel'], 55: ['🌧', 'starker Niesel'], 56: ['🌧', 'gefrierender Niesel'], 57: ['🌧', 'gefrierender Niesel'], 61: ['🌦', 'leichter Regen'], 63: ['🌧', 'Regen'], 65: ['🌧', 'starker Regen'], 66: ['🌧', 'gefrierender Regen – Glätte'], 67: ['🌧', 'gefrierender Regen – Glätte'], 71: ['🌨', 'leichter Schnee'], 73: ['🌨', 'Schnee'], 75: ['❄️', 'starker Schnee'], 77: ['🌨', 'Schneegriesel'], 80: ['🌦', 'Regenschauer'], 81: ['🌧', 'Regenschauer'], 82: ['⛈', 'heftige Schauer'], 85: ['🌨', 'Schneeschauer'], 86: ['🌨', 'starke Schneeschauer'], 95: ['⛈', 'Gewitter'], 96: ['⛈', 'Gewitter mit Hagel'], 99: ['⛈', 'Gewitter mit Hagel'] }
+async function weatherLine(): Promise<string> {
+  try {
+    const response = await fetch('https://api.open-meteo.com/v1/forecast?latitude=50.9856&longitude=7.13298&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Europe%2FBerlin&forecast_days=1', { signal: AbortSignal.timeout(8000) })
+    if (!response.ok) return ''
+    const daily = (await response.json())?.daily
+    const code = Number(daily?.weather_code?.[0]), min = Math.round(daily?.temperature_2m_min?.[0]), max = Math.round(daily?.temperature_2m_max?.[0]), rain = Number(daily?.precipitation_probability_max?.[0])
+    if (!Number.isFinite(min) || !Number.isFinite(max)) return ''
+    const [icon, text] = WEATHER[code] || ['🌡', '']
+    return `${icon} ${min}–${max} °C${text ? `, ${text}` : ''}${Number.isFinite(rain) && rain >= 30 && !/regen|schauer|niesel|gewitter|schnee/i.test(text) ? `, Regen möglich (${rain} %)` : ''}`
+  } catch { return '' }
+}
+
 Deno.serve(async request => {
   const unauthorized = authorizeCron(request)
   if (unauthorized) return unauthorized
@@ -85,6 +99,7 @@ Deno.serve(async request => {
 
   let sent = 0
   const previews: any[] = []
+  const weather = await weatherLine()
   for (const member of members.data || []) {
     const personKey = member.role === 'owner' ? 'person1' : 'person2'
     const items: { sort: string; text: string }[] = []
@@ -133,10 +148,11 @@ Deno.serve(async request => {
     for (const care of stateByHousehold.get(member.household_id)?.lou?.care || []) {
       if (care?.nextDue && care.nextDue <= today) items.push({ sort: '99:98', text: `🐾 Lou: ${care.title}${care.nextDue < today ? ' (überfällig)' : ' ist heute dran'}` })
     }
-    if (!items.length) continue
+    // Nachricht kommt jeden Morgen (Wunsch Noah, 18.11.2026): mit Wetter, an leeren Tagen „Heute steht nichts an.“
     items.sort((a, b) => a.sort.localeCompare(b.sort))
-    const lines = items.slice(0, 5).map(item => item.text)
+    const lines = [...(weather ? [weather] : []), ...items.slice(0, 5).map(item => item.text)]
     if (items.length > 5) lines.push(`… und ${items.length - 5} weitere`)
+    if (!items.length) lines.push('Heute steht nichts an.')
     const message = { title: `Guten Morgen, ${member.display_name || ''}!`.replace(', !', '!'), body: lines.join('\n'), tag: `morning:${today}`, url: './?page=today' }
     if (dry) { previews.push({ name: member.display_name, ...message }); continue }
     for (const subscription of (subscriptions.data || []).filter((row: any) => row.user_id === member.user_id && row.household_id === member.household_id)) {
