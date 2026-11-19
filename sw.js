@@ -1,6 +1,6 @@
-const CACHE='zuhause-v52';
-const WORKSPACE_ASSETS=['./workspaces.css?v=52','./workspaces.js?v=52','./lou.js?v=52','./charleen.js?v=52','./noah-jobs.js?v=52','./scan-analyse.js?v=52','./scanner.js?v=52','./documents-view.js?v=52','./recipes.js?v=52'];
-const ASSETS=['./','./index.html','./styles.css?v=52','./features.css?v=52','./calendar.js?v=52','./app.js?v=52','./features.js?v=52','./vendor/supabase.min.js?v=2.118.0','./manifest.webmanifest?v=52','./icon.svg?v=52','./apple-touch-icon.png?v=52','./icon-192.png?v=52','./icon-512.png?v=52','./icon-maskable-512.png?v=52'];
+const CACHE='zuhause-v53';
+const WORKSPACE_ASSETS=['./workspaces.css?v=53','./workspaces.js?v=53','./lou.js?v=53','./charleen.js?v=53','./noah-jobs.js?v=53','./scan-analyse.js?v=53','./scanner.js?v=53','./documents-view.js?v=53','./recipes.js?v=53'];
+const ASSETS=['./','./index.html','./styles.css?v=53','./features.css?v=53','./calendar.js?v=53','./app.js?v=53','./features.js?v=53','./vendor/supabase.min.js?v=2.118.0','./manifest.webmanifest?v=53','./icon.svg?v=53','./apple-touch-icon.png?v=53','./icon-192.png?v=53','./icon-512.png?v=53','./icon-maskable-512.png?v=53'];
 // Werkzeuge für Scanner (PDF, Texterkennung) liegen in einem eigenen Zwischenspeicher, der bei App-Updates erhalten bleibt –
 // so klappt Scannen ohne Internet auch direkt nach einem Update. Beim Austausch einer Datei unter vendor/ VENDOR_CACHE hochzählen.
 const VENDOR_CACHE='zuhause-vendor-2';
@@ -8,13 +8,14 @@ const VENDOR_ASSETS=['./vendor/jspdf.umd.min.js','./vendor/tesseract/tesseract.m
 // Texterkennung (Rechenkern ~3,8 MB + deutsche Sprachdaten ~1,3 MB): nach der Installation im Hintergrund holen, damit der
 // allererste Scan auch ohne Internet Text erkennt. Einmalig – der Zwischenspeicher bleibt über App-Updates erhalten.
 const VENDOR_LATER=['./vendor/tesseract/tesseract-core-simd-lstm.wasm.js','./vendor/tesseract/lang/deu.traineddata.gz'];
+const VENDOR_LATER_OLD=['./vendor/tesseract/tesseract-core-lstm.wasm.js','./vendor/tesseract/lang/deu.traineddata.gz']; // Geräte ohne SIMD (ältere iPhones)
 const isVendor=url=>/\/vendor\/(jspdf|tesseract)/.test(url.pathname);
 self.addEventListener('install',event=>event.waitUntil(Promise.all([
   caches.open(CACHE).then(cache=>cache.addAll([...ASSETS,...WORKSPACE_ASSETS])),
   caches.open(VENDOR_CACHE).then(cache=>Promise.allSettled(VENDOR_ASSETS.map(async asset=>{if(!await cache.match(asset))await cache.add(asset)})))
 ]).then(()=>self.skipWaiting())));
 // Die App bittet ein paar Sekunden nach dem Start darum (blockiert so weder Installation noch Aktivierung).
-self.addEventListener('message',event=>{if(event.data?.type==='precache-ocr')event.waitUntil(caches.open(VENDOR_CACHE).then(cache=>Promise.allSettled(VENDOR_LATER.map(async asset=>{if(!await cache.match(asset))await cache.add(asset)}))))});
+self.addEventListener('message',event=>{if(event.data?.type==='precache-ocr')event.waitUntil(caches.open(VENDOR_CACHE).then(cache=>Promise.allSettled((event.data.simd===false?VENDOR_LATER_OLD:VENDOR_LATER).map(async asset=>{if(!await cache.match(asset))await cache.add(asset)}))))});
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE&&key!==VENDOR_CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{
   if(event.request.method!=='GET'||new URL(event.request.url).origin!==self.location.origin)return;
@@ -26,7 +27,7 @@ self.addEventListener('fetch',event=>{
 self.addEventListener('push',event=>{
   let data={};try{data=event.data?.json()||{}}catch{data={body:event.data?.text()}}
   const title=data.title||'Zuhause';
-  event.waitUntil(self.registration.showNotification(title,{body:data.body||'Es gibt eine neue Erinnerung.',icon:'./icon-192.png?v=52',badge:'./icon-192.png?v=52',tag:data.tag||'zuhause-erinnerung',data:{url:data.url||'./?page=calendar'},renotify:false}));
+  event.waitUntil(self.registration.showNotification(title,{body:data.body||'Es gibt eine neue Erinnerung.',icon:'./icon-192.png?v=53',badge:'./icon-192.png?v=53',tag:data.tag||'zuhause-erinnerung',data:{url:data.url||'./?page=calendar'},renotify:false}));
 });
 self.addEventListener('notificationclick',event=>{
   event.notification.close();const target=new URL(event.notification.data?.url||'./?page=calendar',self.location.origin).href;

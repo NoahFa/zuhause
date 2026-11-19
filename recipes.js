@@ -99,11 +99,14 @@
     loadCache();
     if (syncing || typeof cloudReady === 'undefined' || !cloudReady || !currentHousehold || !navigator.onLine) return;
     syncing = true;
+    // Zuhause beim Start festhalten: wechselt das Konto währenddessen, wird abgebrochen statt ins falsche Zuhause zu schreiben
+    const hh = currentHousehold.id, startKey = cacheKey;
     try {
+      if (!startKey || key() !== startKey) return;
       // 1. eigene Änderungen hochladen
       const pending = Object.values(cache.pending);
       if (pending.length) {
-        const rows = pending.map(r => ({ id: r.id, household_id: currentHousehold.id, title: String(r.title || 'Rezept').slice(0, 200), favorite: !!r.favorite, data: r.data || {}, deleted_at: r.deleted_at || null }));
+        const rows = pending.map(r => ({ id: r.id, household_id: hh, title: String(r.title || 'Rezept').slice(0, 200), favorite: !!r.favorite, data: r.data || {}, deleted_at: r.deleted_at || null }));
         const done = r => { if (cache.pending[r.id] === r) delete cache.pending[r.id]; };
         const { error } = await cloud.from('recipes').upsert(rows, { onConflict: 'id' });
         if (!error) { pending.forEach(done); uploadProblem = ''; }
@@ -115,9 +118,10 @@
           render();
         }
         if (key() === cacheKey) storeCache();
+        if (key() !== startKey) return;
       }
       // 2. Neues vom anderen Handy holen (nur seit dem letzten Mal, mit 5 s Überlappung)
-      let request = cloud.from('recipes').select('id,household_id,title,favorite,data,updated_at,deleted_at').eq('household_id', currentHousehold.id).order('updated_at', { ascending: true }).limit(1000);
+      let request = cloud.from('recipes').select('id,household_id,title,favorite,data,updated_at,deleted_at').eq('household_id', hh).order('updated_at', { ascending: true }).limit(1000);
       if (cache.cursor) request = request.gt('updated_at', new Date(new Date(cache.cursor).getTime() - 5000).toISOString());
       const { data, error } = await request;
       if (!error && data) {

@@ -29,9 +29,10 @@ function privateIPv4(ip: string) {
 }
 function privateIPv6(ip: string) {
   const v = ip.toLowerCase()
-  if (v === '::' || v === '::1') return true
-  if (v.startsWith('::ffff:')) return privateIPv4(v.slice(7))
-  return /^(fc|fd|fe8|fe9|fea|feb|ff)/.test(v) || v.startsWith('64:ff9b') || v.startsWith('2001:db8')
+  // alles, was mit „::“ beginnt (::1, ::ffff:…, eingebettete IPv4), und Tunnel-/Sonderbereiche, die auf interne IPv4 zeigen können, sperren
+  if (v.startsWith('::')) return true
+  const first = v.split(':')[0]
+  return /^(fc|fd|fe[89a-f]|ff)/.test(first) || first === '64' || first === '100' || first === '2002' || /^2001:(0+:|:|db8)/.test(v) || v.startsWith('64:ff9b')
 }
 async function checkUrl(raw: string): Promise<URL> {
   let url: URL

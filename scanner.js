@@ -543,6 +543,8 @@
     open({ folder: ds.scanFolder, category: ds.scanCategory || '', namePrefix: ds.scanName || '', actions: (ds.scanActions || '').split(',').filter(Boolean), orderId: ds.scanOrder || null });
   });
   // Texterkennung für den Fall ohne Internet vorab auf dem Handy speichern lassen (einmalig, im Hintergrund, ~5 MB)
-  setTimeout(() => { try { navigator.serviceWorker?.controller?.postMessage({ type: 'precache-ocr' }); } catch {} }, 15000);
+  setTimeout(() => { try { // ältere iPhones ohne SIMD brauchen den anderen Rechenkern – nur den passenden vorab speichern
+    let simd = true; try { simd = WebAssembly.validate(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 123, 3, 2, 1, 0, 10, 10, 1, 8, 0, 65, 0, 253, 15, 253, 98, 11])); } catch {}
+    navigator.serviceWorker?.controller?.postMessage({ type: 'precache-ocr', simd }); } catch {} }, 15000);
   window.ZuhauseScanner = { open, openWithFiles: async (files, options = {}) => { open({ ...options, startCamera: false }); for (const file of files) await addPage(file, files.length === 1); if (files.length > 1) { view = 'pages'; render(); } }, flushQueue, queueAll, queueClear: () => queueOp('readwrite', st => st.clear()).catch(() => {}), showQueue, detectCorners, warp, enhance, quality, recognise };
 })();

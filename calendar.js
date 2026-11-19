@@ -465,7 +465,7 @@
   function recurrenceRRule(event) {
     const r = event.recurrence; if (!r) return null; const parts = [`FREQ=${r.frequency.toUpperCase()}`, `INTERVAL=${r.interval || 1}`];
     if (r.frequency === 'weekly' && r.weekdays?.length) parts.push(`BYDAY=${r.weekdays.map(day => ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'][day - 1]).join(',')}`);
-    if (r.frequency === 'monthly' && r.monthDay) parts.push(`BYMONTHDAY=${r.monthDay}`); if (r.endsOn) parts.push(`UNTIL=${r.endsOn.replaceAll('-', '')}T235959Z`); return parts.join(';');
+    if (r.frequency === 'monthly' && r.monthDay) parts.push(`BYMONTHDAY=${r.monthDay}`); if (r.endsOn) { const wall = Date.UTC(...r.endsOn.split('-').map((v, i) => i === 1 ? +v - 1 : +v), 23, 59, 59), utc = new Date(wall - zoneOffset('Europe/Berlin', wall)).toISOString().replace(/[-:]/g, '').slice(0, 15); parts.push(`UNTIL=${utc}Z`); } return parts.join(';');
   }
   function memberKey(member) { if (!member) return ''; const owner = state.members.find(item => item.role === 'owner'); return member.user_id === owner?.user_id ? 'person1' : 'person2'; }
   function memberForKey(key) { return state.members.find(member => memberKey(member) === key) || null; }
@@ -478,16 +478,19 @@
     });
   }
   async function enqueue(mutation) {
-    const db = await openDb(); await new Promise((resolve, reject) => { const tx = db.transaction('queue', 'readwrite'); tx.objectStore('queue').put(mutation); tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); }); db.close();
+    const db = await openDb(); await new Promise((resolve, reject) => { const tx = db.transaction('queue', 'readwrite'); tx.objectStore('queue').put({ ...mutation, owner: state.user?.id || '', householdId: state.household?.id || '' }); tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); }); db.close();
   }
   async function queuedMutations() {
     const db = await openDb(); const items = await new Promise((resolve, reject) => { const req = db.transaction('queue').objectStore('queue').getAll(); req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error); }); db.close(); return items;
   }
+  // ältere Einträge ohne Konto gelten für das aktuelle Konto (stammen aus der Zeit vor dieser Prüfung)
+  const ownQueued = item => (!item.owner || item.owner === state.user?.id) && (!item.householdId || item.householdId === state.household?.id);
+  async function pendingCount() { try { return (await queuedMutations()).filter(ownQueued).length; } catch { return 0; } }
   async function removeQueued(id) {
     const db = await openDb(); await new Promise((resolve, reject) => { const tx = db.transaction('queue', 'readwrite'); tx.objectStore('queue').delete(id); tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); }); db.close();
   }
   async function flushQueue() {
-    if (!state.normalized || !navigator.onLine) return; const items = await queuedMutations();
+    if (!state.normalized || !navigator.onLine) return; const items = (await queuedMutations()).filter(ownQueued); // nur Änderungen dieses Kontos und Zuhauses hochladen
     for (const mutation of items) { try { await applyMutation(mutation); await removeQueued(mutation.id); } catch (error) { qs('#calendarSyncNote').textContent = `Synchronisierung wartet: ${errorText(error)}`; return; } }
     if (items.length) await loadCloudData(); updateControls();
   }
@@ -621,7 +624,7 @@
     if (`${end.date}T${end.time}` < `${start.date}T${start.time}`) end = { date: start.date, time: start.time };
     return { allDay: false, startDate: start.date, endDate: end.date, startTime: start.time, endTime: end.time };
   }
-  function icsRecurrence(rule, startDate) {
+  function icsRecurrence(rule, startDate, startTime = '') {
     if (!rule) return { recurrence: null, simplified: false };
     const r = Object.fromEntries(rule.split(';').map(part => part.split('=')).map(([key, value]) => [String(key).toUpperCase(), String(value || '').toUpperCase()]));
     const frequency = (r.FREQ || '').toLowerCase(); if (!['daily', 'weekly', 'monthly', 'yearly'].includes(frequency)) return { recurrence: null, simplified: true };
@@ -630,7 +633,9 @@
     if (r.BYDAY) { const days = r.BYDAY.split(','); if (frequency !== 'weekly' || !days.every(day => codes.includes(day))) return { recurrence: null, simplified: true }; weekdays = days.map(day => codes.indexOf(day) + 1); }
     if (frequency === 'weekly' && !weekdays.length) weekdays = [dateFromIso(startDate).getDay() || 7];
     if (frequency === 'monthly') { if (r.BYMONTHDAY && !/^\d+$/.test(r.BYMONTHDAY)) return { recurrence: null, simplified: true }; monthDay = r.BYMONTHDAY ? +r.BYMONTHDAY : dateFromIso(startDate).getDate(); }
-    const recurrence = { frequency, interval: Math.min(999, Math.max(1, parseInt(r.INTERVAL || '1', 10) || 1)), weekdays, monthDay, endsOn: r.UNTIL ? icsDate({ value: r.UNTIL, params: {} })?.date || null : null };
+    const recurrence = { frequency, interval: Math.min(999, Math.max(1, parseInt(r.INTERVAL || '1', 10) || 1)), weekdays, monthDay, endsOn: null };
+    // UNTIL in UTC (…Z) in deutsche Zeit umrechnen; liegt die Uhrzeit des Termins danach, endet die Serie am Vortag
+    if (r.UNTIL) { const until = icsDate({ value: r.UNTIL, params: {} }); if (until) recurrence.endsOn = !until.allDay && startTime && startTime > until.time ? isoDate(addDays(until.date, -1)) : until.date; }
     if (r.COUNT) { const count = parseInt(r.COUNT, 10) || 1; let seen = 0, day = startDate; for (let i = 0; i < 40000 && seen < count; i += 1) { if (recurrenceMatches({ startDate, recurrence }, day) && ++seen === count) recurrence.endsOn = day; day = isoDate(addDays(day, 1)); } }
     return { recurrence, simplified: false };
   }
@@ -660,7 +665,7 @@
       const times = icsTimes(entry); if (!times) { summary.invalid += 1; return; }
       const key = keyFor(entry), uid = text1(entry, 'UID');
       if (known.has(key)) { summary.duplicate += 1; if (uid) seriesByUid.set(uid, { id: known.get(key), existing: true }); return; }
-      const { recurrence, simplified } = icsRecurrence(entry.props.RRULE?.[0]?.value, times.startDate); if (simplified) summary.simplified += 1;
+      const { recurrence, simplified } = icsRecurrence(entry.props.RRULE?.[0]?.value, times.startDate, times.allDay ? '' : times.startTime); if (simplified) summary.simplified += 1;
       const lastDay = recurrence ? (recurrence.endsOn || '9999-12-31') : times.endDate;
       if (!includePast && lastDay < today) { summary.past += 1; return; }
       const id = addRow(entry, times, key, recurrence);
@@ -800,5 +805,5 @@
     window.addEventListener('online', flushQueue); document.addEventListener('keydown', event => { if (!qs('#calendar')?.classList.contains('active') || event.target.matches('input,textarea,select')) return; if (event.key === 'ArrowLeft') navigate(-1); if (event.key === 'ArrowRight') navigate(1); });
   }
 
-  window.ZuhauseCalendar = { setExtraEvents, setMontageJobs, refresh, importIcs, openImport, openBirthday, bootstrap, connect, disconnect, render, setAutomaticEvents, setLegacyAppointments, openCreate, selectDate, renderHomeTimeline, occurrencesInRange };
+  window.ZuhauseCalendar = { pendingCount, setExtraEvents, setMontageJobs, refresh, importIcs, openImport, openBirthday, bootstrap, connect, disconnect, render, setAutomaticEvents, setLegacyAppointments, openCreate, selectDate, renderHomeTimeline, occurrencesInRange };
 })();

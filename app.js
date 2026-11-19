@@ -74,7 +74,7 @@ function friendlyError(message=''){
   if(/Invalid login credentials/i.test(message))return 'E-Mail-Adresse oder Passwort stimmen nicht.';
   if(/Email not confirmed/i.test(message))return 'Bitte zuerst den Link in der Bestätigungs-E-Mail öffnen.';
   if(/User already registered/i.test(message))return 'Für diese E-Mail-Adresse gibt es schon einen Zugang.';
-  if(/Password should be/i.test(message))return 'Das Passwort braucht mindestens 6 Zeichen.';
+  if(/Password should be/i.test(message))return 'Das Passwort braucht mindestens 8 Zeichen.';
   if(/should be different/i.test(message))return 'Das neue Passwort muss sich vom alten unterscheiden.';
   return 'Das hat gerade nicht geklappt. Bitte noch einmal versuchen.';
 }
@@ -499,7 +499,7 @@ $('#joinHouseholdForm').addEventListener('submit',async e=>{
   const {error}=await cloud.rpc('join_household',{invite_code:data.inviteCode,member_name:data.memberName});button.disabled=false;
   if(error){$('#householdMessage').textContent=/Einladungscode/i.test(error.message)?'Der Einladungscode stimmt nicht. Bitte noch einmal prüfen.':friendlyError(error.message);return}await loadHousehold();
 });
-document.addEventListener('click',async e=>{if(e.target.closest('[data-sign-out]')){await Promise.allSettled([window.ZuhauseRecipes?.sync?.(),localDirty?saveCloudState():null]);const waiting=(await window.ZuhauseScanner?.queueAll?.())?.length||0,recipes=window.ZuhauseRecipes?.pendingCount?.()||0,open=[waiting?`${waiting} ${waiting===1?'Scan':'Scans'}`:'',recipes?`${recipes} ${recipes===1?'Rezept':'Rezepte'}`:'',localDirty?'weitere Änderungen':''].filter(Boolean);if(open.length&&!confirm(`Noch nicht hochgeladen: ${open.join(', ')}. Beim Abmelden gehen sie auf diesem Handy verloren. Trotzdem abmelden?`))return;if(waiting)await window.ZuhauseScanner.queueClear();await disableCurrentPush();await cloud.auth.signOut();$('#detailDialog').close()}});
+document.addEventListener('click',async e=>{if(e.target.closest('[data-sign-out]')){await Promise.allSettled([window.ZuhauseRecipes?.sync?.(),localDirty?saveCloudState():null]);const waiting=(await window.ZuhauseScanner?.queueAll?.())?.length||0,recipes=window.ZuhauseRecipes?.pendingCount?.()||0,dates=await window.ZuhauseCalendar?.pendingCount?.()||0,open=[dates?`${dates} ${dates===1?'Termin-Änderung':'Termin-Änderungen'}`:'',waiting?`${waiting} ${waiting===1?'Scan':'Scans'}`:'',recipes?`${recipes} ${recipes===1?'Rezept':'Rezepte'}`:'',localDirty?'weitere Änderungen':''].filter(Boolean);if(open.length&&!confirm(`Noch nicht hochgeladen: ${open.join(', ')}. Beim Abmelden gehen sie auf diesem Handy verloren. Trotzdem abmelden?`))return;if(waiting)await window.ZuhauseScanner.queueClear();await disableCurrentPush();await cloud.auth.signOut();$('#detailDialog').close()}});
 $('#exportData').addEventListener('click',()=>{const year=new Date().getFullYear(),data={hinweis:'Kontrolldatei. Noch keine ELSTER-Datei.',steuerjahr:year,personen:[personNames.person1,personNames.person2],ausgaben:state.expenses,einnahmen:state.incomes,aufgaben:state.taxTasks};const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`zuhause-steuer-${year}-kontrolle.json`;a.click();URL.revokeObjectURL(a.href);toast('Kontroll-Datei geladen')});
 function renderAll(){
   setGreeting();renderTimeline();renderTasks();renderShopping();renderCalendar();renderExpenses();renderTaxTasks();bindDocumentChecklist();

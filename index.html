@@ -11,12 +11,12 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Zuhause">
   <title>Zuhause · Euer Familien-Dashboard</title>
-  <link rel="manifest" href="manifest.webmanifest?v=52">
-  <link rel="icon" href="icon.svg?v=52" type="image/svg+xml">
-  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=52">
-  <link rel="stylesheet" href="styles.css?v=52">
-  <link rel="stylesheet" href="features.css?v=52">
-  <link rel="stylesheet" href="workspaces.css?v=52">
+  <link rel="manifest" href="manifest.webmanifest?v=53">
+  <link rel="icon" href="icon.svg?v=53" type="image/svg+xml">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=53">
+  <link rel="stylesheet" href="styles.css?v=53">
+  <link rel="stylesheet" href="features.css?v=53">
+  <link rel="stylesheet" href="workspaces.css?v=53">
 </head>
 <body>
   <div class="auth-screen" id="authScreen" aria-live="polite">
@@ -26,7 +26,7 @@
       <section id="authOffline" class="auth-panel" hidden><span class="auth-spinner"></span><h1>Verbindung wird hergestellt …</h1><p>Du bleibst angemeldet. Sobald das Internet wieder da ist, öffnet sich euer Zuhause von selbst.</p><button class="primary" id="retryConnection" type="button">Jetzt erneut versuchen</button></section>
       <section id="authLogin" class="auth-panel" hidden>
         <p class="eyebrow">Sicher auf allen Geräten</p><h1>Schön, dass ihr da seid.</h1><p>Meldet euch mit eurer E-Mail-Adresse an. Jeder von euch bekommt einen eigenen Zugang zum selben Zuhause.</p>
-        <form id="loginForm" class="auth-form"><label>E-Mail-Adresse<input name="email" type="email" autocomplete="email" required></label><label>Passwort<input name="password" type="password" autocomplete="current-password" minlength="6" required></label><button class="primary" type="submit">Anmelden</button></form>
+        <form id="loginForm" class="auth-form"><label>E-Mail-Adresse<input name="email" type="email" autocomplete="email" required></label><label>Passwort<input name="password" type="password" autocomplete="current-password" minlength="8" required></label><button class="primary" type="submit">Anmelden</button></form>
         <button class="auth-link" id="showRegister" type="button">Noch keinen Zugang? Kostenlos anlegen</button>
         <button class="auth-link" id="showReset" type="button">Passwort vergessen?</button>
         <p class="auth-message" id="loginMessage"></p>
@@ -38,13 +38,13 @@
         <p class="auth-message" id="resetMessage"></p>
       </section>
       <section id="authNewPassword" class="auth-panel" hidden>
-        <p class="eyebrow">Fast geschafft</p><h1>Neues Passwort festlegen.</h1><p>Wähle ein neues Passwort mit mindestens 6 Zeichen.</p>
-        <form id="newPasswordForm" class="auth-form"><label>Neues Passwort<input name="password" type="password" autocomplete="new-password" minlength="6" required></label><label>Noch einmal<input name="repeat" type="password" autocomplete="new-password" minlength="6" required></label><button class="primary" type="submit">Passwort speichern</button></form>
+        <p class="eyebrow">Fast geschafft</p><h1>Neues Passwort festlegen.</h1><p>Wähle ein neues Passwort mit mindestens 8 Zeichen.</p>
+        <form id="newPasswordForm" class="auth-form"><label>Neues Passwort<input name="password" type="password" autocomplete="new-password" minlength="8" required></label><label>Noch einmal<input name="repeat" type="password" autocomplete="new-password" minlength="8" required></label><button class="primary" type="submit">Passwort speichern</button></form>
         <p class="auth-message" id="newPasswordMessage"></p>
       </section>
       <section id="authRegister" class="auth-panel" hidden>
         <button class="auth-back" id="showLogin" type="button">← Zur Anmeldung</button><p class="eyebrow">Eigener Zugang</p><h1>App-Konto anlegen</h1><p>Die E-Mail-Adresse ist nur für Anmeldung und Wiederherstellung. Das ist kein kostenpflichtiges Abo.</p>
-        <form id="registerForm" class="auth-form"><label>E-Mail-Adresse<input name="email" type="email" autocomplete="email" required></label><label>Neues Passwort<input name="password" type="password" autocomplete="new-password" minlength="6" required></label><button class="primary" type="submit">Zugang anlegen</button></form><p class="auth-message" id="registerMessage"></p>
+        <form id="registerForm" class="auth-form"><label>E-Mail-Adresse<input name="email" type="email" autocomplete="email" required></label><label>Neues Passwort<input name="password" type="password" autocomplete="new-password" minlength="8" required></label><button class="primary" type="submit">Zugang anlegen</button></form><p class="auth-message" id="registerMessage"></p>
       </section>
       <section id="householdSetup" class="auth-panel" hidden>
         <p class="eyebrow">Einmalig einrichten</p><h1>Welches Zuhause soll geöffnet werden?</h1><p>Die erste Person legt euer Zuhause an. Die zweite Person trägt danach den Einladungscode ein.</p>
@@ -215,16 +215,16 @@
   <dialog id="calendarSeriesDialog" aria-labelledby="calendarSeriesTitle"><form method="dialog"><div class="dialog-head"><div><span class="kicker">Serientermin</span><h2 id="calendarSeriesTitle">Welche Termine ändern?</h2></div><button class="close" value="cancel" aria-label="Schließen">×</button></div><p>Wähle aus, ob nur dieser Termin oder die ganze Serie betroffen sein soll.</p><div class="calendar-series-actions"><button value="single">Nur dieser Termin</button><button value="future">Dieser und folgende</button><button value="all">Gesamte Serie</button><button class="secondary" value="cancel">Abbrechen</button></div></form></dialog>
   <div class="toast" id="toast">Gespeichert</div>
   <script src="vendor/supabase.min.js?v=2.118.0"></script>
-  <script src="calendar.js?v=52"></script>
-  <script src="app.js?v=52"></script>
-  <script src="features.js?v=52"></script>
-  <script src="workspaces.js?v=52"></script>
-  <script src="lou.js?v=52"></script>
-  <script src="charleen.js?v=52"></script>
-  <script src="noah-jobs.js?v=52"></script>
-  <script src="scan-analyse.js?v=52"></script>
-  <script src="scanner.js?v=52"></script>
-  <script src="documents-view.js?v=52"></script>
-  <script src="recipes.js?v=52"></script>
+  <script src="calendar.js?v=53"></script>
+  <script src="app.js?v=53"></script>
+  <script src="features.js?v=53"></script>
+  <script src="workspaces.js?v=53"></script>
+  <script src="lou.js?v=53"></script>
+  <script src="charleen.js?v=53"></script>
+  <script src="noah-jobs.js?v=53"></script>
+  <script src="scan-analyse.js?v=53"></script>
+  <script src="scanner.js?v=53"></script>
+  <script src="documents-view.js?v=53"></script>
+  <script src="recipes.js?v=53"></script>
 </body>
 </html>
