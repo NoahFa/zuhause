@@ -91,6 +91,16 @@ server.listen(0, '127.0.0.1', async () => {
   const expected = ['Getränke', 'Trockenwaren', 'Trockenwaren', 'Trockenwaren', 'Trockenwaren', 'Tiefkühlprodukte', 'Obst und Gemüse', 'Getränke', 'Trockenwaren', 'Haushaltsartikel', 'Obst und Gemüse', 'Kühlprodukte', 'Getränke', 'Kühlprodukte'];
   check(areas.join() === expected.join(), 'Supermarktbereiche ohne Teilwort-Fehler (Saft, Tomatenmark, Reis/Eis, Salbei, Holzkohle, gemerktes „Rum“ ≠ Rumpsteak)', areas.map((a, i) => a === expected[i] ? '' : `#${i}:${a}`).filter(Boolean).join(' '));
 
+  // Prüfung v49: unterschiedliche Zutaten nicht zusammenrechnen, Reis-Sorten nicht bei Tiefkühl
+  const kinds = await page.evaluate(() => {
+    state.shopping = [{ id: 'k1', title: 'Sahne', quantity: '200 ml', category: 'Kühlprodukte', done: false }, { id: 'k2', title: 'Tomaten', quantity: '500 g', category: 'Obst und Gemüse', done: false }, { id: 'k3', title: 'Zwiebeln', quantity: '2 ×', category: 'Obst und Gemüse', done: false }];
+    window.ZuhauseRecipes.addToShopping([{ amount: 200, unit: 'ml', name: 'saure Sahne' }, { amount: 100, unit: 'g', name: 'getrocknete Tomaten' }, { amount: 2, unit: '', name: 'große Zwiebeln' }], 1, 'Test');
+    const rows = state.shopping.map(i => `${i.quantity} ${i.title}`);
+    return { rows, reis: ['Milchreis', 'Jasminreis', 'Wildreis', 'Vanilleeis'].map(w => window.ZuhauseFeatures.parseShoppingItem(w).category) };
+  });
+  check(kinds.rows.length === 5 && kinds.rows.includes('4 × Zwiebeln'), '„saure Sahne“/„getrocknete Tomaten“ eigene Zeilen, „große Zwiebeln“ zusammengerechnet', kinds.rows.join(' | '));
+  check(kinds.reis.join() === 'Trockenwaren,Trockenwaren,Trockenwaren,Tiefkühlprodukte', 'Reis-Sorten bei Trockenwaren, Vanilleeis bei Tiefkühl', kinds.reis.join());
+
   // ---------- Ablauf in der Oberfläche ----------
   await page.evaluate(() => { state.shopping = []; go('household'); });
   await page.waitForTimeout(200);

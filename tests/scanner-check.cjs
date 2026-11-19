@@ -110,6 +110,7 @@ server.listen(0, '127.0.0.1', async () => {
       delivery: A.analyse('Rechnung\nFirma Beispiel GmbH\nLieferdatum 01.11.2026\nRechnungsdatum 05.11.2026\nSumme 1.234,56 EUR\nSteuer-ID 12 345 678 901', cats),
       noYear: A.analyse('Rechnung\nFirma Beispiel\nDatum 03.11.2026\nGesamtbetrag 89,90 € zahlbar bis 26.11.', cats),
       zuZahlen: A.analyse('Rechnung\nFirma Beispiel\nRechnungsdatum 01.08.2026\nBetrag 50,00 €\nZu zahlen bis 15. August 2026', cats),
+      nextLine: A.analyse('Rechnung\nFirma Beispiel\nZahlbar bis 20.11.\nRechnungsdatum 05.11.2026\nGesamt 10,00 €', cats),
       wordNotice: A.analyse('Stromvertrag\nStadtwerke Beispiel\nVertragsende 31.12.2027, Kündigungsfrist von drei Monaten', cats),
       keys: [A.senderKey('Evangelische Kirche e.V.'), A.senderKey('Coca Cola GmbH & Co. KG'), A.senderKey('Tierarztpraxis Muster')],
     };
@@ -127,6 +128,7 @@ server.listen(0, '127.0.0.1', async () => {
   check(a.delivery.kind === 'invoice' && a.delivery.docDate === '2026-11-05' && a.delivery.total === 1234.56, 'Rechnungsdatum statt Lieferdatum, Steuer-ID bleibt Rechnung', JSON.stringify([a.delivery.kind, a.delivery.docDate, a.delivery.total]));
   check(a.noYear.total === 89.9 && a.noYear.due === '2026-11-26', 'Datum ohne Jahr („bis 26.11.“) ist kein Betrag und wird Fälligkeit', JSON.stringify([a.noYear.total, a.noYear.due]));
   check(a.zuZahlen.due === '2026-08-15', '„Zu zahlen bis …“ ergibt Fälligkeit', a.zuZahlen.due);
+  check(a.nextLine.due === '2026-11-20' && a.nextLine.docDate === '2026-11-05', 'Rechnungsdatum der nächsten Zeile wird nicht zur Fälligkeit', JSON.stringify([a.nextLine.due, a.nextLine.docDate]));
   check(a.wordNotice.reminder === '2027-09-16', 'Kündigungsfrist in Worten („drei Monaten“) erkannt', a.wordNotice.reminder);
   check(a.keys.join('|') === 'evangelische kirche|coca cola|tierarztpraxis muster', 'Absender-Schlüssel nicht mitten im Wort gekürzt', a.keys.join('|'));
 

@@ -87,7 +87,18 @@
     const kind = best?.key || 'other';
     const dates = findDates(all), sender = findSender(lines);
     const near = re => { const m = all.match(re); if (!m) return null; const after = dates.find(d => d.index >= m.index && d.index - m.index < 80); return after?.value || null; };
-    let due = near(/zahlbar\s*(bis|am)?|zu zahlen\s*(bis|am)?|fällig\s*(am|bis)?|zahlungsziel|spätestens|bis zum/i);
+    // Fälligkeit: zuerst ein Datum in derselben Zeile wie „zahlbar bis …“; nur wenn dort keins steht, die nächste Zeile –
+    // aber nicht, wenn sie selbst ein anderes Datum benennt (z. B. „Rechnungsdatum“ direkt darunter)
+    const DUE = /zahlbar\s*(bis|am)?|zu zahlen\s*(bis|am)?|fällig\s*(am|bis)?|zahlungsziel|spätestens|bis zum/i;
+    let due = (() => {
+      const m = all.match(DUE); if (!m) return null;
+      const lineEnd = all.indexOf('\n', m.index), sameLine = dates.find(d => d.index >= m.index && (lineEnd < 0 || d.index < lineEnd));
+      if (sameLine) return sameLine.value;
+      if (/(?:zahlbar|zu zahlen|fällig)[^\n\d]{0,20}\d{1,2}\.\d{1,2}\.(?!\d)/i.test(all.slice(m.index, lineEnd < 0 ? undefined : lineEnd))) return null; // ohne Jahr: Regel weiter unten
+      const nextEnd = lineEnd < 0 ? -1 : all.indexOf('\n', lineEnd + 1), nextLine = lineEnd < 0 ? '' : all.slice(lineEnd + 1, nextEnd < 0 ? undefined : nextEnd);
+      if (lineEnd < 0 || /datum|vom\b/i.test(nextLine)) return null; // letzte Zeile: es gibt keine nächste
+      return dates.find(d => d.index > lineEnd && (nextEnd < 0 || d.index < nextEnd))?.value || null;
+    })();
     // Dokumentdatum: zuerst ausdrückliches Rechnungs-/Belegdatum, dann „Datum“ (nicht Liefer-/Leistungsdatum), sonst erstes Datum, das keine Frist ist
     const plainDate = (() => { const re = /(^|[^a-zäöü])(datum|vom)\b/gi; let m; while ((m = re.exec(all))) { const i = m.index; const after = dates.find(d => d.index >= i && d.index - i < 80); if (after) return after.value; } return null; })();
     const deadlines = new Set([due, near(/vertragsende|laufzeit\s*bis|endet\s*am|gültig bis|lieferdatum|leistungsdatum/i)].filter(Boolean));

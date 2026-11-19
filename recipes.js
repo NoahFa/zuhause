@@ -70,7 +70,14 @@
   const baseOf = unit => BASE[unit] || [unit, 1];
   // gleiche Zutat? ganzer Name gleich, oder ein einzelnes Wort passt zum letzten Wort des anderen („2 große Zwiebeln“ ↔ „Zwiebeln“)
   const lastWord = name => stem(String(name || '').replace(/\(.*?\)/g, '').split(',')[0].trim().split(/\s+/).pop());
-  const sameIngredient = (a, b) => { if (stem(a) === stem(b)) return true; const wa = String(a).trim().split(/\s+/).length, wb = String(b).trim().split(/\s+/).length; return (wa === 1 || wb === 1) && lastWord(a) === lastWord(b) && lastWord(a).length >= 3; };
+  // Zusatzwörter, die die Zutat nicht verändern („2 große Zwiebeln“ = Zwiebeln); „saure Sahne“, „getrocknete Tomaten“ bleiben eigene Zeilen
+  const NEUTRAL = /^(groß|klein|mittelgroß|mittel|frisch|reif|ganz|bio|knackig|fest|weich)(e|er|en|es)?$/i;
+  const extraWords = name => String(name || '').replace(/\(.*?\)/g, '').split(',')[0].trim().split(/\s+/).slice(0, -1);
+  const sameIngredient = (a, b) => {
+    if (stem(a) === stem(b)) return true;
+    if (lastWord(a) !== lastWord(b) || lastWord(a).length < 3) return false;
+    return extraWords(a).every(w => NEUTRAL.test(w)) && extraWords(b).every(w => NEUTRAL.test(w));
+  };
 
   // ---------- Daten und Abgleich ----------
   function key() { return typeof scopedStorageKey === 'function' ? scopedStorageKey('recipes') : ''; }

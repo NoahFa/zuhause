@@ -118,6 +118,24 @@ assert.equal(run(`state.budget.closedMonths['2026-11'].expenseItems.length`), 1,
 assert.equal(run(`window.ZuhauseFeatures.calculateMonth('2026-12').expenses`), 0, 'Nachzügler zählt danach nicht noch einmal');
 console.log('Nachträgliche Ausgaben werden genau einmal gebucht: OK');
 
+// Prüfung v49: übersprungene Putzplan-Runde vererbt „skipped“ nicht an die nächste Runde
+run(`state.householdTasks=[{id:'s1:2026-11-08',seriesId:'s1',title:'Bad',person:'person1',dueOn:'2026-11-08',due:'2026-11-08',recurrenceAnchor:'2026-11-08',done:true,skipped:true,completedAt:null,recurrence:'weekly',recurrenceInterval:1,recurrenceUnit:'weeks',alternate:true}];window.ZuhauseFeatures.refresh();`);
+const nextRound = run(`JSON.stringify(state.householdTasks.find(t=>t.dueOn==='2026-11-15'))`);
+assert.ok(nextRound && !JSON.parse(nextRound).skipped && JSON.parse(nextRound).person === 'person2', 'Neue Runde nach „Nur diese Runde“ muss sichtbar sein: ' + nextRound);
+console.log('Putzplan nach übersprungener Runde weiter sichtbar: OK');
+
+// Prüfung v49: beide Handys schließen denselben Monat ab → Server-Abschluss gilt, fehlende Ausgabe zählt als Nachzügler
+const mergedMonths = run(`(() => {
+  const base={budget:{monthlyAmount:500,startMonth:'2026-10',closedMonths:{}},expenses:[{id:'x',date:'2026-10-05',amount:50}]};
+  const remote={budget:{monthlyAmount:500,startMonth:'2026-10',closedMonths:{'2026-10':{expenses:80,expenseItems:[{id:'x',amount:50},{id:'b1',amount:30}],available:420}}},expenses:[{id:'x',date:'2026-10-05',amount:50},{id:'b1',date:'2026-10-31',amount:30}]};
+  const local={budget:{monthlyAmount:500,startMonth:'2026-10',closedMonths:{'2026-10':{expenses:60,expenseItems:[{id:'x',amount:50},{id:'a1',amount:10}],available:440}}},expenses:[{id:'x',date:'2026-10-05',amount:50},{id:'a1',date:'2026-10-30',amount:10}]};
+  state=mergeStates(remote,local,base);
+  return {oct:state.budget.closedMonths['2026-10'].expenseItems.map(i=>i.id).join(','),nov:window.ZuhauseFeatures.calculateMonth('2026-11').expenses};
+})()`);
+assert.equal(mergedMonths.oct, 'x,b1', 'Server-Abschluss gilt als Ganzes');
+assert.equal(mergedMonths.nov, 10, 'Ausgabe des anderen Handys zählt als Nachzügler im laufenden Monat');
+console.log('Monatsabschluss auf zwei Handys: jede Ausgabe genau einmal: OK');
+
 run(`cloudReady=false;currentUser=null;state.householdTasks=[{id:'repeat',seriesId:'series',title:'Routine',person:'Gemeinsam',dueOn:'2026-11-13',recurrence:'daily',done:false}];ZuhauseFeatures.refresh();ZuhauseFeatures.refresh();`);
 const ids = run(`state.householdTasks.map(item=>item.id)`);
 assert.equal(new Set(ids).size, ids.length);

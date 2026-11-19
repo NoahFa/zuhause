@@ -124,7 +124,7 @@ Deno.serve(async request => {
       items.push({ sort: time(row.start_time) || '00:02', text: row.kind === 'football' ? `⚽ ${time(row.start_time)} ${row.title}` : `${row.title} ${time(row.start_time)}${end}`.trim() })
     }
     if (waste.length) items.push({ sort: '00:03', text: `🗑 Heute Abholung: ${waste.join(', ')}` })
-    const tasks = (stateByHousehold.get(member.household_id)?.householdTasks || []).filter((task: any) => !task.done && task.dueOn && task.dueOn <= today && (!task.person || task.person === 'Gemeinsam' || task.person === personKey))
+    const tasks = (stateByHousehold.get(member.household_id)?.householdTasks || []).filter((task: any) => !task.done && !task.skipped && task.dueOn && task.dueOn <= today && (!task.person || task.person === 'Gemeinsam' || task.person === personKey))
     if (tasks.length) {
       const overdue = tasks.filter((task: any) => task.dueOn < today).length
       items.push({ sort: '99:99', text: tasks.length === 1 ? `✓ Aufgabe: ${tasks[0].title}${overdue ? ' (überfällig)' : ''}` : `✓ ${tasks.length} Aufgaben offen${overdue ? ` (${overdue} überfällig)` : ''}` })

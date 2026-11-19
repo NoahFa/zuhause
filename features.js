@@ -73,6 +73,8 @@
 
   function materialiseRecurringTasks() {
     const horizon = todayIso();
+    // Altlast (bis v49): neue Runden hatten „skipped“ von der übersprungenen Runde geerbt und waren unsichtbar
+    state.householdTasks.forEach(task => { if (task.skipped && !task.done) task.skipped = false; });
     const series = new Map();
     state.householdTasks.filter(task => task.seriesId && task.recurrence !== 'none').forEach(task => {
       const current = series.get(task.seriesId);
@@ -88,7 +90,7 @@
         // Putzplan: bei „abwechselnd“ ist jede neue Runde die andere Person dran.
         if (latest.alternate) person = person === 'person1' ? 'person2' : 'person1';
         if (!exists) {
-          state.householdTasks.push({ ...latest, person, id: `${latest.seriesId}:${due}`, dueOn: due, due, done: false, completedAt: null, createdAt: new Date().toISOString() });
+          state.householdTasks.push({ ...latest, person, id: `${latest.seriesId}:${due}`, dueOn: due, due, done: false, skipped: false, completedAt: null, createdAt: new Date().toISOString() }); // „skipped“ der übersprungenen Runde nicht mitkopieren
           changed = true;
         }
       }
@@ -200,7 +202,7 @@
     // Reihenfolge zählt: genauere Wörter zuerst (Saft vor Apfel, Tomatenmark vor Tomate, Reis vor „eis“, Holzkohle vor Kohl).
     // „(?:^|[^a-zäöüß])…(?![a-zäöüß])“ = ganzes Wort – so trifft „ei“ nicht Salbei/Weißwein und „pute“ nicht Computer (Prüfung 18.11.2026).
     const groups = [
-      ['Trockenwaren', /tomatenmark|passierte|paprikapulver|currypulver|brühe|essig|konserve|\bdose|dosen|(?:^|[^a-zäöüß])reis(?![a-zäöüß])|basmati|apfelmus|mus$/],
+      ['Trockenwaren', /tomatenmark|passierte|paprikapulver|currypulver|brühe|essig|konserve|\bdose|dosen|(?:^|[^p])reis(?![a-zäöüß])|basmati|apfelmus|mus$/],
       ['Haushaltsartikel', /holzkohle|grillkohle|grillanzünder|kerze|batterie/],
       ['Getränke', /saft|schorle|limo|cola|bier|wein(?!traube)|sekt|(?:^|[^a-zäöüß])wasser(?!melone)|mineralwasser|getränk|eistee|smoothie|sirup/],
       ['Tiefkühlprodukte', /tiefkühl|tk[- ]|pizza|pommes|frost|eiscreme|eiswürfel|(?:^|[^a-zäöüß])eis(?![a-zäöüß])|[a-zäöüß]eis$/],
@@ -446,7 +448,7 @@
   function injectFinances() {
     const page = document.querySelector('#finances'); if (!page || page.dataset.featured) return;
     page.dataset.featured = '1';
-    page.innerHTML = `<div class="page-title"><div><p class="eyebrow">Gemeinsame Finanzen</p><h1>Budget und Ausgaben.</h1><p>Der rechnerische Haushaltsrahmen ist nicht euer Bankkontostand.</p></div><div class="page-actions"><button class="secondary" data-receipt-scan>📷 Kassenbon scannen</button><button class="primary" data-open="expense">＋ Ausgabe</button></div></div><div class="budget-summary"><article class="balance-card"><span>Verfügbar in diesem Monat</span><strong id="budgetAvailable">0,00 €</strong><small id="budgetMonthLabel"></small></article><article class="mini-money"><span>Übertrag aus Vormonat</span><strong id="budgetCarry">0,00 €</strong><small>auch negative Beträge</small></article><article class="mini-money"><span>Fixkosten diesen Monat</span><strong id="budgetFixed">0,00 €</strong><small id="fixedCount">0 Einträge</small></article></div><div class="finance-feature-grid"><article class="card finance-settings"><span class="kicker">Monatsrahmen</span><h2>Budget einstellen</h2><p class="budget-summary" id="budgetSummary"></p><button class="secondary budget-edit" type="button" id="budgetEdit">Budget ändern</button><form id="budgetForm" class="inline-form"><label>Monatliches Budget<input name="monthlyAmount" type="number" min="0" step="0.01"></label><label>Sparziel für den Haushalt (optional)<input name="savingsGoal" type="number" min="0" step="0.01"></label><button class="primary" type="submit">Speichern</button></form><button class="text-button" data-close-month>Monat unveränderlich abschließen →</button></article><article class="card fixed-costs"><div class="card-head"><div><span class="kicker">Regelmäßig</span><h2>Fixkosten</h2></div></div><form id="fixedCostForm" class="inline-form"><input name="title" placeholder="z. B. Miete" required><input name="amount" type="number" min="0.01" step="0.01" placeholder="Betrag" required><button class="secondary" type="submit">Hinzufügen</button></form><div id="fixedCostList"></div></article></div><article class="card table-card"><div class="card-head"><div><span class="kicker">Chronologisch</span><h2>Ausgaben diesen Monat</h2></div><div class="search">⌕ <input id="expenseSearchFeature" placeholder="Suchen …"></div></div><div class="expense-list" id="expenseListFeature"></div></article><article class="card savings-card"><div class="card-head"><div><span class="kicker">Sparanalyse</span><h2>Einfach vergleichen</h2></div></div><div id="savingsAnalysis"></div></article><input id="receiptCamera" type="file" accept="image/*" capture="environment" hidden>`;
+    page.innerHTML = `<div class="page-title"><div><p class="eyebrow">Gemeinsame Finanzen</p><h1>Budget und Ausgaben.</h1><p>Der rechnerische Haushaltsrahmen ist nicht euer Bankkontostand.</p></div><div class="page-actions"><button class="secondary" data-receipt-scan>📷 Kassenbon scannen</button><button class="primary" data-open="expense">＋ Ausgabe</button></div></div><div class="budget-summary"><article class="balance-card"><span>Verfügbar in diesem Monat</span><strong id="budgetAvailable">0,00 €</strong><small id="budgetMonthLabel"></small></article><article class="mini-money"><span>Übertrag aus Vormonat</span><strong id="budgetCarry">0,00 €</strong><small>auch negative Beträge</small></article><article class="mini-money"><span>Fixkosten diesen Monat</span><strong id="budgetFixed">0,00 €</strong><small id="fixedCount">0 Einträge</small></article></div><div class="finance-feature-grid"><article class="card finance-settings"><span class="kicker">Monatsrahmen</span><h2>Budget einstellen</h2><p class="budget-summary" id="budgetSummary"></p><button class="secondary budget-edit" type="button" id="budgetEdit">Budget ändern</button><form id="budgetForm" class="inline-form"><label>Monatliches Budget<input name="monthlyAmount" type="text" inputmode="decimal" autocomplete="off" placeholder="z. B. 800"></label><label>Sparziel für den Haushalt (optional)<input name="savingsGoal" type="text" inputmode="decimal" autocomplete="off" placeholder="z. B. 100"></label><button class="primary" type="submit">Speichern</button></form><button class="text-button" data-close-month>Monat unveränderlich abschließen →</button></article><article class="card fixed-costs"><div class="card-head"><div><span class="kicker">Regelmäßig</span><h2>Fixkosten</h2></div></div><form id="fixedCostForm" class="inline-form"><input name="title" placeholder="z. B. Miete" required><input name="amount" type="text" inputmode="decimal" autocomplete="off" placeholder="Betrag, z. B. 49,99" required><button class="secondary" type="submit">Hinzufügen</button></form><div id="fixedCostList"></div></article></div><article class="card table-card"><div class="card-head"><div><span class="kicker">Chronologisch</span><h2>Ausgaben diesen Monat</h2></div><div class="search">⌕ <input id="expenseSearchFeature" placeholder="Suchen …"></div></div><div class="expense-list" id="expenseListFeature"></div></article><article class="card savings-card"><div class="card-head"><div><span class="kicker">Sparanalyse</span><h2>Einfach vergleichen</h2></div></div><div id="savingsAnalysis"></div></article><input id="receiptCamera" type="file" accept="image/*" capture="environment" hidden>`;
     bindOpenButtons();
     page.querySelector('.page-title').insertAdjacentHTML('afterend', '<label class="field finance-month-picker"><span>Monat ansehen</span><input id="financeMonth" type="month"></label>');
     page.querySelector('#financeMonth').value = monthKey(); page.querySelector('#financeMonth').addEventListener('change', renderFinances);
@@ -459,11 +461,12 @@
     page.querySelector('#budgetForm').addEventListener('submit', event => {
       event.preventDefault(); budgetFormSaved = true; const data = Object.fromEntries(new FormData(event.currentTarget));
       closePastBudgetMonths(); state.budget.startMonth ||= monthKey(); state.budget.monthlyAmounts ||= {};
-      state.budget.monthlyAmount = Number(data.monthlyAmount) || 0; state.budget.monthlyAmounts[monthKey()] = state.budget.monthlyAmount; state.budget.savingsGoal = Number(data.savingsGoal) || 0; persist(); renderFinances(); toast('Budget gespeichert');
+      state.budget.monthlyAmount = euroValue(data.monthlyAmount) || 0; state.budget.monthlyAmounts[monthKey()] = state.budget.monthlyAmount; state.budget.savingsGoal = euroValue(data.savingsGoal) || 0; persist(); renderFinances(); toast('Budget gespeichert');
     });
     page.querySelector('#fixedCostForm').addEventListener('submit', event => {
       event.preventDefault(); const data = Object.fromEntries(new FormData(event.currentTarget));
-      state.fixedCosts.push({ id: crypto.randomUUID(), title: data.title, amount: Number(data.amount), startMonth: monthKey() }); event.currentTarget.reset(); persist(); renderFinances(); toast('Fixkosten gespeichert');
+      if (!(euroValue(data.amount) > 0)) { toast('Bitte einen Betrag über 0 € eintragen'); return; }
+      state.fixedCosts.push({ id: crypto.randomUUID(), title: data.title, amount: euroValue(data.amount), startMonth: monthKey() }); event.currentTarget.reset(); persist(); renderFinances(); toast('Fixkosten gespeichert');
     });
     page.querySelector('#expenseSearchFeature').addEventListener('input', event => renderFinanceExpenseList(event.target.value));
   }
@@ -485,33 +488,41 @@
     const expense = state.expenses.find(item => String(item.id) === String(id)) || Object.values(state.budget.closedMonths || {}).flatMap(m => m.expenseItems || []).find(item => String(item.id) === String(id));
     if (!expense) return;
     const frozen = bookedInClosedMonth(expense.id), categories = ['Gemeinsamer Haushalt', 'Persönlich', 'Nebengewerbe', 'Noch unklar'];
+    // aktueller Stand bei abgeschlossenen Monaten: Original plus alle bisherigen Korrekturen (sonst würde jede Änderung vom Original aus neu gebucht)
+    const corrections = () => state.expenses.filter(item => item.correctionOf === expense.id).reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    const effective = () => roundMoney((Number(expense.amount) || 0) + (frozen ? corrections() : 0));
+    const cancelled = frozen && effective() === 0;
     let dialog = document.querySelector('#expenseEditDialog');
     if (!dialog) { dialog = document.createElement('dialog'); dialog.id = 'expenseEditDialog'; dialog.className = 'calendar-event-dialog'; document.body.append(dialog); }
     dialog.innerHTML = `<form><div class="dialog-head"><div><span class="kicker">Ausgabe</span><h2>${escapeHtml(expense.store || expense.title || 'Ausgabe')}</h2></div><button class="close" type="button" data-close-expense aria-label="Schließen">×</button></div>
       <div class="ws-dialog-fields">
-        ${frozen ? '<p class="recipe-import-note">Dieser Monat ist schon abgeschlossen. Änderungen werden als Korrektur im laufenden Monat verbucht – der alte Monat bleibt, wie er war.</p>' : ''}
-        <label class="ws-field"><span>Wofür</span><input name="title" required maxlength="120" value="${escapeHtml(expense.store || expense.title || '')}"></label>
-        <div class="lou-interval"><label class="ws-field"><span>Betrag in €</span><input name="amount" inputmode="decimal" required value="${escapeHtml(String(Number(expense.amount) || 0).replace('.', ','))}"></label>
+        ${frozen ? `<p class="recipe-import-note">${cancelled ? 'Diese Ausgabe ist bereits storniert.' : `Dieser Monat ist schon abgeschlossen. Änderungen am Betrag werden als Korrektur im laufenden Monat verbucht – der alte Monat bleibt, wie er war.${corrections() ? ` Bisher korrigiert: ${money(corrections())}.` : ''}`}</p>` : ''}
+        <label class="ws-field"><span>Wofür</span><input name="title" required maxlength="120" value="${escapeHtml(expense.store || expense.title || '')}" ${frozen ? 'disabled' : ''}></label>
+        <div class="lou-interval"><label class="ws-field"><span>Betrag in €</span><input name="amount" inputmode="decimal" required value="${escapeHtml(String(effective()).replace('.', ','))}" ${cancelled ? 'disabled' : ''}></label>
         <label class="ws-field"><span>Datum</span><input name="date" type="date" required value="${escapeHtml(expense.date || todayIso())}" ${frozen ? 'disabled' : ''}></label></div>
-        <label class="ws-field"><span>Bereich</span><select name="category">${categories.map(c => `<option ${c === (expense.category || 'Gemeinsamer Haushalt') ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
+        <label class="ws-field"><span>Bereich</span><select name="category" ${frozen ? 'disabled' : ''}>${categories.map(c => `<option ${c === (expense.category || 'Gemeinsamer Haushalt') ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
         ${expense.receiptItems?.length ? `<details class="doc-ocr"><summary>${expense.receiptItems.length} erkannte Artikel</summary><ul class="detail-list">${expense.receiptItems.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul></details>` : ''}
         <p class="auth-message" data-expense-message></p>
       </div>
-      <div class="calendar-dialog-actions"><button type="button" class="danger" data-delete-expense>Löschen</button><span></span><button type="button" class="secondary" data-close-expense>Abbrechen</button><button class="primary" type="submit">Speichern</button></div></form>`;
+      <div class="calendar-dialog-actions">${cancelled ? '<span></span>' : `<button type="button" class="danger" data-delete-expense>${frozen ? 'Stornieren' : 'Löschen'}</button>`}<span></span><button type="button" class="secondary" data-close-expense>Abbrechen</button><button class="primary" type="submit">Speichern</button></div></form>`;
     dialog.querySelectorAll('[data-close-expense]').forEach(b => { b.onclick = () => dialog.close(); });
     const correction = (difference, note) => state.expenses.unshift({ id: crypto.randomUUID(), title: `Korrektur: ${expense.store || expense.title}`, store: `Korrektur: ${expense.store || expense.title}`, date: todayIso(), amount: roundMoney(difference), person: expense.person || 'Gemeinsam', category: expense.category || 'Gemeinsamer Haushalt', receipt: false, correctionOf: expense.id, note, createdAt: new Date().toISOString(), icon: '€' });
-    dialog.querySelector('[data-delete-expense]').onclick = () => {
-      if (frozen) { if (!confirm(`„${expense.store || expense.title}“ stornieren? Der Betrag wird im laufenden Monat gutgeschrieben.`)) return; correction(-(Number(expense.amount) || 0), 'Storno'); persist(); renderAll(); dialog.close(); toast('Storniert – im laufenden Monat gutgeschrieben'); return; }
+    const deleteButton = dialog.querySelector('[data-delete-expense]');
+    if (deleteButton) deleteButton.onclick = () => {
+      if (frozen) { const now = effective(); if (!now) return; if (!confirm(`„${expense.store || expense.title}“ stornieren? ${money(now)} werden im laufenden Monat gutgeschrieben.`)) return; correction(-now, 'Storno'); persist(); renderAll(); dialog.close(); toast('Storniert – im laufenden Monat gutgeschrieben'); return; }
       const index = state.expenses.findIndex(item => item.id === expense.id); if (index < 0) return;
       const [removed] = state.expenses.splice(index, 1); persist(); renderAll(); dialog.close();
       toastUndo(`„${removed.store || removed.title}“ gelöscht`, () => { if (!state.expenses.some(item => item.id === removed.id)) state.expenses.splice(Math.min(index, state.expenses.length), 0, removed); persist(); renderAll(); });
     };
     dialog.querySelector('form').onsubmit = event => {
-      event.preventDefault(); const data = Object.fromEntries(new FormData(event.currentTarget)), amount = parseEuro(data.amount), message = dialog.querySelector('[data-expense-message]');
-      if (!Number.isFinite(amount) || amount <= 0) { message.textContent = 'Bitte einen Betrag über 0 € eingeben.'; return; }
-      const title = String(data.title || '').trim(); if (!title) { message.textContent = 'Bitte eintragen, wofür.'; return; }
+      event.preventDefault(); const data = Object.fromEntries(new FormData(event.currentTarget)), message = dialog.querySelector('[data-expense-message]');
+      if (cancelled) { dialog.close(); return; }
+      // abgeschlossener Monat: 0 € ist erlaubt (= vollständig korrigiert), sonst muss der Betrag über 0 € liegen
+      const amount = parseEuro(data.amount);
+      if (!Number.isFinite(amount) || amount < 0 || (!frozen && amount === 0)) { message.textContent = 'Bitte einen Betrag über 0 € eingeben.'; return; }
+      const title = frozen ? (expense.store || expense.title) : String(data.title || '').trim(); if (!title) { message.textContent = 'Bitte eintragen, wofür.'; return; }
       if (frozen) {
-        const difference = roundMoney(amount - (Number(expense.amount) || 0));
+        const difference = roundMoney(amount - effective());
         if (difference) correction(difference, 'Betrag geändert');
         persist(); renderAll(); dialog.close(); toast(difference ? `Korrektur ${money(difference)} im laufenden Monat verbucht` : 'Nichts geändert'); return;
       }
@@ -541,7 +552,8 @@
     if (budgetCard && (budgetFormSaved || !budgetCard.dataset.init)) { budgetCard.dataset.init = '1'; budgetFormSaved = false; budgetCard.classList.toggle('collapsed', budgetSet); }
     const budgetTitle = budgetCard?.querySelector('h2'); if (budgetTitle) budgetTitle.textContent = budgetSet ? 'Monatsbudget' : 'Budget einstellen';
     const budgetSummary = document.querySelector('#budgetSummary'); if (budgetSummary) budgetSummary.textContent = budgetSet ? `${money(Number(state.budget.monthlyAmount))} pro Monat${Number(state.budget.savingsGoal) > 0 ? ` · Sparziel ${money(Number(state.budget.savingsGoal))}` : ''}` : '';
-    const budgetForm = document.querySelector('#budgetForm'); budgetForm.monthlyAmount.value = state.budget.monthlyAmount || ''; budgetForm.savingsGoal.value = state.budget.savingsGoal || '';
+    // Formular nur befüllen, wenn gerade niemand darin tippt (sonst überschrieb der Abgleich alle 15 s die Eingabe)
+    const budgetForm = document.querySelector('#budgetForm'); if (!budgetForm.contains(document.activeElement)) { budgetForm.monthlyAmount.value = state.budget.monthlyAmount ? String(state.budget.monthlyAmount).replace('.', ',') : ''; budgetForm.savingsGoal.value = state.budget.savingsGoal ? String(state.budget.savingsGoal).replace('.', ',') : ''; }
     document.querySelector('#fixedCostList').innerHTML = (key === monthKey() ? state.fixedCosts : summary.fixedItems || []).map(cost => `<div class="compact-row"><span>${escapeHtml(cost.title)}</span><strong>${money(Number(cost.amount) || 0)}</strong>${key === monthKey() ? `<button data-delete-fixed="${escapeHtml(cost.id)}" aria-label="Fixkosten löschen">×</button>` : ''}</div>`).join('') || '<p>Noch keine Fixkosten.</p>';
     document.querySelectorAll('[data-delete-fixed]').forEach(button => button.addEventListener('click', () => { closePastBudgetMonths(); state.fixedCosts = state.fixedCosts.filter(cost => String(cost.id) !== button.dataset.deleteFixed); persist(); renderFinances(); }));
     renderFinanceExpenseList(document.querySelector('#expenseSearchFeature')?.value || ''); renderSavingsAnalysis();
@@ -591,7 +603,7 @@
     const text = await recogniseImage(file, document.querySelector('#receiptProgress'));
     const draft = parseReceiptText(text);
     const dialog = document.querySelector('#featureDialog');
-    dialog.querySelector('.feature-dialog-body').innerHTML = `<p>Bitte erkannte Angaben kontrollieren.</p><div class="field-grid"><label class="field full"><span>Geschäft</span><input name="store" value="${escapeHtml(draft.store)}" required></label><label class="field"><span>Datum</span><input name="date" type="date" value="${draft.date}" required></label><label class="field"><span>Gesamtbetrag</span><input name="amount" type="number" min="0.01" step="0.01" value="${draft.amount || ''}" required></label><label class="field full"><span>Erkannte Artikel (eine Zeile je Artikel)</span><textarea name="items" rows="7">${escapeHtml(draft.items.join('\n'))}</textarea></label></div><input type="hidden" name="ocrText" value="${escapeHtml(draft.ocrText.slice(0, 8000))}">`;
+    dialog.querySelector('.feature-dialog-body').innerHTML = `<p>Bitte erkannte Angaben kontrollieren.</p><div class="field-grid"><label class="field full"><span>Geschäft</span><input name="store" value="${escapeHtml(draft.store)}" required></label><label class="field"><span>Datum</span><input name="date" type="date" value="${draft.date}" required></label><label class="field"><span>Gesamtbetrag</span><input name="amount" type="text" inputmode="decimal" autocomplete="off" value="${draft.amount ? String(draft.amount).replace('.', ',') : ''}" required></label><label class="field full"><span>Erkannte Artikel (eine Zeile je Artikel)</span><textarea name="items" rows="7">${escapeHtml(draft.items.join('\n'))}</textarea></label></div><input type="hidden" name="ocrText" value="${escapeHtml(draft.ocrText.slice(0, 8000))}">`;
     dialog.querySelector('.feature-dialog-actions').innerHTML = '<button class="secondary" type="button" data-feature-cancel>Abbrechen</button><button class="primary" type="submit">Ausgabe speichern</button>';
     dialog.querySelector('[data-feature-cancel]').addEventListener('click', () => dialog.close());
     dialog.querySelector('form').onsubmit = async event => {
@@ -603,7 +615,7 @@
           window.__pendingDocumentMeta = { folder: 'Gemeinsam', category: 'Rechnungen', ocrText: data.ocrText, name: `Kassenbon ${data.store} ${data.date}` };
           if (!await uploadDocument(receiptFile)) return;
         }
-      state.expenses.unshift({ id: crypto.randomUUID(), title: data.store, store: data.store, date: data.date, amount: Number(data.amount), person: 'Gemeinsam', category: 'Gemeinsamer Haushalt', receipt: true, receiptItems: data.items.split(/\r?\n/).map(item => item.trim()).filter(Boolean), receiptOcrText: data.ocrText, createdAt: new Date().toISOString(), icon: '▣' });
+      state.expenses.unshift({ id: crypto.randomUUID(), title: data.store, store: data.store, date: data.date, amount: euroValue(data.amount), person: 'Gemeinsam', category: 'Gemeinsamer Haushalt', receipt: true, receiptItems: data.items.split(/\r?\n/).map(item => item.trim()).filter(Boolean), receiptOcrText: data.ocrText, createdAt: new Date().toISOString(), icon: '▣' });
       persist(); renderAll(); dialog.close(); toast('Kassenbon gespeichert');
       receiptFile = null;
       } catch { toast('Der Kassenbon konnte nicht gespeichert werden. Bitte erneut versuchen.'); } finally { submit.disabled = false; }
@@ -850,6 +862,6 @@
     window.addEventListener('focus', refreshDay); setInterval(refreshDay, 60000);
   }
 
-  window.ZuhauseFeatures = { parseShoppingItem, startShoppingVoice, refresh: refreshFeatures, calculateMonth, closePastBudgetMonths };
+  window.ZuhauseFeatures = { parseShoppingItem, addShopping, startShoppingVoice, refresh: refreshFeatures, calculateMonth, closePastBudgetMonths };
   initialise();
 })();
