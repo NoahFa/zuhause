@@ -203,8 +203,9 @@
     // Reihenfolge zählt: genauere Wörter zuerst (Saft vor Apfel, Tomatenmark vor Tomate, Reis vor „eis“, Holzkohle vor Kohl).
     // „(?:^|[^a-zäöüß])…(?![a-zäöüß])“ = ganzes Wort – so trifft „ei“ nicht Salbei/Weißwein und „pute“ nicht Computer (Prüfung 18.11.2026).
     const groups = [
-      ['Trockenwaren', /tomatenmark|passierte|paprikapulver|currypulver|brühe|essig|konserve|\bdose|dosen|(?:^|[^p])reis(?![a-zäöüß])|basmati|apfelmus|mus$/],
-      ['Haushaltsartikel', /holzkohle|grillkohle|grillanzünder|kerze|batterie/],
+      ['Trockenwaren', /chips|röstzwiebel|kerne|maismehl|gewürzgurke|essiggurke|butterkeks|keks|kokosmilch|brühwürfel|tomatenmark|passierte|paprikapulver|currypulver|brühe|essig|konserve|\bdose|dosen|(?:^|[^p])reis(?![a-zäöüß])|basmati|apfelmus|mus$/],
+      ['Haushaltsartikel', /holzkohle|grillkohle|grillanzünder|kerze|teelicht|batterie|katzenfutter|hundefutter|katzenstreu/],
+      ['Tiefkühlprodukte', /fischstäbchen|tk-|tiefkühl/],
       ['Getränke', /saft|schorle|limo|cola|bier|wein(?!traube)|sekt|(?:^|[^a-zäöüß])wasser(?!melone)|mineralwasser|getränk|eistee|smoothie|sirup/],
       ['Tiefkühlprodukte', /tiefkühl|tk[- ]|pizza|pommes|frost|eiscreme|eiswürfel|(?:^|[^a-zäöüß])eis(?![a-zäöüß])|[a-zäöüß]eis$/],
       ['Obst und Gemüse', /apfel|äpfel|banane|beere|salat|gurke|tomate|paprika|kartoffel|zwiebel|obst|gemüse|avocado|zitrone|orange|knoblauch|ingwer|möhre|karotte|lauch|porree|zucchini|aubergine|brokkoli|blumenkohl|spinat|pilz|champignon|kürbis|sellerie|petersilie|basilikum|schnittlauch|koriander|dill|minze|rosmarin|thymian|salbei|frühlingszwiebel|limette|mango|ananas|traube|birne|radieschen|rucola|kohl|melone|kiwi|pfirsich|pflaume|kirsche|mais/],
@@ -215,7 +216,8 @@
     // Gemerkte Zuordnungen nur für ganze Wörter bzw. Wortenden („Rum“ trifft „Kokosrum“, aber nicht „Rumpsteak“)
     const custom = state.customCategories?.shopping || {};
     const escape = text => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const customCategory = Object.entries(custom).find(([keyword]) => { const k = keyword.toLowerCase().trim(); return k && new RegExp(`${escape(k)}(?![a-zäöüß])`).test(value); })?.[1];
+    // kurze gemerkte Wörter (unter 4 Buchstaben, z. B. „ei“) nur als ganzes Wort – sonst träfe „ei“ auch Salbei und Brei
+    const customCategory = Object.entries(custom).find(([keyword]) => { const k = keyword.toLowerCase().trim(); if (!k) return false; return new RegExp(`${k.length < 4 ? '(?:^|[^a-zäöüß])' : ''}${escape(k)}(?![a-zäöüß])`).test(value); })?.[1];
     const category = customCategory || groups.find(([, pattern]) => pattern.test(value))?.[0] || 'Sonstiges';
     return { raw, quantity, title, category };
   }
@@ -314,7 +316,7 @@
     const again = event.target.closest('[data-shopping-again]'), edit = event.target.closest('[data-edit-shopping]'), clear = event.target.closest('#shoppingClearDone');
     if (again) { const entry = state.shoppingHistory?.[again.dataset.shoppingAgain]; if (entry && addShopping(entry.title, { quantity: entry.quantity || '', category: entry.category })) toast(`${entry.title} steht auf der Liste`); }
     if (edit) { event.preventDefault(); editShopping(edit.dataset.editShopping); }
-    if (clear) { const count = state.shopping.filter(item => item.done).length; if (count && confirm(`${count} eingekaufte Artikel von der Liste nehmen?`)) { state.shopping = state.shopping.filter(item => !item.done); persist(); renderShoppingEnhanced(); toast('Liste aufgeräumt'); } }
+    if (clear) { const removed = state.shopping.filter(item => item.done); if (removed.length) { state.shopping = state.shopping.filter(item => !item.done); persist(); renderShoppingEnhanced(); toastUndo(`${removed.length} eingekaufte Artikel entfernt`, () => { const ids = new Set(state.shopping.map(item => item.id)); state.shopping.push(...removed.filter(item => !ids.has(item.id))); persist(); renderShoppingEnhanced(); }); } }
   });
 
   function startShoppingVoice() {
@@ -412,7 +414,8 @@
   // (vorher fehlten sie im Abschluss und wanderten jeden Monat weiter).
   function expensesForMonth(key) {
     const own = state.expenses.filter(expense => expenseMonth(expense) === key);
-    if (state.budget.closedMonths?.[key]) return own;
+    // Nachzügler nur im laufenden (bzw. beim Abschluss: vergangenen) Monat – nicht in der Vorschau künftiger Monate
+    if (state.budget.closedMonths?.[key] || key > monthKey()) return own;
     return [...own, ...state.expenses.filter(expense => isLateExpense(expense, key))];
   }
 
@@ -555,8 +558,9 @@
     const budgetSummary = document.querySelector('#budgetSummary'); if (budgetSummary) budgetSummary.textContent = budgetSet ? `${money(Number(state.budget.monthlyAmount))} pro Monat${Number(state.budget.savingsGoal) > 0 ? ` · Sparziel ${money(Number(state.budget.savingsGoal))}` : ''}` : '';
     // Formular nur befüllen, wenn gerade niemand darin tippt (sonst überschrieb der Abgleich alle 15 s die Eingabe)
     const budgetForm = document.querySelector('#budgetForm'); if (!budgetForm.contains(document.activeElement)) { budgetForm.monthlyAmount.value = state.budget.monthlyAmount ? String(state.budget.monthlyAmount).replace('.', ',') : ''; budgetForm.savingsGoal.value = state.budget.savingsGoal ? String(state.budget.savingsGoal).replace('.', ',') : ''; }
-    document.querySelector('#fixedCostList').innerHTML = (key === monthKey() ? state.fixedCosts : summary.fixedItems || []).map(cost => `<div class="compact-row"><span>${escapeHtml(cost.title)}</span><strong>${money(Number(cost.amount) || 0)}</strong>${key === monthKey() ? `<button data-delete-fixed="${escapeHtml(cost.id)}" aria-label="Fixkosten löschen">×</button>` : ''}</div>`).join('') || '<p>Noch keine Fixkosten.</p>';
-    document.querySelectorAll('[data-delete-fixed]').forEach(button => button.addEventListener('click', () => { closePastBudgetMonths(); state.fixedCosts = state.fixedCosts.filter(cost => String(cost.id) !== button.dataset.deleteFixed); persist(); renderFinances(); }));
+    document.querySelector('#fixedCostList').innerHTML = (key === monthKey() ? state.fixedCosts.filter(cost => !cost.endMonth || cost.endMonth >= key) : summary.fixedItems || []).map(cost => `<div class="compact-row"><span>${escapeHtml(cost.title)}</span><strong>${money(Number(cost.amount) || 0)}</strong>${key === monthKey() ? (cost.endMonth ? '<small>endet nach diesem Monat</small>' : `<button data-delete-fixed="${escapeHtml(cost.id)}" aria-label="Fixkosten löschen">×</button>`) : ''}</div>`).join('') || '<p>Noch keine Fixkosten.</p>';
+    // Fixkosten löschen: im laufenden Monat zählen sie noch (schon bezahlt), ab dem nächsten nicht mehr; erst diesen Monat angelegt → ganz weg
+    document.querySelectorAll('[data-delete-fixed]').forEach(button => button.addEventListener('click', () => { closePastBudgetMonths(); const cost = state.fixedCosts.find(item => String(item.id) === button.dataset.deleteFixed); if (!cost) return; if (!cost.startMonth || cost.startMonth >= monthKey()) state.fixedCosts = state.fixedCosts.filter(item => item !== cost); else cost.endMonth = monthKey(); persist(); renderFinances(); toast(cost.endMonth ? 'Endet nach diesem Monat' : 'Fixkosten entfernt'); }));
     renderFinanceExpenseList(document.querySelector('#expenseSearchFeature')?.value || ''); renderSavingsAnalysis();
   }
 

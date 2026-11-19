@@ -143,6 +143,7 @@
       f => { const job = data().job; const kind = String(f.get('kind')), amount = Math.abs(num(f.get('amount'))), hoursIn = Math.abs(num(f.get('hours')));
         if (!amount && !hoursIn) return 'Bitte einen Betrag oder Stunden eintragen.'; if (!hoursIn && !num(job.rate) && !job.entries.length) return 'Bitte zuerst den Stundenlohn festlegen oder Stunden eintragen.';
         const bookingRate = rateForMonth(job, String(f.get('date')).slice(0, 7)) || num(job.rate);
+        if (!hoursIn && !bookingRate) return 'Für diesen Monat ist kein Stundenlohn hinterlegt – bitte Stunden eintragen oder unter „Job & Stundenlohn“ den Lohn festlegen.';
         const hours = Math.round((hoursIn ? (kind === 'plus' ? hoursIn : -hoursIn) : (kind === 'plus' ? amount / bookingRate : -amount / bookingRate)) * 100) / 100;
         job.adjustments.push({ id: uid(), date: String(f.get('date')), hours, amount: amount || null, note: String(f.get('note')).trim() || (kind === 'payout' ? `Auszahlung${amount ? ` ${euro(amount)}` : ''}` : 'Korrektur') }); save('Gebucht'); });
   }
@@ -177,7 +178,7 @@
   function editShift(id, preset) {
     const job = data().job, e = job.entries.find(x => x.id === id), v = e || preset || { date: todayIso(), start: '', end: '', pause: 0, tip: '', rate: job.rate };
     dialog(e ? 'Schicht bearbeiten' : preset ? 'Ausstempeln' : 'Schicht nachtragen',
-      `${field('Datum', 'date', v.date, 'date', 'required')}<div class="lou-interval">${field('Von', 'start', v.start, 'time', 'required')}${field('Bis', 'end', v.end, 'time', 'required')}</div><div class="lou-interval">${field('Pause (Minuten)', 'pause', v.pause || 0, 'number', 'min="0" max="600"')}${field('Trinkgeld in €', 'tip', v.tip ?? '', 'text', 'inputmode="decimal" placeholder="0"')}</div>${field('Stundenlohn in €', 'rate', v.rate ?? '', 'text', 'inputmode="decimal" required')}`,
+      `${field('Datum', 'date', v.date, 'date', 'required')}<div class="lou-interval">${field('Von', 'start', v.start, 'time', 'required')}${field('Bis', 'end', v.end, 'time', 'required')}</div><div class="lou-interval">${field('Pause (Minuten)', 'pause', v.pause || 0, 'number', 'min="0" max="600"')}${field('Trinkgeld in €', 'tip', v.tip ?? '', 'text', 'inputmode="decimal" placeholder="0"')}</div>${field('Stundenlohn in €', 'rate', num(v.rate) ? num(v.rate).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '', 'text', 'inputmode="decimal" required')}`,
       f => {
         const values = { date: String(f.get('date')), start: String(f.get('start')), end: String(f.get('end')), pause: num(f.get('pause')), tip: num(f.get('tip')), rate: num(f.get('rate')) };
         if (!values.date || !values.start || !values.end) return 'Bitte Datum, Beginn und Ende eintragen.';
@@ -188,6 +189,8 @@
         jobMonth = values.date.slice(0, 7); const x = shift(values); save(`${hm(x.minutes)} · ${euro(x.total)} gespeichert`);
       },
       e ? removeButton('Schicht entfernen', 'Diese Schicht entfernen?', () => { const job = data().job; job.entries = job.entries.filter(x => x.id !== id); save('Schicht entfernt'); }) : preset ? { label: 'Einstempeln verwerfen', run: () => { if (!confirm('Einstempeln verwerfen, ohne zu speichern?')) return false; data().job.running = null; save(); } } : null);
+    // Ausstempeln: Fokus aufs Trinkgeld statt aufs Datum (am iPhone sprang sonst das Datumsrad auf)
+    if (preset) setTimeout(() => { const tip = document.querySelector('#charleenDialog [name=tip]'); tip?.focus(); }, 60);
   }
 
   // ---------- Caritas ----------
@@ -296,7 +299,8 @@
   document.addEventListener('change', event => {
     const el = event.target; if (!el.matches('[data-ch-work-done]')) return;
     const t = data().work.find(x => x.id === el.dataset.chWorkDone); if (!t) return;
-    t.done = el.checked; t.doneAt = el.checked ? new Date().toISOString() : null; save(el.checked ? 'Erledigt' : 'Wieder offen');
+    const id = t.id; t.done = el.checked; t.doneAt = el.checked ? new Date().toISOString() : null; save();
+    if (el.checked) toastUndo(`„${t.title}“ erledigt`, () => { const again = data().work.find(x => x.id === id); if (again) { again.done = false; again.doneAt = null; save('Wieder offen'); } }); else toast('Wieder offen');
   });
   document.addEventListener('submit', event => {
     if (event.target.id !== 'chWorkForm') return; event.preventDefault();

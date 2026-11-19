@@ -342,3 +342,7 @@ dialog .close{border:0!important;background:#ecebe5!important;width:44px!importa
 .ch-overtime .kicker{font-size:11px;line-height:1.5;white-space:normal}
 .action-icon.coral{background:#f1dcd5!important;color:#925d52!important}
 .quick-actions [data-feature-page=montage] .action-icon{background:#dce8ee!important;color:#365c75!important}
+/* Charleens Reiter in einer wischbaren Zeile */
+@media(max-width:760px){.ch-tabs{display:flex!important;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none;gap:4px}.ch-tabs button{flex:none;white-space:nowrap;padding:10px 14px}}
+/* laufende Stempeluhr: Punkt am Bereich */
+.workspace-switch button.is-running::after{content:'';width:9px;height:9px;border-radius:50%;background:#d9534f;margin-left:4px;box-shadow:0 0 0 3px rgba(217,83,79,.18)}

@@ -39,7 +39,9 @@
   }
   function parseIngredient(line) {
     // „100g Mehl“ → „100 g Mehl“ (Seiten schreiben Menge und Einheit oft zusammen)
-    const raw = String(line || '').replace(/^[-•*·]\s*/, '').trim().replace(/^(\d+(?:[.,]\d+)?|[½¼¾⅓⅔⅛])(?=[a-zA-ZäöüÄÖÜ])/, '$1 '); if (!raw) return null;
+    // „2 x 400 g Tomaten“ → 800 g Tomaten
+    const multi = String(line || '').replace(/^[-•*·]\s*/, '').trim().match(/^(\d+)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(\S.*)$/i);
+    const raw = (multi ? `${Number(multi[1]) * Number(multi[2].replace(',', '.'))} ${multi[3]}` : String(line || '').replace(/^[-•*·]\s*/, '').trim()).replace(/^(\d+(?:[.,]\d+)?|[½¼¾⅓⅔⅛])(?=[a-zA-ZäöüÄÖÜ])/, '$1 '); if (!raw) return null;
     const amount = parseAmount(raw); let rest = amount ? amount.rest : raw, unit = '', note = '';
     // „1 (400 g) Dose Tomaten“: Zusatz in Klammern vor der Einheit ans Ende stellen
     const paren = rest.match(/^\(([^)]{1,40})\)\s*/); if (paren) { note = ` (${paren[1]})`; rest = rest.slice(paren[0].length); }
@@ -353,19 +355,21 @@
     const base = Number(r.data?.servings) || 2, servings = servingsFor[id] || base, factor = servings / base, items = r.data?.ingredients || [];
     const d = dialog('recipeShopDialog', `<form><div class="dialog-head"><div><span class="kicker">${h(r.title)} · ${servings} Portionen</span><h2>Auf die Einkaufsliste</h2></div><button class="close" type="button" data-recipe-close aria-label="Schließen">×</button></div>
       <div class="ws-dialog-fields"><p class="ws-help">Haken weg bei allem, was ihr schon zu Hause habt. Basics (Salz, Öl …) und kleine Mengen (EL, TL, Prise) sind schon abgewählt.</p>
-        <div class="recipe-shop-list">${items.map((ing, i) => { const plan = planItem(ing, factor), basic = isBasic(ing.name), spoon = SPOON.includes(ing.unit); return `<label class="ws-check recipe-shop-row"><input type="checkbox" name="pick" value="${i}" ${basic || spoon ? '' : 'checked'}><span><span>${h(plan.text)}${basic ? ' <small>Basic</small>' : spoon && !basic ? ' <small>kleine Menge</small>' : ''}</span>${plan.note ? `<em>${h(plan.note)}</em>` : ''}</span></label>`; }).join('') || '<p class="ws-muted">Dieses Rezept hat keine Zutaten.</p>'}</div>
+        <div class="recipe-shop-list">${(() => { const sim = JSON.parse(JSON.stringify(state.shopping)); return items.map((ing, i) => { const plan = planItem(ing, factor, sim); if (!isBasic(ing.name) && !SPOON.includes(ing.unit)) { if (plan.kind === 'merge') plan.existing.quantity = plan.quantity; else if (plan.kind === 'new') sim.unshift({ title: ing.name, quantity: plan.quantity, done: false }); } const basic = isBasic(ing.name), spoon = SPOON.includes(ing.unit); return `<label class="ws-check recipe-shop-row"><input type="checkbox" name="pick" value="${i}" ${basic || spoon ? '' : 'checked'}><span><span>${h(plan.text)}${basic ? ' <small>Basic</small>' : spoon && !basic ? ' <small>kleine Menge</small>' : ''}</span>${plan.note ? `<em>${h(plan.note)}</em>` : ''}</span></label>`; }).join(''); })() || '<p class="ws-muted">Dieses Rezept hat keine Zutaten.</p>'}</div>
       </div>
       <div class="calendar-dialog-actions"><span></span><span></span><button type="button" class="secondary" data-recipe-close>Abbrechen</button><button class="primary" type="submit" ${items.length ? '' : 'disabled'}>Übernehmen</button></div></form>`);
     d.querySelector('form').onsubmit = event => {
       event.preventDefault();
       const picked = [...d.querySelectorAll('[name=pick]:checked')].map(input => items[Number(input.value)]).filter(Boolean);
-      const before = JSON.parse(JSON.stringify(state.shopping));
+      // Rückgängig nimmt nur diese Übernahme zurück (neue Zeilen weg, zusammengerechnete Mengen zurück) – andere Änderungen bleiben
+      const quantitiesBefore = new Map(state.shopping.map(item => [item.id, item.quantity])), idsBefore = new Set(state.shopping.map(item => item.id));
       const result = addToShopping(picked, factor, r.title);
+      const added = state.shopping.filter(item => !idsBefore.has(item.id)).map(item => item.id), changed = state.shopping.filter(item => idsBefore.has(item.id) && quantitiesBefore.get(item.id) !== item.quantity).map(item => [item.id, quantitiesBefore.get(item.id)]);
       d.close(); document.querySelector('#recipeViewDialog')?.close();
       // gleich zur Einkaufsliste wechseln, damit man das Ergebnis sieht – mit Rückgängig (z. B. versehentlich doppelt übertragen)
       tab = 'shopping'; try { localStorage.setItem('zuhause-shopping-tab', tab); } catch {} render();
       document.querySelector('.full-shopping')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      toastUndo(`${result.added} neu auf der Liste${result.merged ? `, ${result.merged} zusammengerechnet` : ''}`, () => { state.shopping = before; persist(); try { renderShopping(); } catch {} try { renderAll(); } catch {} toast('Rückgängig gemacht'); });
+      toastUndo(`${result.added} neu auf der Liste${result.merged ? `, ${result.merged} zusammengerechnet` : ''}`, () => { state.shopping = state.shopping.filter(item => !added.includes(item.id)); changed.forEach(([id, quantity]) => { const item = state.shopping.find(x => x.id === id); if (item) item.quantity = quantity; }); persist(); try { renderShopping(); } catch {} try { renderAll(); } catch {} toast('Rückgängig gemacht'); });
     };
   }
   // Menge eines Einkaufsartikels („2 ×“, „500 g“, „1,5 kg“) lesen
@@ -377,12 +381,12 @@
   }
   const shoppingQuantity = (value, unit) => value === null || value === undefined ? (unit || '') : !unit || unit === 'Stück' ? `${formatAmount(value, '')} ×` : formatAmount(value, unit);
   // Was passiert mit einer Zutat auf der Einkaufsliste? (für Vorschau und Übernehmen – beides zeigt bzw. tut dasselbe)
-  function planItem(ing, factor) {
+  function planItem(ing, factor, list = state.shopping) {
     // Stückzahlen zum Einkaufen aufrunden (eine halbe Zwiebel oder Dose kauft man nicht); Gewicht, Löffel usw. bleiben genau
     const unit = ing.unit || '', countable = ['', 'Stück', 'Dose', 'Pck.', 'Bund', 'Becher', 'Glas', 'Kopf', 'Knolle', 'Stange', 'Tasse', 'Box'].includes(unit);
     const exact = ing.amount ? ing.amount * factor : null, value = exact === null ? null : countable ? Math.ceil(exact - 1e-9) : exact;
     const rounded = exact !== null && countable && Math.abs(value - exact) > 1e-6 ? `aufgerundet von ${formatAmount(exact, unit)}` : '';
-    const existing = state.shopping.find(item => !item.done && sameIngredient(item.title, ing.name));
+    const existing = list.find(item => !item.done && sameIngredient(item.title, ing.name));
     if (existing) {
       const have = shoppingAmount(existing.quantity), [baseA, fA] = baseOf(have.unit), [baseB, fB] = baseOf(unit);
       if (value === null) return { kind: 'already', existing, text: ing.name, note: `steht schon auf der Liste${existing.quantity ? ` (${existing.quantity})` : ''}` };
@@ -403,7 +407,8 @@
       if (plan.kind === 'already') { merged++; continue; }
       if (plan.kind === 'merge') { plan.existing.quantity = plan.quantity; plan.existing.fromRecipe = recipeTitle; merged++; continue; }
       // Bereich im Supermarkt über die bestehende Zuordnung der Einkaufsliste
-      const parsed = window.ZuhauseFeatures?.parseShoppingItem?.(ing.name) || { title: ing.name, category: 'Sonstiges' };
+      // Dose/Glas/Packung → Trockenwaren (Dosentomaten gehören nicht zu Obst und Gemüse)
+      const parsed = ['Dose', 'Glas'].includes(ing.unit) ? { category: 'Trockenwaren' } : window.ZuhauseFeatures?.parseShoppingItem?.(ing.name) || { title: ing.name, category: 'Sonstiges' };
       state.shopping.unshift({ id: uid(), raw: ingredientText({ ...ing, amount: plan.value }), title: ing.name, quantity: plan.quantity, category: parsed.category || 'Sonstiges', done: false, fromRecipe: recipeTitle, createdAt: new Date().toISOString() });
       added++;
     }

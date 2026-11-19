@@ -37,7 +37,8 @@
     for (let i = lines.length - 1; i >= 0; i--) {
       if (!keys.test(lines[i]) || /zwischen|netto(?!.*gesamt)|mwst|ust|steuer\s*\d/i.test(lines[i]) && kind !== 'payslip') continue;
       // mehrere Zahlen in der Zeile: die mit Euro-Zeichen bzw. Komma-Schreibweise bevorzugen
-      const euro = [...cleanNumber(lines[i]).replace(DATE_LIKE, ' ').matchAll(/(\d{1,3}(?:[.\s]\d{3})*,\d{2}|\d+,\d{2}|\d+\.\d{2})\s*(?:€|eur\b)/gi)].map(m => parseAmount(m[1])).filter(n => n > 0);
+      // auch ganze Euro-Beträge mit Euro-Zeichen („75 €“, „1.250 €“)
+      const euro = [...cleanNumber(lines[i]).replace(DATE_LIKE, ' ').matchAll(/(\d{1,3}(?:[.\s]\d{3})*,\d{2}|\d+,\d{2}|\d+\.\d{2}|\d{1,3}(?:\.\d{3})+|\d+)(?:,-)?\s*(?:€|eur\b)/gi)].map(m => parseAmount(/^\d{1,3}(\.\d{3})+$/.test(m[1]) ? m[1].replace(/\./g, '') : m[1])).filter(n => n > 0 && n < 1e6);
       if (euro.length) return euro[euro.length - 1];
       const own = amountsIn(lines[i]); if (own.length) return own[own.length - 1];
       const next = amountsIn(lines[i + 1] || ''); if (next.length) return next[0];
@@ -84,6 +85,7 @@
     const invoiceLike = /rechnung|zahlbar|zahlungsziel|bitte überweisen/i.test(all);
     const realTax = /finanzamt|steuerbescheid|einkommensteuer|lohnsteuerbescheinigung/i.test(all);
     for (const key of ['payslip', 'tax', 'vaccination']) { if (key === 'vaccination' && invoiceLike) continue; if (key === 'tax' && invoiceLike && !realTax) continue; if (has(key)) { best = TYPES.find(x => x.key === key); break; } }
+    if (best?.key === 'vaccination' && invoiceLike) best = TYPES.find(x => x.key === 'invoice'); // Tierarzt-Rechnung mit Impfung heißt „Rechnung“
     const kind = best?.key || 'other';
     const dates = findDates(all), sender = findSender(lines);
     const near = re => { const m = all.match(re); if (!m) return null; const after = dates.find(d => d.index >= m.index && d.index - m.index < 80); return after?.value || null; };
@@ -118,7 +120,9 @@
       let assumed = false;
       if (!notice && /kündigungsfrist/i.test(all)) { notice = ['', '3', 'Monat']; assumed = true; }
       if (end) { let last = end; if (notice) last = notice[2].toLowerCase().startsWith('monat') ? addMonths(end, -notice[1]) : addDays(end, -(notice[1] * (notice[2].toLowerCase().startsWith('woche') ? 7 : 1))); reminder = addDays(last, -14); reminderNote = `Vertragsende ${german(end)}${notice ? `, Kündigungsfrist ${notice[1]} ${notice[2]}${+notice[1] > 1 ? (notice[2].toLowerCase().startsWith('monat') ? 'e' : 'n') : ''}${assumed ? ' (angenommen – Frist bitte im Vertrag prüfen)' : ''}` : ''}`; }
-      if (!reminder || reminder < today()) { reminder = addMonths(today(), 11); reminderNote ||= 'Vertrag prüfen (Laufzeit/Kündigung)'; }
+      // Frist schon vorbei? Dann verlängert sich der Vertrag meist um ein Jahr → nächste Frist erinnern (statt „heute + 11 Monate“)
+      let guard = 0; while (reminder && reminder < today() && guard++ < 10) reminder = addMonths(reminder, 12);
+      if (!reminder) { reminder = addMonths(today(), 11); reminderNote ||= 'Vertrag prüfen (Laufzeit/Kündigung)'; }
     }
     // Ordner: zuerst gelernte Regel, dann Stichworte
     const key = senderKey(sender), rule = key && rules[key];

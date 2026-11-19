@@ -133,9 +133,14 @@
   }
   function summaryCard() {
     const d = data(), open = d.orders.filter(o => o.status !== 'paid'), running = d.running ? d.orders.find(o => o.id === d.running.orderId) : null;
-    return `<article class="ws-start-card nj-start"><span class="kicker">Nebenjobs</span><h2>${running ? `● Eingestempelt: ${h(running.title)}` : 'Aufträge & Stunden'}</h2><p>${open.length ? `${open.length} ${open.length === 1 ? 'Auftrag' : 'Aufträge'} offen · ${euro(open.reduce((s, o) => s + totals(o).total, 0))} noch nicht bezahlt` : 'Stempeluhr, Material mit Preisen und Abrechnung je Auftrag.'}</p><button class="primary ws-large" data-ws-route="nebenjob">Nebenjobs öffnen</button></article>`;
+    return `<article class="ws-start-card nj-start"><span class="kicker">Nebenjobs</span><h2>${running ? `● Eingestempelt: ${h(running.title)}` : 'Aufträge & Stunden'}</h2><p>${open.length ? `${open.length} ${open.length === 1 ? 'Auftrag' : 'Aufträge'} offen · ${euro(open.reduce((s, o) => s + totals(o).total, 0))} noch nicht bezahlt` : 'Stempeluhr, Material mit Preisen und Abrechnung je Auftrag.'}</p>${running ? '<button class="primary ws-large" data-nj-quick-out>Ausstempeln</button><button class="secondary" data-ws-route="nebenjob">Nebenjobs öffnen</button>' : '<button class="primary ws-large" data-ws-route="nebenjob">Nebenjobs öffnen</button>'}</article>`;
   }
 
+  // Ausstempeln direkt von Noahs Startseite
+  document.addEventListener('click', event => {
+    if (!event.target.closest('[data-nj-quick-out]')) return;
+    const r = data().running; if (!r) return; openOrderId = r.orderId; go('nebenjob'); editTime(r.orderId, null, { date: r.date, start: r.start, end: nowTime(), pause: 0, note: '' });
+  });
   document.addEventListener('click', event => {
     const b = event.target.closest('button'); if (!b || !b.closest('#nebenjob, #noahJobDialog')) return; const d = b.dataset;
     if ('njNew' in d) editOrder();

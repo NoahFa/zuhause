@@ -123,7 +123,15 @@ server.listen(0, '127.0.0.1', async () => {
   check(picks.filter(x => x.endsWith(':false')).length === 3, 'Vorschau: Olivenöl, Salz, Pfeffer abgewählt', picks.join(' | '));
   await page.click('#recipeShopDialog [type=submit]'); await page.waitForTimeout(150);
   const shopping = await page.evaluate(() => state.shopping.map(i => `${i.quantity} ${i.title} [${i.category}]`));
-  check(shopping.length === 4 && shopping.some(s => s === '200 g Hackfleisch [Kühlprodukte]') && shopping.some(s => s === '1 × Zwiebel [Obst und Gemüse]') && shopping.some(s => s === '1 Dose Tomaten [Obst und Gemüse]'), 'Übernommen mit Mengen und Bereichen, Stückzahlen aufgerundet (½ Zwiebel → 1)', shopping.join(' | '));
+  check(shopping.length === 4 && shopping.some(s => s === '200 g Hackfleisch [Kühlprodukte]') && shopping.some(s => s === '1 × Zwiebel [Obst und Gemüse]') && shopping.some(s => s === '1 Dose Tomaten [Trockenwaren]'), 'Übernommen mit Mengen und Bereichen, Stückzahlen aufgerundet (½ Zwiebel → 1)', shopping.join(' | '));
+  // Prüfung 19.11. (v49 D): Rückgängig nimmt nur diese Übernahme zurück, doppelte Zutaten in der Vorschau, „2 x 400 g“
+  await page.evaluate(() => { state.shopping.find(i => i.title === 'Hackfleisch').quantity = '300 g'; state.shopping.push({ id: 'fremd', title: 'Klopapier', quantity: '', category: 'Haushalt', done: false }); });
+  await page.click('.toast-undo'); await page.waitForTimeout(150);
+  const afterUndo = await page.evaluate(() => state.shopping.map(i => `${i.quantity} ${i.title}`));
+  check(afterUndo.length === 1 && afterUndo[0] === ' Klopapier', 'Rückgängig entfernt nur die übernommenen Zeilen, Klopapier bleibt', afterUndo.join(' | '));
+  const dup = await page.evaluate(() => { const x = window.ZuhauseRecipes.parseIngredient('2 x 400 g Tomaten'); return `${x.amount}|${x.unit}|${x.name}`; });
+  check(dup === '800|g|Tomaten', '„2 x 400 g Tomaten“ → 800 g', dup);
+  await page.evaluate(() => { document.querySelectorAll('dialog[open]').forEach(d => d.close()); state.shopping = [{ id: 'h1', title: 'Hackfleisch', quantity: '200 g', category: 'Kühlprodukte', done: false }]; renderShopping(); });
   await page.click('[data-recipe-tab=shopping]'); await page.waitForTimeout(150);
   check(await page.isVisible('#shoppingFull') && (await page.textContent('#shoppingFull')).includes('Hackfleisch'), 'Einkaufsliste zeigt die Zutaten');
   if (out) await page.screenshot({ path: path.join(out, 'einkaufsliste.png'), fullPage: true });
@@ -186,6 +194,19 @@ server.listen(0, '127.0.0.1', async () => {
   await page.evaluate(() => document.querySelector('#recipeCategoriesDialog').close());
 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
+  await page.evaluate(() => { state.shopping = [{ id: 'z1', title: 'Hackfleisch', quantity: '100 g', category: 'Trockenwaren', done: false }]; document.querySelectorAll('dialog[open]').forEach(d => d.close()); });
+  await page.click('[data-recipe-tab=recipes]'); await page.click('[data-recipe-new]');
+  await page.fill('#recipeEditDialog [name=title]', 'Doppelt');
+  await page.fill('#recipeEditDialog [name=servings]', '2');
+  await page.fill('#recipeEditDialog [name=ingredients]', '100 g Hackfleisch\n50 g Hackfleisch');
+  await page.click('#recipeEditDialog [type=submit]'); await page.waitForTimeout(200);
+  await page.click('#recipeViewDialog [data-recipe-shop]'); await page.waitForTimeout(150);
+  const dupPreview = await page.evaluate(() => [...document.querySelectorAll('#recipeShopDialog .recipe-shop-row')].map(l => l.textContent.trim()));
+  await page.click('#recipeShopDialog [type=submit]'); await page.waitForTimeout(150);
+  const dupList = await page.evaluate(() => state.shopping.map(i => `${i.quantity} ${i.title}`));
+  check(dupPreview[1]?.startsWith('250 g') && dupList.join() === '250 g Hackfleisch', 'Doppelte Zutat: Vorschau zeigt dasselbe Ergebnis wie die Liste', dupPreview.join(' | ') + ' // ' + dupList.join());
+  await page.click('.toast-undo'); await page.waitForTimeout(150);
+  check(await page.evaluate(() => state.shopping.map(i => `${i.quantity} ${i.title}`).join()) === '100 g Hackfleisch', 'Rückgängig stellt die alte Menge wieder her');
   check(!overflow && pending, 'Kein waagerechtes Überlaufen');
   check(!errors.length, 'Keine Skriptfehler', errors.join(' | '));
   await browser.close(); server.close();

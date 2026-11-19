@@ -1,6 +1,6 @@
-const CACHE='zuhause-v51';
-const WORKSPACE_ASSETS=['./workspaces.css?v=51','./workspaces.js?v=51','./lou.js?v=51','./charleen.js?v=51','./noah-jobs.js?v=51','./scan-analyse.js?v=51','./scanner.js?v=51','./documents-view.js?v=51','./recipes.js?v=51'];
-const ASSETS=['./','./index.html','./styles.css?v=51','./features.css?v=51','./calendar.js?v=51','./app.js?v=51','./features.js?v=51','./vendor/supabase.min.js?v=2.118.0','./manifest.webmanifest?v=51','./icon.svg?v=51','./apple-touch-icon.png?v=51','./icon-192.png?v=51','./icon-512.png?v=51','./icon-maskable-512.png?v=51'];
+const CACHE='zuhause-v52';
+const WORKSPACE_ASSETS=['./workspaces.css?v=52','./workspaces.js?v=52','./lou.js?v=52','./charleen.js?v=52','./noah-jobs.js?v=52','./scan-analyse.js?v=52','./scanner.js?v=52','./documents-view.js?v=52','./recipes.js?v=52'];
+const ASSETS=['./','./index.html','./styles.css?v=52','./features.css?v=52','./calendar.js?v=52','./app.js?v=52','./features.js?v=52','./vendor/supabase.min.js?v=2.118.0','./manifest.webmanifest?v=52','./icon.svg?v=52','./apple-touch-icon.png?v=52','./icon-192.png?v=52','./icon-512.png?v=52','./icon-maskable-512.png?v=52'];
 // Werkzeuge für Scanner (PDF, Texterkennung) liegen in einem eigenen Zwischenspeicher, der bei App-Updates erhalten bleibt –
 // so klappt Scannen ohne Internet auch direkt nach einem Update. Beim Austausch einer Datei unter vendor/ VENDOR_CACHE hochzählen.
 const VENDOR_CACHE='zuhause-vendor-2';
@@ -26,7 +26,7 @@ self.addEventListener('fetch',event=>{
 self.addEventListener('push',event=>{
   let data={};try{data=event.data?.json()||{}}catch{data={body:event.data?.text()}}
   const title=data.title||'Zuhause';
-  event.waitUntil(self.registration.showNotification(title,{body:data.body||'Es gibt eine neue Erinnerung.',icon:'./icon-192.png?v=51',badge:'./icon-192.png?v=51',tag:data.tag||'zuhause-erinnerung',data:{url:data.url||'./?page=calendar'},renotify:false}));
+  event.waitUntil(self.registration.showNotification(title,{body:data.body||'Es gibt eine neue Erinnerung.',icon:'./icon-192.png?v=52',badge:'./icon-192.png?v=52',tag:data.tag||'zuhause-erinnerung',data:{url:data.url||'./?page=calendar'},renotify:false}));
 });
 self.addEventListener('notificationclick',event=>{
   event.notification.close();const target=new URL(event.notification.data?.url||'./?page=calendar',self.location.origin).href;
