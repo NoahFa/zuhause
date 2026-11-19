@@ -221,7 +221,7 @@
   }
   function open(options = {}) {
     const categories = state.customCategories?.documents || [];
-    context = { folder: options.folder || 'Gemeinsam', fixedFolder: !!options.folder, category: options.category || (categories.includes('Sonstige Dokumente') ? 'Sonstige Dokumente' : categories[0] || ''), name: options.name || '', actions: options.actions || [], orderId: options.orderId || null, onSaved: options.onSaved };
+    context = { namePrefix: options.namePrefix || '', fixedCategory: !!options.category, folder: options.folder || 'Gemeinsam', fixedFolder: !!options.folder, category: options.category || (categories.includes('Sonstige Dokumente') ? 'Sonstige Dokumente' : categories[0] || ''), name: options.name || '', actions: options.actions || [], orderId: options.orderId || null, onSaved: options.onSaved };
     resetAnalysis(); pages = []; editIndex = -1; view = 'pages'; render(); dialog().showModal();
     if (options.startCamera !== false) setTimeout(() => pickFiles(false), 60);
   }
@@ -238,7 +238,7 @@
   }
 
   function renderEdit(d, page) {
-    d.innerHTML = `<div class="scanner-head"><button class="scanner-text" data-sc-retake>Neu aufnehmen</button><strong>Seite ${editIndex + 1}</strong><button class="scanner-text strong" data-sc-accept>Übernehmen ✓</button></div>
+    d.innerHTML = `<div class="scanner-head"><button class="scanner-text" data-sc-retake>Neu aufnehmen</button><strong>Seite ${editIndex + 1}</strong><span>${pages.length > 1 ? `${editIndex + 1} von ${pages.length}` : ''}</span></div>
       ${page.quality.blurry || page.quality.dark ? `<p class="scanner-hint warn">${page.quality.dark && page.quality.blurry ? 'Das Foto ist recht dunkel und wirkt unscharf.' : page.quality.dark ? 'Das Foto ist recht dunkel.' : 'Das Foto wirkt unscharf.'} Lieber noch einmal aufnehmen?</p>` : `<p class="scanner-hint">${page.sure ? 'Ecken erkannt – bei Bedarf mit dem Finger verschieben.' : 'Ränder nicht sicher erkannt – ziehe die Ecken an die Blattecken.'}</p>`}
       <div class="scanner-stage"><canvas class="scanner-photo"></canvas><canvas class="scanner-lines"></canvas>${page.corners.map((_, k) => `<button class="scanner-handle" data-corner="${k}" aria-label="Ecke ${k + 1}"></button>`).join('')}<canvas class="scanner-loupe" width="120" height="120" hidden></canvas></div>
       <div class="scanner-tools"><div class="scanner-modes" role="group" aria-label="Bildmodus">${[['document', 'Dokument'], ['color', 'Farbe'], ['original', 'Original']].map(([k, l]) => `<button data-sc-mode="${k}" class="${page.mode === k ? 'active' : ''}" aria-pressed="${page.mode === k}">${l}</button>`).join('')}</div>
@@ -295,7 +295,7 @@
   function suggestions(a) {
     const list = [], who = a.sender || a.label, preset = context.actions || [];
     const on = key => preset.includes(key);
-    if (a.kind === 'invoice' || (a.due && a.kind !== 'receipt')) list.push({ key: 'task', checked: on('task'), title: 'Aufgabe „bezahlen“ anlegen', fields: `<input name="taskTitle" value="${h(`${who} bezahlen${a.total ? ` (${euro(a.total)})` : ''}`)}" aria-label="Titel der Aufgabe"><input name="taskDue" type="date" value="${a.due || plusDays(14)}" aria-label="Fällig am">` });
+    if (a.kind === 'invoice' || (a.due && a.kind !== 'receipt')) list.push({ key: 'task', checked: on('task'), title: `Aufgabe: ${a.total ? `${euro(a.total)} ` : ''}bezahlen${a.due ? ` bis ${A().german(a.due).slice(0, 6)}` : ''}`, fields: `<input name="taskTitle" value="${h(`${who} bezahlen${a.total ? ` (${euro(a.total)})` : ''}`)}" aria-label="Titel der Aufgabe"><input name="taskDue" type="date" value="${a.due || plusDays(14)}" aria-label="Fällig am">` });
     if (a.kind === 'receipt' || on('expense')) list.push({ key: 'expense', checked: on('expense'), title: 'Als Ausgabe ins Budget', fields: `<input name="expenseTitle" value="${h(a.sender || 'Einkauf')}" aria-label="Wofür"><input name="expenseAmount" inputmode="decimal" value="${a.total ? String(a.total.toFixed(2)).replace('.', ',') : ''}" placeholder="Betrag in €" aria-label="Betrag"><input name="expenseDate" type="date" value="${a.docDate || plusDays(0)}" aria-label="Datum"><input type="hidden" name="expenseCategory" value="${a.diy ? 'Nebengewerbe' : 'Gemeinsamer Haushalt'}">${(() => { const items = receiptItems(analysisText); return items.length ? `<details class="scanner-items"><summary>${items.length} ${items.length === 1 ? 'Artikel' : 'Artikel'} erkannt – ansehen</summary><ul>${items.map(i => `<li>${h(i)}</li>`).join('')}</ul></details>` : ''; })()}` });
     if (a.reminder) list.push({ key: 'reminder', checked: on('reminder'), title: 'Erinnerung im Kalender', note: a.reminderNote, fields: `<input name="reminderTitle" value="${h(`${who}: Vertrag prüfen / kündigen?`)}" aria-label="Titel"><input name="reminderDate" type="date" value="${a.reminder}" aria-label="Datum">` });
     if (a.vaccination || on('lou')) list.push({ key: 'lou', checked: on('lou'), title: 'Bei Lou: Impfung erledigt', fields: `<input name="louDate" type="date" value="${a.docDate || plusDays(0)}" aria-label="Geimpft am">` });
@@ -316,7 +316,10 @@
   function fillFields(d) {
     if (!analysis) return;
     const set = (name, value) => { const el = d.querySelector(`[name=${name}]`); if (!el || el.dataset.touched || !value) return; if (el.tagName === 'SELECT' && ![...el.options].some(o => o.value === value)) return; el.value = value; el.classList.add('scanner-suggested'); };
-    set('name', analysis.name); if (!context.fixedFolder) set('folder', analysis.folder); set('category', analysis.category);
+    // aus einem Bereich heraus gescannt: passender Name und Kategorie („Beleg …“ im Nebenjob-Auftrag, „Lohnabrechnung …“ bei Charleen)
+    const date = analysis.docDate ? ` – ${A().german(analysis.docDate)}` : '';
+    const name = context.namePrefix && !new RegExp(`^${context.namePrefix}`, 'i').test(analysis.name || '') ? `${context.namePrefix}${analysis.sender ? ` ${analysis.sender}` : ''}${date}` : analysis.name;
+    set('name', name); if (!context.fixedFolder) set('folder', analysis.folder); set('category', context.fixedCategory ? '' : analysis.category);
   }
 
   function renderSave(d) {
@@ -325,13 +328,13 @@
     d.innerHTML = `<div class="scanner-head"><button class="scanner-text" data-sc-back>← Seiten</button><strong>Speichern</strong><span>${pages.length} ${pages.length === 1 ? 'Seite' : 'Seiten'}</span></div>
       <div class="scanner-save"><div class="scanner-save-thumbs">${pages.slice(0, 4).map(p => `<img src="${p.thumb}" alt="">`).join('')}</div>
         <p class="scanner-progress" aria-live="polite"></p>
-        <label class="ws-field"><span>Name</span><input name="name" maxlength="120" value="${h(context.name || '')}" placeholder="z. B. Rechnung Tierarzt November"></label>
+        <label class="ws-field"><span>Name</span><textarea name="name" rows="2" maxlength="120" placeholder="z. B. Rechnung Tierarzt November">${h(context.name || '')}</textarea></label>
         <label class="ws-field"><span>Ordner</span><select name="folder">${folderOptions}</select></label>
         <label class="ws-field"><span>Kategorie</span><select name="category">${categories.map(c => `<option ${c === context.category ? 'selected' : ''}>${h(c)}</option>`).join('')}</select></label>
         ${(window.ZuhauseDocuments?.usageBytes?.() || 0) > 0.95 * 1024 ** 3 ? '<p class="scanner-hint warn">Der Speicher ist fast voll – das Speichern kann fehlschlagen. Unter Dokumente alte Dateien löschen.</p>' : ''}
         <div class="scanner-suggest"></div></div>
-      <div class="scanner-foot"><button class="secondary" data-sc-back>Zurück</button><button class="primary" data-sc-save>PDF speichern</button></div>`;
-    d.querySelectorAll('.scanner-save > label input, .scanner-save > label select').forEach(el => el.addEventListener('input', () => { el.dataset.touched = '1'; el.classList.remove('scanner-suggested'); }));
+      <div class="scanner-foot"><button class="secondary" data-sc-back>Zurück</button><button class="primary" data-sc-save>Speichern</button></div>`;
+    d.querySelectorAll('.scanner-save > label input, .scanner-save > label select, .scanner-save > label textarea').forEach(el => el.addEventListener('input', () => { el.dataset.touched = '1'; el.classList.remove('scanner-suggested'); }));
     if (analysis) { fillFields(d); renderSuggestions(d); return; }
     const progress = d.querySelector('.scanner-progress');
     progress.textContent = 'Text wird gelesen – Vorschläge kommen gleich …';
@@ -520,7 +523,8 @@
     const page = pages[editIndex];
     if (!page || view !== 'edit') return;
     if ('scRetake' in ds) { pickFiles(false, editIndex); }
-    if ('scAccept' in ds || 'scAcceptNext' in ds) { processPage(page); resetAnalysis(); view = 'pages'; render(); if ('scAcceptNext' in ds) pickFiles(false); }
+    // eine einzelne Seite: gleich weiter zum Speichern (spart bei jedem Kassenbon einen Tipp; „← Seiten“ führt zurück)
+    if ('scAccept' in ds || 'scAcceptNext' in ds) { processPage(page); resetAnalysis(); view = 'scAccept' in ds && pages.length === 1 ? 'save' : 'pages'; render(); if ('scAcceptNext' in ds) pickFiles(false); }
     if ('scMode' in ds) { page.mode = ds.scMode; renderEdit(dialog(), page); }
     if ('scRotate' in ds) { page.rotation = (page.rotation + 1) % 4; renderEdit(dialog(), page); }
     if ('scFull' in ds) { page.corners = [[0, 0], [1, 0], [1, 1], [0, 1]]; renderEdit(dialog(), page); }
@@ -536,7 +540,7 @@
   document.addEventListener('click', event => {
     const button = event.target.closest('[data-scan-here]'); if (!button) return;
     event.preventDefault(); const ds = button.dataset;
-    open({ folder: ds.scanFolder, actions: (ds.scanActions || '').split(',').filter(Boolean), orderId: ds.scanOrder || null });
+    open({ folder: ds.scanFolder, category: ds.scanCategory || '', namePrefix: ds.scanName || '', actions: (ds.scanActions || '').split(',').filter(Boolean), orderId: ds.scanOrder || null });
   });
   // Texterkennung für den Fall ohne Internet vorab auf dem Handy speichern lassen (einmalig, im Hintergrund, ~5 MB)
   setTimeout(() => { try { navigator.serviceWorker?.controller?.postMessage({ type: 'precache-ocr' }); } catch {} }, 15000);

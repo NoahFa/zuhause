@@ -146,15 +146,16 @@
     document.querySelector('#household .page-title')?.insertAdjacentHTML('afterend', '<div class="household-jumps"><button type="button" class="secondary" data-jump="shopping">🛒 Einkaufsliste</button><button type="button" class="secondary" data-jump="recipes">📖 Rezepte</button></div>');
   }
   // „Liste öffnen“, „Rezepte“ unter Mehr und die Sprungknöpfe: Reiter wählen und hinscrollen
-  document.addEventListener('click', event => {
+  document.addEventListener('click', event => { // Erfassungsphase: die [data-page]-Knöpfe stoppen das Ereignis sonst vorher
     const b = event.target.closest('[data-jump]'); if (!b) return;
     const target = b.dataset.jump === 'recipes' ? 'recipes' : 'shopping';
-    setTimeout(() => {
-      tab = target; try { localStorage.setItem('zuhause-shopping-tab', tab); } catch {}
-      render(); if (tab === 'recipes') sync();
-      document.querySelector('.full-shopping')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 60);
-  });
+    // nach dem Seitenwechsel (der selbst nach oben scrollt) zur Karte springen – zweimal, damit es auch am iPhone sicher greift
+    const jump = () => { document.querySelector('.full-shopping')?.scrollIntoView({ behavior: 'auto', block: 'start' }); };
+    setTimeout(() => { tab = target; try { localStorage.setItem('zuhause-shopping-tab', tab); } catch {} render(); if (tab === 'recipes') sync(); jump(); }, 120);
+    setTimeout(jump, 700); // nach dem sanften Hochscrollen des Seitenwechsels noch einmal
+  }, true);
+  // „Mehr“: Dokumente und Rezepte ganz nach oben (erst hier, nachdem alle Bereiche ihre Kacheln eingefügt haben)
+  setTimeout(() => { const grid = document.querySelector('#more .more-grid'); [grid?.querySelector('[data-jump=recipes]'), grid?.querySelector('[data-page=documents]')].forEach(tile => { if (tile) grid.prepend(tile); }); }, 0);
   function render() {
     installTabs(); loadCache();
     const card = document.querySelector('.full-shopping'), panel = document.querySelector('#recipePanel'); if (!card || !panel) return;
@@ -174,7 +175,7 @@
     if (chips) { chips.hidden = !cats.length; chips.innerHTML = cats.length ? ['', ...cats].map(c => `<button type="button" class="doc-chip ${categoryFilter === c ? 'active' : ''}" data-recipe-filter="${h(c)}" aria-pressed="${categoryFilter === c}">${c ? h(c) : 'Alle'}</button>`).join('') : ''; }
     const shown = list().filter(r => !categoryFilter || (r.data?.categories || []).includes(categoryFilter)).filter(r => !q || `${r.title} ${(r.data?.ingredients || []).map(i => i.name).join(' ')} ${(r.data?.categories || []).join(' ')}`.toLowerCase().includes(q))
       .sort((a, b) => (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0) || String(a.title).localeCompare(String(b.title), 'de'));
-    box.innerHTML = shown.map(r => `<div class="recipe-row ${r.data?.photoPath ? 'with-photo' : ''}">${r.data?.photoPath ? `<img class="recipe-thumb" data-recipe-photo="${h(r.data.photoPath)}" alt="" ${photoUrls.get(r.data.photoPath) ? `src="${h(photoUrls.get(r.data.photoPath))}"` : ''}>` : ''}<button type="button" class="recipe-heart ${r.favorite ? 'on' : ''}" data-recipe-fav="${h(r.id)}" aria-pressed="${!!r.favorite}" aria-label="${r.favorite ? 'Aus den Favoriten nehmen' : 'Als Favorit markieren'}">${r.favorite ? '♥' : '♡'}</button><button type="button" class="recipe-open" data-recipe-open="${h(r.id)}"><strong>${h(r.title)}</strong><small>${h(String(r.data?.servings || 2))} Portionen · ${(r.data?.ingredients || []).length} Zutaten${(r.data?.categories || []).length ? ` · ${h(r.data.categories.join(', '))}` : ''}</small></button><em aria-hidden="true">›</em></div>`).join('')
+    box.innerHTML = shown.map(r => `<div class="recipe-row ${r.data?.photoPath ? 'with-photo' : ''}">${r.data?.photoPath ? `<img class="recipe-thumb" data-recipe-photo="${h(r.data.photoPath)}" alt="" ${photoUrls.get(r.data.photoPath) ? `src="${h(photoUrls.get(r.data.photoPath))}"` : ''}>` : ''}<button type="button" class="recipe-heart ${r.favorite ? 'on' : ''}" data-recipe-fav="${h(r.id)}" aria-pressed="${!!r.favorite}" aria-label="${r.favorite ? 'Aus den Favoriten nehmen' : 'Als Favorit markieren'}">${r.favorite ? '♥' : '♡'}</button><button type="button" class="recipe-open" data-recipe-open="${h(r.id)}"><strong>${h(r.title)}</strong><small>${h(String(r.data?.servings || 2))} Portionen · ${(r.data?.ingredients || []).length} ${(r.data?.ingredients || []).length === 1 ? 'Zutat' : 'Zutaten'}${(r.data?.categories || []).length ? ` · ${h(r.data.categories.join(', '))}` : ''}</small></button><em aria-hidden="true">›</em></div>`).join('')
       || (list().length ? `<p class="ws-muted">Nichts gefunden${query ? ` für „${h(query)}“` : ''}${categoryFilter ? ` in „${h(categoryFilter)}“` : ''}.</p>` : '<div class="ws-empty"><strong>Noch keine Rezepte.</strong><p>Tippe auf „＋ Rezept“ oder übernimm eins per Link – danach kommt es mit einem Tipp auf die Einkaufsliste.</p></div>');
     loadPhotos();
   }
@@ -307,14 +308,16 @@
   function importDialog() {
     const d = dialog('recipeImportDialog', `<form><div class="dialog-head"><div><span class="kicker">Rezepte</span><h2>Aus Link übernehmen</h2></div><button class="close" type="button" data-recipe-close aria-label="Schließen">×</button></div>
       <div class="ws-dialog-fields"><p class="ws-help">Link einer Rezeptseite einfügen (z. B. Chefkoch). Die App liest Titel, Portionen, Zutaten, Zubereitung und Foto aus – du prüfst alles, bevor gespeichert wird.</p>
-        <label class="ws-field"><span>Link</span><input name="url" type="url" inputmode="url" required maxlength="2000" placeholder="https://www.chefkoch.de/rezepte/…" autocomplete="off"></label>
+        <label class="ws-field"><span>Link</span><input name="url" type="text" inputmode="url" autocomplete="off" autocapitalize="off" required maxlength="2000" placeholder="https://www.chefkoch.de/rezepte/…" autocomplete="off"></label>
         <p class="auth-message" data-recipe-message aria-live="polite"></p></div>
       <div class="calendar-dialog-actions"><span></span><span></span><button type="button" class="secondary" data-recipe-close>Abbrechen</button><button class="primary" type="submit">Übernehmen</button></div></form>`);
     // eingefügten Link aus der Zwischenablage gleich vorschlagen ist am iPhone nicht erlaubt – also nur Fokus
     setTimeout(() => d.querySelector('[name=url]')?.focus(), 50);
     d.querySelector('form').onsubmit = async event => {
       event.preventDefault(); const message = d.querySelector('[data-recipe-message]'), button = d.querySelector('[type=submit]');
-      const url = safeExternalUrl(String(new FormData(event.currentTarget).get('url')).trim());
+      // beim Teilen aus Apps kommt oft Text mit Link („Schau mal https://…“) – den Link herausziehen
+      const raw = String(new FormData(event.currentTarget).get('url')).trim(), found = raw.match(/https?:\/\/[^\s"'<>]+/i);
+      const url = safeExternalUrl((found ? found[0] : raw).replace(/[).,;!?]+$/, ''));
       if (!url) { message.textContent = 'Bitte einen Link mit http:// oder https:// einfügen.'; return; }
       if (typeof cloudReady === 'undefined' || !cloudReady || !navigator.onLine) { message.textContent = 'Dafür braucht es Internet.'; return; }
       button.disabled = true; button.textContent = 'Wird gelesen …'; message.textContent = '';
@@ -334,7 +337,7 @@
   // ---------- Kategorien bearbeiten ----------
   function editCategories() {
     const d = dialog('recipeCategoriesDialog', `<form><div class="dialog-head"><div><span class="kicker">Rezepte</span><h2>Kategorien</h2></div><button class="close" type="button" data-recipe-close aria-label="Schließen">×</button></div>
-      <div class="ws-dialog-fields"><div class="recipe-cat-list">${categories().map(c => `<div class="recipe-cat-row"><span>${h(c)}</span><small>${list().filter(r => (r.data?.categories || []).includes(c)).length} Rezepte</small><button type="button" class="ws-van-edit" data-cat-rename="${h(c)}" aria-label="${h(c)} umbenennen">✎</button><button type="button" class="ws-van-edit" data-cat-delete="${h(c)}" aria-label="${h(c)} löschen">×</button></div>`).join('') || '<p class="ws-muted">Noch keine Kategorien.</p>'}</div>
+      <div class="ws-dialog-fields"><div class="recipe-cat-list">${categories().map(c => `<div class="recipe-cat-row"><span>${h(c)}</span><small>${(n => `${n} ${n === 1 ? 'Rezept' : 'Rezepte'}`)(list().filter(r => (r.data?.categories || []).includes(c)).length)}</small><button type="button" class="ws-van-edit" data-cat-rename="${h(c)}" aria-label="${h(c)} umbenennen">✎</button><button type="button" class="ws-van-edit" data-cat-delete="${h(c)}" aria-label="${h(c)} löschen">×</button></div>`).join('') || '<p class="ws-muted">Noch keine Kategorien.</p>'}</div>
         <div class="recipe-cat-new"><input data-recipe-cat-new maxlength="40" placeholder="Neue Kategorie, z. B. Für Gäste" aria-label="Neue Kategorie"><button type="button" class="secondary" data-recipe-cat-add>＋</button></div></div>
       <div class="calendar-dialog-actions"><span></span><span></span><span></span><button type="button" class="primary" data-recipe-close>Fertig</button></div></form>`);
     const setCats = next => { state.customCategories = { ...(state.customCategories || {}), recipes: next }; persist(); };
@@ -413,7 +416,7 @@
     const d = dialog('recipeBasicsDialog', `<form><div class="dialog-head"><div><span class="kicker">Rezepte</span><h2>Basics</h2></div><button class="close" type="button" data-recipe-close aria-label="Schließen">×</button></div>
       <div class="ws-dialog-fields"><p class="ws-help">Was ihr fast immer zu Hause habt. Diese Zutaten sind beim Übertragen auf die Einkaufsliste erst einmal abgewählt. Auch Zusammensetzungen zählen mit: „Öl“ erfasst „Rapsöl“, „Salz“ erfasst „Meersalz“.</p>
         <label class="ws-field"><span>Eine pro Zeile</span><textarea name="basics" rows="10">${h(basics().join('\n'))}</textarea></label></div>
-      <div class="calendar-dialog-actions"><button type="button" class="secondary" data-recipe-basics-reset>Standard</button><span></span><button type="button" class="secondary" data-recipe-close>Abbrechen</button><button class="primary" type="submit">Speichern</button></div></form>`);
+      <div class="calendar-dialog-actions"><button type="button" class="secondary" data-recipe-basics-reset>Auf Standard zurücksetzen</button><span></span><button type="button" class="secondary" data-recipe-close>Abbrechen</button><button class="primary" type="submit">Speichern</button></div></form>`);
     d.querySelector('[data-recipe-basics-reset]').onclick = () => { d.querySelector('[name=basics]').value = DEFAULT_BASICS.join('\n'); };
     d.querySelector('form').onsubmit = event => {
       event.preventDefault();

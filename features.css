@@ -309,3 +309,36 @@ dialog .calendar-dialog-actions{position:sticky;bottom:0;z-index:2;background:#f
 #budgetAvailable.no-budget{font-size:28px}
 /* Noah am Handy: Startkarte kompakter, damit „Nebenjobs“ ohne viel Scrollen erreichbar ist */
 @media(max-width:760px){#noah .ws-start-card{padding:18px;margin-bottom:18px}#noah .ws-start-card p{display:none}#noah .ws-start-card h2{font-size:24px}}
+/* ===== Prüfung 19.11. (v49) B/C ===== */
+/* feste Knopfleiste in ALLEN Fenstern (vorher nur Kalender-Stil) – „Speichern“ bleibt mit Tastatur sichtbar */
+dialog .dialog-actions{position:sticky;bottom:0;z-index:2;background:#fbfaf6;padding:12px 0 4px;margin-top:12px;box-shadow:0 -10px 14px -10px rgba(31,40,31,.18)}
+/* Meldungen am Handy breit und über der unteren Leiste */
+@media(max-width:760px){.toast{bottom:calc(92px + env(safe-area-inset-bottom));left:16px;right:16px;transform:translateY(20px);border-radius:16px;text-align:left;line-height:1.4}.toast.show{transform:translateY(0)}.toast.with-action{display:flex;align-items:center;gap:10px;justify-content:space-between}}
+/* „Löschen“ in Rezept- und Dokument-Fenster dezent statt größter Knopf */
+.recipe-dialog .calendar-dialog-actions .danger,.doc-detail .calendar-dialog-actions .danger,#expenseEditDialog .calendar-dialog-actions .danger{background:none!important;border:0;color:#9b4f3f;font-weight:700;min-height:40px;padding:0 4px;justify-self:start;text-decoration:underline;text-underline-offset:3px}
+@media(max-width:760px){.recipe-dialog .calendar-dialog-actions .danger,.doc-detail .calendar-dialog-actions .danger,#expenseEditDialog .calendar-dialog-actions .danger{grid-column:1/-1;min-height:36px;font-size:14px}}
+/* einheitliche Häkchen-/Fokusfarbe und Schließen-Knöpfe */
+:root{accent-color:var(--sage-dark)}
+input:focus-visible,select:focus-visible,textarea:focus-visible{outline:none;border-color:var(--sage)!important;box-shadow:0 0 0 3px var(--sage-soft)}
+dialog .close{border:0!important;background:#ecebe5!important;width:44px!important;height:44px!important;border-radius:50%!important;color:var(--ink);font-size:22px;flex:none}
+/* Putzplan: nächste Runde als eigene, ruhige Zeile */
+.next-round{display:block;color:var(--muted)!important;font-weight:500!important;margin-top:2px}
+/* Sprungknöpfe nur am Handy (auf Tablet/Desktop sind die Reiter sofort sichtbar) */
+@media(min-width:761px){.household-jumps{display:none}}
+/* Personenfarben: Charleen beere, Noah blau */
+.more-feature[data-feature-page=study] .large-icon,.more-feature[data-page=study] .large-icon{background:#f1dcd5!important;color:#925d52!important}
+.more-feature[data-feature-page=montage] .large-icon,.more-feature[data-ws-route=nebenjob] .large-icon,.more-feature[data-page=montage] .large-icon{background:#dce8ee!important;color:#365c75!important}
+.doc-tile[data-doc-folder=Noah]>span,.doc-tile[data-doc-folder=Charleen]>span,.doc-tile[data-doc-folder=Lou]>span{border-radius:50%;width:28px;height:28px;display:grid;place-items:center;font-size:13px;font-weight:800}
+.doc-tile[data-doc-folder=Noah]>span{background:#dce8ee;color:#365c75}.doc-tile[data-doc-folder=Charleen]>span{background:#f1dcd5;color:#925d52}.doc-tile[data-doc-folder=Lou]>span{background:var(--gold-soft)}
+/* Finanzen */
+.table-card + .savings-card,.table-card + article{margin-top:16px}
+@media(max-width:760px){#finances .page-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:stretch}#finances .page-actions button{white-space:nowrap;font-size:14px;padding-left:8px;padding-right:8px}.finance-month-picker,.finance-month-picker input{width:100%}}
+/* „Heute“-Kreis auf Tablet/Desktop luftiger */
+.weather-orb{width:116px!important;height:116px!important}.weather-orb strong{font-size:19px!important}.weather-orb small{font-size:11px}
+/* Scanner: langer Name lesbar */
+.scanner-save textarea[name=name]{width:100%;min-height:64px;border-radius:12px;border:1px solid var(--line);padding:10px;font:inherit;font-size:16px;resize:none;line-height:1.35}
+.doc-detail textarea[name=name]{width:100%;min-height:64px;resize:none;line-height:1.35}
+/* Charleen Kleinkram */
+.ch-overtime .kicker{font-size:11px;line-height:1.5;white-space:normal}
+.action-icon.coral{background:#f1dcd5!important;color:#925d52!important}
+.quick-actions [data-feature-page=montage] .action-icon{background:#dce8ee!important;color:#365c75!important}

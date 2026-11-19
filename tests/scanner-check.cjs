@@ -138,7 +138,7 @@ server.listen(0, '127.0.0.1', async () => {
   async function scanOnce() {
     await page.evaluate(() => go('documents')); await page.waitForTimeout(200);
     const chooser = page.waitForEvent('filechooser'); await page.click('#multiScan'); await (await chooser).setFiles(tmp);
-    await page.waitForSelector('[data-sc-accept]'); await page.click('[data-sc-accept]'); await page.click('[data-sc-next]');
+    await page.waitForSelector('[data-sc-accept]'); await page.click('.scanner-accept-row [data-sc-accept]'); await page.waitForSelector('[data-sc-save]'); // eine Seite: direkt zum Speichern
     await page.waitForSelector('.scanner-action', { timeout: 60000 });
   }
   await scanOnce();
@@ -168,7 +168,7 @@ server.listen(0, '127.0.0.1', async () => {
   await page.evaluate(() => { state.noahJobs = { rate: 30, orders: [{ id: 'o1', title: 'Testauftrag', status: 'open', times: [], materials: [] }] }; cloudReady = true; });
   await page.evaluate(() => window.ZuhauseScanner.open({ folder: 'Noah', actions: ['material'], orderId: 'o1', startCamera: false }));
   { const chooser = page.waitForEvent('filechooser'); await page.click('[data-sc-camera]'); await (await chooser).setFiles(tmp); }
-  await page.waitForSelector('[data-sc-accept]'); await page.click('.scanner-accept-row [data-sc-accept]'); await page.click('[data-sc-next]'); await page.click('[data-sc-save]');
+  await page.waitForSelector('[data-sc-accept]'); await page.click('.scanner-accept-row [data-sc-accept]'); await page.click('[data-sc-save]');
   await page.waitForFunction(() => window.__uploads.length === 3, null, { timeout: 60000 });
   const material = await page.evaluate(() => state.noahJobs.orders[0].materials);
   check(material.length === 1 && material[0].price === 75, 'Sofort gespeichert: vorgewähltes Material trotzdem eingetragen', JSON.stringify(material));

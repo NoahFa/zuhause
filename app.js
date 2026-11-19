@@ -369,7 +369,7 @@ $('#expenseSearch').addEventListener('input',e=>renderExpenses(e.target.value));
 const VAPID_PUBLIC_KEY='BBdsUcOhWD0t-zaxgt7JrMuGKa2kf2-KaIZ0bY6ZmMBKXlF3h-NFNogjIefewWbPxFQDvfrqhhz8g4bLcto7FRs';
 function urlBase64ToUint8Array(value){const padding='='.repeat((4-value.length%4)%4),base64=(value+padding).replace(/-/g,'+').replace(/_/g,'/'),raw=atob(base64);return Uint8Array.from([...raw].map(char=>char.charCodeAt(0)))}
 // Nach einem Termin mit Erinnerung nur dann auf Mitteilungen hinweisen, wenn sie auf diesem Gerät noch nicht erlaubt sind
-function reminderHint(){if(!('Notification' in window)||Notification.permission!=='granted')notificationHelp()}
+function reminderHint(){if('Notification' in window&&Notification.permission==='granted')return;try{const today=todayIso();if(localStorage.getItem('zuhause-reminder-hint')===today){toast('Gespeichert – Erinnerungen kommen, sobald Mitteilungen erlaubt sind');return}localStorage.setItem('zuhause-reminder-hint',today)}catch{}notificationHelp()} // höchstens einmal am Tag das Fenster
 function notificationHelp(){
   const installed=window.matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
   const supported='serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window;
