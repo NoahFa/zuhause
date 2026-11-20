@@ -49,6 +49,11 @@ server.listen(0, '127.0.0.1', async () => {
   // Prüfung 18.11. (v45): gemischte Brüche, Tausenderpunkt, „bis“, englische Einheiten, Klammer vor Einheit, unter 1 g
   const more = await page.evaluate(() => ['1 1/2 TL Zucker', '1.000 g Mehl', '2 bis 3 Zwiebeln', '2 cups flour', '8 oz butter', '1 (400 g) Dose Tomaten', '1 Box Erdbeeren'].map(l => { const x = window.ZuhauseRecipes.parseIngredient(l); return `${x.amount}|${x.unit}|${x.name}`; }));
   check(more.join(' / ') === '1.5|TL|Zucker / 1000|g|Mehl / 2||Zwiebeln / 2|cup|flour / 8|oz|butter / 1|Dose|Tomaten (400 g) / 1|Box|Erdbeeren', 'Weitere Schreibweisen (1 1/2, 1.000 g, bis, cups, oz, Klammer, Box)', more.join(' / '));
+  // Prüfung 20.11. (v54): „500g“, Flaschen, „2 x 1.000 g“, 998 g → 1 kg, Schwein nicht bei Getränken
+  const v54 = await page.evaluate(() => { const R = window.ZuhauseRecipes, F = window.ZuhauseFeatures; const x = R.parseIngredient('2 x 1.000 g Mehl');
+    return [R.mergeQuantities('500g', '200g'), R.mergeQuantities('2 Flaschen', '1 Flasche'), `${x.amount}|${x.unit}`, R.formatAmount(998, 'g'),
+      ...['Schweinefilet', 'Schweinebauch', 'Würstchen', 'Eigelb', 'Maisstärke', 'Zitronensaft', 'Erdnussbutter', 'Pizzateig', '1 Dose Mais'].map(n => F.parseShoppingItem(n).category), F.parseShoppingItem('1 Dose Mais').title]; });
+  check(v54.join(' / ') === '700 g / 3 Flaschen / 2000|g / 1 kg / Kühlprodukte / Kühlprodukte / Kühlprodukte / Kühlprodukte / Trockenwaren / Trockenwaren / Trockenwaren / Kühlprodukte / Trockenwaren / Mais', '„500g“+„200g“, Flaschen, 2 x 1.000 g, 1 kg, Schwein/Würstchen/Stärke richtig einsortiert', v54.join(' / '));
   const small = await page.evaluate(() => [window.ZuhauseRecipes.formatAmount(0.25, 'g'), window.ZuhauseRecipes.formatAmount(3, 'Dose'), window.ZuhauseRecipes.formatAmount(1, 'Dose')]);
   check(small.join(' / ') === '0,3 g / 3 Dosen / 1 Dose', 'Unter 1 g mit Komma, Mehrzahl „Dosen“', small.join(' / '));
   const formatted = await page.evaluate(() => { const R = window.ZuhauseRecipes; return [R.formatAmount(250 * 4 / 2, 'g'), R.formatAmount(1.5 * 2, 'l'), R.formatAmount(0.5 * 3, ''), R.formatAmount(0.75, 'TL'), R.formatAmount(1200, 'ml'), R.formatAmount(333.33, 'g')]; });
@@ -204,7 +209,7 @@ server.listen(0, '127.0.0.1', async () => {
   const dupPreview = await page.evaluate(() => [...document.querySelectorAll('#recipeShopDialog .recipe-shop-row')].map(l => l.textContent.trim()));
   await page.click('#recipeShopDialog [type=submit]'); await page.waitForTimeout(150);
   const dupList = await page.evaluate(() => state.shopping.map(i => `${i.quantity} ${i.title}`));
-  check(dupPreview[1]?.startsWith('250 g') && dupList.join() === '250 g Hackfleisch', 'Doppelte Zutat: Vorschau zeigt dasselbe Ergebnis wie die Liste', dupPreview.join(' | ') + ' // ' + dupList.join());
+  check(dupPreview[1]?.includes('zusammen 250 g') && dupList.join() === '250 g Hackfleisch', 'Doppelte Zutat: Vorschau zeigt dasselbe Ergebnis wie die Liste', dupPreview.join(' | ') + ' // ' + dupList.join());
   await page.click('.toast-undo'); await page.waitForTimeout(150);
   check(await page.evaluate(() => state.shopping.map(i => `${i.quantity} ${i.title}`).join()) === '100 g Hackfleisch', 'Rückgängig stellt die alte Menge wieder her');
   check(!overflow && pending, 'Kein waagerechtes Überlaufen');

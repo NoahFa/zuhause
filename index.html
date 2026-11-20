@@ -11,12 +11,12 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Zuhause">
   <title>Zuhause · Euer Familien-Dashboard</title>
-  <link rel="manifest" href="manifest.webmanifest?v=54">
-  <link rel="icon" href="icon.svg?v=54" type="image/svg+xml">
-  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=54">
-  <link rel="stylesheet" href="styles.css?v=54">
-  <link rel="stylesheet" href="features.css?v=54">
-  <link rel="stylesheet" href="workspaces.css?v=54">
+  <link rel="manifest" href="manifest.webmanifest?v=55">
+  <link rel="icon" href="icon.svg?v=55" type="image/svg+xml">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=55">
+  <link rel="stylesheet" href="styles.css?v=55">
+  <link rel="stylesheet" href="features.css?v=55">
+  <link rel="stylesheet" href="workspaces.css?v=55">
 </head>
 <body>
   <div class="auth-screen" id="authScreen" aria-live="polite">
@@ -140,7 +140,7 @@
           <button class="more-feature tax-feature" data-page="tax"><span class="large-icon">S</span><span><small>SteuerKompass</small><strong>Steuern vorbereiten</strong><p>Belege, Arbeitstage, Nebengewerbe und später ELSTER.</p></span><em>→</em></button>
           <button class="more-feature" data-page="people"><span class="large-icon people-icon">◎</span><span><small>Persönlich</small><strong>Ihr beide</strong><p>Getrennte Profile und gemeinsamer Haushalt.</p></span><em>→</em></button>
           <button class="more-feature" data-page="documents"><span class="large-icon doc-icon">▤</span><span><small>Ablage</small><strong>Dokumente</strong><p>Lohn, Verträge und wichtige Nachweise.</p></span><em>→</em></button><button class="more-feature" data-page="household" data-jump="recipes"><span class="large-icon doc-icon">📖</span><span><small>Küche</small><strong>Rezepte</strong><p>Eure Lieblingsrezepte – mit einem Tipp auf die Einkaufsliste.</p></span><em>→</em></button>
-          <button class="more-feature" data-notification-settings><span class="large-icon bell-icon">◌</span><span><small>Morgen-Nachricht, Termine, Müll</small><strong>Mitteilungen erlauben</strong><p>Einmal je iPhone erlauben – die App erinnert automatisch.</p></span><em>→</em></button>
+          <button class="more-feature" data-notification-settings><span class="large-icon bell-icon">◌</span><span><small>Morgen-Nachricht, Termine, Müll</small><strong id="notificationCardTitle">Mitteilungen erlauben</strong><p id="notificationCardText">Einmal je iPhone erlauben – die App erinnert automatisch.</p></span><em>→</em></button>
           <button class="more-feature" data-detail="install"><span class="large-icon phone-icon">▯</span><span><small>Auf beiden iPhones</small><strong>Als App installieren</strong><p>Für Mitteilungen zum Home-Bildschirm hinzufügen.</p></span><em>→</em></button>
           <button class="more-feature" data-detail="settings"><span class="large-icon setting-icon">⚙</span><span><small>App</small><strong>Einstellungen</strong><p>Ansicht, Sicherung und Zugänge.</p></span><em>→</em></button>
         </div>
@@ -215,16 +215,16 @@
   <dialog id="calendarSeriesDialog" aria-labelledby="calendarSeriesTitle"><form method="dialog"><div class="dialog-head"><div><span class="kicker">Serientermin</span><h2 id="calendarSeriesTitle">Welche Termine ändern?</h2></div><button class="close" value="cancel" aria-label="Schließen">×</button></div><p>Wähle aus, ob nur dieser Termin oder die ganze Serie betroffen sein soll.</p><div class="calendar-series-actions"><button value="single">Nur dieser Termin</button><button value="future">Dieser und folgende</button><button value="all">Gesamte Serie</button><button class="secondary" value="cancel">Abbrechen</button></div></form></dialog>
   <div class="toast" id="toast">Gespeichert</div>
   <script src="vendor/supabase.min.js?v=2.118.0"></script>
-  <script src="calendar.js?v=54"></script>
-  <script src="app.js?v=54"></script>
-  <script src="features.js?v=54"></script>
-  <script src="workspaces.js?v=54"></script>
-  <script src="lou.js?v=54"></script>
-  <script src="charleen.js?v=54"></script>
-  <script src="noah-jobs.js?v=54"></script>
-  <script src="scan-analyse.js?v=54"></script>
-  <script src="scanner.js?v=54"></script>
-  <script src="documents-view.js?v=54"></script>
-  <script src="recipes.js?v=54"></script>
+  <script src="calendar.js?v=55"></script>
+  <script src="app.js?v=55"></script>
+  <script src="features.js?v=55"></script>
+  <script src="workspaces.js?v=55"></script>
+  <script src="lou.js?v=55"></script>
+  <script src="charleen.js?v=55"></script>
+  <script src="noah-jobs.js?v=55"></script>
+  <script src="scan-analyse.js?v=55"></script>
+  <script src="scanner.js?v=55"></script>
+  <script src="documents-view.js?v=55"></script>
+  <script src="recipes.js?v=55"></script>
 </body>
 </html>

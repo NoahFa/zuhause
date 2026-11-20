@@ -101,7 +101,7 @@
   function formatDue(task) {
     const today = todayIso();
     if (task.done) return task.completedAt && isoDate(new Date(task.completedAt)) === today ? 'heute erledigt' : 'erledigt';
-    if (task.dueOn < today) return `überfällig · ${displayDate(task.dueOn)}`;
+    if (task.dueOn < today) return `überfällig · ${task.dueOn.slice(0, 4) === today.slice(0, 4) ? `${Number(task.dueOn.slice(8, 10))}.${Number(task.dueOn.slice(5, 7))}.` : displayDate(task.dueOn)}`;
     if (task.dueOn === today) return 'heute';
     if (task.dueOn === addDays(today, 1)) return 'morgen';
     return displayDate(task.dueOn);
@@ -123,7 +123,7 @@
   }
   function taskRow(task, history = false) {
     const overdue = !task.done && task.dueOn < todayIso();
-    return `<label class="check-row feature-task ${task.done ? 'done' : ''} ${overdue ? 'overdue' : ''}"><input type="checkbox" data-task-id="${escapeHtml(task.id)}" ${task.done ? 'checked' : ''}><span class="check-dot"></span><span><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(displayPerson(task.person))} · ${escapeHtml(formatDue(task))}${task.recurrence !== 'none' ? (task.alternate ? ' · ⇄ abwechselnd' : ' · ↻') : ''}${nextRoundText(task)}</small>${task.description ? `<em>${escapeHtml(task.description)}</em>` : ''}</span>${history ? `<button type="button" class="row-edit" data-edit-task="${escapeHtml(task.id)}" aria-label="Aufgabe ändern">✎</button><button type="button" class="row-delete" data-delete-task aria-label="Aufgabe löschen">×</button>` : ''}</label>`;
+    return `<label class="check-row feature-task ${task.done ? 'done' : ''} ${overdue ? 'overdue' : ''}"><input type="checkbox" data-task-id="${escapeHtml(task.id)}" ${task.done ? 'checked' : ''}><span class="check-dot"></span><span><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(displayPerson(task.person))} · ${escapeHtml(formatDue(task))}${task.recurrence !== 'none' && !nextRoundText(task) ? (task.alternate ? ' · ⇄ abwechselnd' : ' · ↻') : ''}${nextRoundText(task)}</small>${task.description ? `<em>${escapeHtml(task.description)}</em>` : ''}</span>${history ? `<button type="button" class="row-edit" data-edit-task="${escapeHtml(task.id)}" aria-label="Aufgabe ändern">✎</button><button type="button" class="row-delete" data-delete-task aria-label="Aufgabe löschen">×</button>` : ''}</label>`;
   }
 
   // Auswahl mit mehreren Möglichkeiten (z. B. „nur diese Runde“ / „ganze Serie“). Ergebnis: Index oder -1 für Abbrechen.
@@ -196,13 +196,16 @@
 
   function parseShoppingItem(rawValue) {
     const raw = String(rawValue || '').trim();
-    const quantityMatch = raw.match(/^((?:\d+[\s.,/]*)+(?:x|×|Stück|Packung(?:en)?|Flasche(?:n)?|kg|g|l|ml)?)\s+(.+)$/i);
+    const quantityMatch = raw.match(/^((?:\d+[\s.,/]*)+(?:x|×|Stück|Packung(?:en)?|Pck\.?|Flasche(?:n)?|Dose(?:n)?|Gl(?:as|äser)|Becher|Bund|kg|g|l|ml)?)\s+(.+)$/i);
     const quantity = quantityMatch ? quantityMatch[1].replace(/\bx\b/i, '×').trim() : '';
     const title = (quantityMatch ? quantityMatch[2] : raw).trim();
     const value = title.toLowerCase();
     // Reihenfolge zählt: genauere Wörter zuerst (Saft vor Apfel, Tomatenmark vor Tomate, Reis vor „eis“, Holzkohle vor Kohl).
     // „(?:^|[^a-zäöüß])…(?![a-zäöüß])“ = ganzes Wort – so trifft „ei“ nicht Salbei/Weißwein und „pute“ nicht Computer (Prüfung 18.11.2026).
     const groups = [
+      // Prüfung 20.11.: Wörter, die sonst in falschen Gruppen landen („Schwein“ enthält „wein“, „Zitronensaft“ „saft“, „Maisstärke“ „mais“)
+      ['Trockenwaren', /erdnussbutter|maisstärke|speisestärke|zitronensaft|limettensaft/],
+      ['Kühlprodukte', /schwein|würstchen|wiener|eigelb|eiweiß|pizzateig|blätterteig|hefeteig|mürbeteig/],
       ['Trockenwaren', /chips|röstzwiebel|kerne|maismehl|gewürzgurke|essiggurke|butterkeks|keks|kokosmilch|brühwürfel|tomatenmark|passierte|paprikapulver|currypulver|brühe|essig|konserve|\bdose|dosen|(?:^|[^p])reis(?![a-zäöüß])|basmati|apfelmus|mus$/],
       ['Haushaltsartikel', /holzkohle|grillkohle|grillanzünder|kerze|teelicht|batterie|katzenfutter|hundefutter|katzenstreu/],
       ['Tiefkühlprodukte', /fischstäbchen|tk-|tiefkühl/],
@@ -218,7 +221,7 @@
     const escape = text => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     // kurze gemerkte Wörter (unter 4 Buchstaben, z. B. „ei“) nur als ganzes Wort – sonst träfe „ei“ auch Salbei und Brei
     const customCategory = Object.entries(custom).find(([keyword]) => { const k = keyword.toLowerCase().trim(); if (!k) return false; return new RegExp(`${k.length < 4 ? '(?:^|[^a-zäöüß])' : ''}${escape(k)}(?![a-zäöüß])`).test(value); })?.[1];
-    const category = customCategory || groups.find(([, pattern]) => pattern.test(value))?.[0] || 'Sonstiges';
+    const category = customCategory || (/^\d.*(dose|gl(as|äser))/i.test(quantity) && !/tk|tiefkühl/.test(value) ? 'Trockenwaren' : '') || groups.find(([, pattern]) => pattern.test(value))?.[0] || 'Sonstiges'; // „1 Dose Mais“ steht im Regal, nicht beim Gemüse
     return { raw, quantity, title, category };
   }
 
@@ -285,6 +288,8 @@
       const merged = quantity && duplicate.quantity ? window.ZuhauseRecipes?.mergeQuantities?.(duplicate.quantity, quantity) : null;
       if (merged) { duplicate.quantity = merged; persist(); renderShoppingEnhanced(); toast(`${parsed.title}: jetzt ${merged}`); return true; }
       if (quantity && !duplicate.quantity) { duplicate.quantity = quantity; persist(); renderShoppingEnhanced(); toast(`${parsed.title}: Menge ergänzt`); return true; }
+      // nicht zusammenrechenbar (z. B. „500 g“ und „2 Pck.“): beide Mengen behalten statt die zweite wortlos zu verwerfen
+      if (quantity && duplicate.quantity) { duplicate.quantity = `${duplicate.quantity} + ${quantity}`; persist(); renderShoppingEnhanced(); toast(`${parsed.title}: jetzt ${duplicate.quantity}`); return true; }
       toast(`${parsed.title} steht schon auf der Liste`); return false;
     }
     state.shopping.unshift({ id: crypto.randomUUID(), raw, title: parsed.title, quantity: extra.quantity ?? parsed.quantity, category: extra.category || parsed.category, done: false, createdAt: new Date().toISOString() });
@@ -452,7 +457,7 @@
   function injectFinances() {
     const page = document.querySelector('#finances'); if (!page || page.dataset.featured) return;
     page.dataset.featured = '1';
-    page.innerHTML = `<div class="page-title"><div><p class="eyebrow">Gemeinsame Finanzen</p><h1>Budget und Ausgaben.</h1><p>Der rechnerische Haushaltsrahmen ist nicht euer Bankkontostand.</p></div><div class="page-actions"><button class="secondary" data-receipt-scan>📷 Kassenbon scannen</button><button class="primary" data-open="expense">＋ Ausgabe</button></div></div><div class="budget-summary"><article class="balance-card"><span>Verfügbar in diesem Monat</span><strong id="budgetAvailable">0,00 €</strong><small id="budgetMonthLabel"></small></article><article class="mini-money"><span>Übertrag aus Vormonat</span><strong id="budgetCarry">0,00 €</strong><small>auch negative Beträge</small></article><article class="mini-money"><span>Fixkosten diesen Monat</span><strong id="budgetFixed">0,00 €</strong><small id="fixedCount">0 Einträge</small></article></div><div class="finance-feature-grid"><article class="card finance-settings"><span class="kicker">Monatsrahmen</span><h2>Budget einstellen</h2><p class="budget-summary" id="budgetSummary"></p><button class="secondary budget-edit" type="button" id="budgetEdit">Budget ändern</button><form id="budgetForm" class="inline-form"><label>Monatliches Budget<input name="monthlyAmount" type="text" inputmode="decimal" autocomplete="off" placeholder="z. B. 800"></label><label>Sparziel für den Haushalt (optional)<input name="savingsGoal" type="text" inputmode="decimal" autocomplete="off" placeholder="z. B. 100"></label><button class="primary" type="submit">Speichern</button></form><button class="text-button" data-close-month>Monat unveränderlich abschließen →</button></article><article class="card fixed-costs"><div class="card-head"><div><span class="kicker">Regelmäßig</span><h2>Fixkosten</h2></div></div><form id="fixedCostForm" class="inline-form"><input name="title" placeholder="z. B. Miete" required><input name="amount" type="text" inputmode="decimal" autocomplete="off" placeholder="Betrag, z. B. 49,99" required><button class="secondary" type="submit">Hinzufügen</button></form><div id="fixedCostList"></div></article></div><article class="card table-card"><div class="card-head"><div><span class="kicker">Chronologisch</span><h2>Ausgaben diesen Monat</h2></div><div class="search">⌕ <input id="expenseSearchFeature" placeholder="Suchen …"></div></div><div class="expense-list" id="expenseListFeature"></div></article><article class="card savings-card"><div class="card-head"><div><span class="kicker">Sparanalyse</span><h2>Einfach vergleichen</h2></div></div><div id="savingsAnalysis"></div></article><input id="receiptCamera" type="file" accept="image/*" capture="environment" hidden>`;
+    page.innerHTML = `<div class="page-title"><div><p class="eyebrow">Gemeinsame Finanzen</p><h1>Budget und Ausgaben.</h1><p>Der rechnerische Haushaltsrahmen ist nicht euer Bankkontostand.</p></div><div class="page-actions"><button class="secondary" data-receipt-scan>📷 Kassenbon scannen</button><button class="primary" data-open="expense">＋ Ausgabe</button></div></div><div class="budget-summary"><article class="balance-card"><span>Verfügbar in diesem Monat</span><strong id="budgetAvailable">0,00 €</strong><small id="budgetMonthLabel"></small></article><article class="mini-money"><span>Übertrag aus Vormonat</span><strong id="budgetCarry">0,00 €</strong><small>auch negative Beträge</small></article><article class="mini-money"><span>Fixkosten diesen Monat</span><strong id="budgetFixed">0,00 €</strong><small id="fixedCount">0 Einträge</small></article></div><div class="finance-feature-grid"><article class="card finance-settings"><span class="kicker">Monatsrahmen</span><h2>Budget einstellen</h2><p class="budget-summary" id="budgetSummary"></p><button class="secondary budget-edit" type="button" id="budgetEdit">Budget ändern</button><form id="budgetForm" class="inline-form"><label>Monatliches Budget<input name="monthlyAmount" type="text" inputmode="decimal" autocomplete="off" placeholder="z. B. 800"></label><label>Sparziel für den Haushalt (optional)<input name="savingsGoal" type="text" inputmode="decimal" autocomplete="off" placeholder="z. B. 100"></label><button class="primary" type="submit">Speichern</button></form><button class="text-button" data-close-month>Monat unveränderlich abschließen →</button></article><article class="card fixed-costs"><div class="card-head"><div><span class="kicker">Regelmäßig</span><h2>Fixkosten</h2></div></div><form id="fixedCostForm" class="inline-form"><input name="title" placeholder="z. B. Miete" required><input name="amount" type="text" inputmode="decimal" autocomplete="off" placeholder="Betrag" required><button class="secondary" type="submit">Hinzufügen</button></form><div id="fixedCostList"></div></article></div><article class="card table-card"><div class="card-head"><div><span class="kicker">Chronologisch</span><h2>Ausgaben diesen Monat</h2></div><div class="search">⌕ <input id="expenseSearchFeature" placeholder="Suchen …"></div></div><div class="expense-list" id="expenseListFeature"></div></article><article class="card savings-card"><div class="card-head"><div><span class="kicker">Sparanalyse</span><h2>Einfach vergleichen</h2></div></div><div id="savingsAnalysis"></div></article><input id="receiptCamera" type="file" accept="image/*" capture="environment" hidden>`;
     bindOpenButtons();
     page.querySelector('.page-title').insertAdjacentHTML('afterend', '<label class="field finance-month-picker"><span>Monat ansehen</span><input id="financeMonth" type="month"></label>');
     page.querySelector('#financeMonth').value = monthKey(); page.querySelector('#financeMonth').addEventListener('change', renderFinances);

@@ -346,3 +346,17 @@ dialog .close{border:0!important;background:#ecebe5!important;width:44px!importa
 @media(max-width:760px){.ch-tabs{display:flex!important;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none;gap:4px}.ch-tabs button{flex:none;white-space:nowrap;padding:10px 14px}}
 /* laufende Stempeluhr: Punkt am Bereich */
 .workspace-switch button.is-running::after{content:'';width:9px;height:9px;border-radius:50%;background:#d9534f;margin-left:4px;box-shadow:0 0 0 3px rgba(217,83,79,.18)}
+
+/* Prüfung 20.11.2026 (v54) – B/C */
+.notification-box{display:flex;flex-wrap:wrap;gap:10px;align-items:center}.notification-box .notification-status{flex-basis:100%}
+.notification-kinds{list-style:none;padding:0;margin:4px 0 0;display:grid;gap:6px}
+.notification-trouble{margin-top:10px;background:var(--gold-soft);border-radius:14px;padding:12px 14px}.notification-trouble summary{font-weight:700;cursor:pointer;min-height:28px}.notification-trouble ul{margin:8px 0 0;padding-left:18px;display:grid;gap:6px}
+.push-problem{display:block;width:100%;text-align:left;margin:0 0 14px;padding:14px 16px;border:0;border-radius:16px;background:var(--gold-soft);color:var(--ink);font:inherit;min-height:48px;cursor:pointer}
+.ch-tabs{flex-wrap:nowrap!important;overflow-x:auto}.ch-tabs button{flex:none!important}
+#noah .ws-job-grid{margin-bottom:22px}
+@media(min-width:761px){.calendar-dialog-actions>span{grid-column:2}}
+button:focus-visible,.close:focus-visible,a:focus-visible,summary:focus-visible{outline:3px solid #91a68b;outline-offset:2px}
+/* Verbindungs-Punkt: bei einem Problem auch am Handy kurz den Text zeigen („Nur auf diesem Gerät“) */
+.sync-pill.error #syncText{display:inline;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:760px){#finances .card-head:has(#expenseSearchFeature){flex-wrap:wrap}#finances .card-head:has(#expenseSearchFeature) .search{width:100%;flex-basis:100%}}
+#budgetForm input,#fixedCostForm input,#fixedCostForm select{min-height:52px;font-size:16px;font-weight:400}#budgetForm input::placeholder{font-weight:400;font-size:16px}

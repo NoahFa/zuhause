@@ -253,6 +253,7 @@
     const page = document.querySelector('#study'), panel = document.querySelector('#charleenPanel'); if (!page || !panel) return;
     if (force !== true && panel.contains(document.activeElement) && document.activeElement.matches('input,textarea,select')) return;
     page.querySelectorAll('[data-ch-tab]').forEach(b => { b.classList.toggle('active', b.dataset.chTab === tab); b.setAttribute('aria-pressed', String(b.dataset.chTab === tab)); });
+    { const nav = page.querySelector('.ch-tabs'), on = nav?.querySelector('.active'); if (nav && on) nav.scrollLeft = Math.max(0, on.offsetLeft - nav.offsetLeft - 16); } // gewählten Reiter in der Zeile sichtbar halten
     page.querySelectorAll('[data-ch-notes]').forEach(el => { el.hidden = tab !== 'notes'; });
     panel.hidden = tab === 'notes';
     panel.innerHTML = tab === 'study' ? studyView() : tab === 'job' ? jobView() : tab === 'work' ? workView() : tab === 'savings' ? savingsView() : '';

@@ -20,6 +20,45 @@ function authorizeCron(request: Request): Response | null {
 }
 
 const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
+// Wiederkehrende Aufgaben: neue Runden legt sonst erst die App beim Öffnen an – um 5 Uhr fehlen sie noch.
+// Gleiche Regeln wie features.js (nextDue/anchoredMonth/materialiseRecurringTasks), nur gerechnet, nicht gespeichert.
+const isoUtc = (d: Date) => d.toISOString().slice(0, 10)
+const addDaysIso = (value: string, days: number) => { const d = new Date(`${value}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + days); return isoUtc(d) }
+const addMonthsIso = (value: string, months: number) => {
+  const d = new Date(`${value}T12:00:00Z`), day = d.getUTCDate(); d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() + months)
+  d.setUTCDate(Math.min(day, new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate())); return isoUtc(d)
+}
+const anchoredMonthIso = (task: any, value: string, amount: number) => {
+  const target = addMonthsIso(value, amount), [year, month] = target.split('-').map(Number)
+  const day = Number(String(task.recurrenceAnchor || task.dueOn).slice(8, 10))
+  return `${target.slice(0, 8)}${String(Math.min(day, new Date(Date.UTC(year, month, 0)).getUTCDate())).padStart(2, '0')}`
+}
+function nextDueIso(task: any, value: string): string | null {
+  if (task.recurrence === 'daily') return addDaysIso(value, 1)
+  if (task.recurrence === 'weekly') return addDaysIso(value, 7)
+  if (task.recurrence === 'biweekly') return addDaysIso(value, 14)
+  if (task.recurrence === 'monthly') return anchoredMonthIso(task, value, 1)
+  if (task.recurrence === 'custom') {
+    const amount = Math.max(1, Number(task.recurrenceInterval) || 1)
+    if (task.recurrenceUnit === 'months') return anchoredMonthIso(task, value, amount)
+    return addDaysIso(value, amount * (task.recurrenceUnit === 'weeks' ? 7 : 1))
+  }
+  return null
+}
+export function withUpcomingRounds(list: any[], today: string) {
+  const all = [...list], latest = new Map<string, any>()
+  for (const task of list) if (task?.seriesId && task.recurrence && task.recurrence !== 'none' && task.dueOn && (!latest.get(task.seriesId) || task.dueOn > latest.get(task.seriesId).dueOn)) latest.set(task.seriesId, task)
+  for (const task of latest.values()) {
+    let due = task.dueOn, person = task.person
+    for (let i = 0; i < 400 && due < today; i++) {
+      const next = nextDueIso(task, due); if (!next || next <= due || next > today) break
+      due = next; if (task.alternate) person = person === 'person1' ? 'person2' : 'person1'
+      if (!list.some(item => item.seriesId === task.seriesId && item.dueOn === due)) all.push({ ...task, person, dueOn: due, done: false, skipped: false })
+    }
+  }
+  return all
+}
+
 webpush.setVapidDetails('mailto:app@zuhause-familienapp.pages.dev', Deno.env.get('VAPID_PUBLIC_KEY')!, Deno.env.get('VAPID_PRIVATE_KEY')!)
 const DAY_MS = 86400000
 
@@ -124,7 +163,7 @@ Deno.serve(async request => {
       items.push({ sort: time(row.start_time) || '00:02', text: row.kind === 'football' ? `⚽ ${time(row.start_time)} ${row.title}` : `${row.title} ${time(row.start_time)}${end}`.trim() })
     }
     if (waste.length) items.push({ sort: '00:03', text: `🗑 Heute Abholung: ${waste.join(', ')}` })
-    const tasks = (stateByHousehold.get(member.household_id)?.householdTasks || []).filter((task: any) => !task.done && !task.skipped && task.dueOn && task.dueOn <= today && (!task.person || task.person === 'Gemeinsam' || task.person === personKey))
+    const tasks = withUpcomingRounds(stateByHousehold.get(member.household_id)?.householdTasks || [], today).filter((task: any) => !task.done && !task.skipped && task.dueOn && task.dueOn <= today && (!task.person || task.person === 'Gemeinsam' || task.person === personKey))
     if (tasks.length) {
       const overdue = tasks.filter((task: any) => task.dueOn < today).length
       items.push({ sort: '99:99', text: tasks.length === 1 ? `✓ Aufgabe: ${tasks[0].title}${overdue ? ' (überfällig)' : ''}` : `✓ ${tasks.length} Aufgaben offen${overdue ? ` (${overdue} überfällig)` : ''}` })

@@ -335,7 +335,7 @@ $('#entryForm').addEventListener('submit',e=>{
 $$('[data-entry-cancel]').forEach(button=>button.addEventListener('click',()=>$('#entryDialog').close()));
 
 const details={
-  storage:['Noch nicht zwischen Geräten verbunden','<p>Diese erste Fassung speichert Eingaben nur in diesem Browser. Sobald Supabase verbunden ist, bekommen eure beiden iPhones und der Computer denselben Stand.</p><p>Bis dahin bitte keine echten Steuerunterlagen hochladen.</p>'],
+  storage:['Noch nicht angemeldet','<p>Nach der Anmeldung haben eure beiden iPhones und der Computer denselben Stand.</p>'],
   pet:['Haustier','<p>Hier können später Tierarzttermine, Impfungen, Futter-Erinnerungen und wichtige Unterlagen gesammelt werden.</p>'],
   contracts:['Wohnung & Verträge','<p>Geplant sind Miete, Strom, Internet und gemeinsame Versicherungen – jeweils mit Laufzeit, Zahlender Person und Erinnerung.</p>'],
   notifications:['Müll-Mitteilungen','<p>Die App erinnert euch am Vortag um 15:00 Uhr. Fallen mehrere Tonnen zusammen, kommt nur eine gemeinsame Mitteilung.</p><p>Auf jedem iPhone muss die App auf dem Home-Bildschirm liegen und die Mitteilung einmal erlaubt werden.</p>'],
@@ -357,8 +357,10 @@ const details={
   elsterPerson1:['Eigene ELSTER-Erklärung','<p>Jede Person bereitet ihre Einkommensteuererklärung getrennt vor.</p>'],
   elsterPerson2:['Eigene ELSTER-Erklärung','<p>Jede Person bereitet ihre Einkommensteuererklärung getrennt vor.</p>']
 };
-function openDetail(title,body){$('#detailTitle').textContent=title;const target=$('#detailBody');target.replaceChildren();if(body instanceof Node)target.append(body);else target.innerHTML=body;$('#detailDialog').showModal()}
-$$('[data-detail]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();const d=details[b.dataset.detail];if(d)openDetail(d[0],d[1])}));
+function openDetail(title,body,kicker='Details'){$('#detailTitle').textContent=title;const k=$('#detailDialog .kicker');if(k)k.textContent=kicker;const target=$('#detailBody');target.replaceChildren();if(body instanceof Node)target.append(body);else target.innerHTML=body;$('#detailDialog').showModal()}
+$$('[data-detail]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();const d=details[b.dataset.detail];if(!d)return;if(b.dataset.detail==='storage'){openDetail(syncTitle()||d[0],d[1],'Verbindung');return}openDetail(d[0],d[1])}));
+// Titel des Verbindungs-Fensters nach dem echten Zustand (vorher immer „Sicher verbunden“)
+function syncTitle(){const mode=$('#syncPill')?.className||'';if(!currentUser)return '';if(localDirty||/error/.test(mode))return navigator.onLine?'Noch nicht gespeichert – wird gleich erneut versucht':'Noch nicht gespeichert – wird nachgeholt, sobald Internet da ist';if(/syncing/.test(mode))return 'Änderungen werden gerade abgeglichen';return 'Sicher zwischen euren Geräten verbunden'}
 const explanations={
   safety:['Warum wir vorsichtig sind','<p>Steuern hängen von vielen Einzelheiten ab. Eine Ausgabe kann beruflich wirken und trotzdem ganz oder teilweise nicht zählen.</p><ol class="plain-steps"><li>Ihr sammelt den echten Vorgang.</li><li>Die App zeigt offene Fragen.</li><li>Vor der Abgabe wird alles geprüft.</li></ol>'],
   eur:['EÜR ohne Fachsprache','<p>EÜR heißt „Einnahmenüberschussrechnung“: Geld aus dem Gewerbe minus passende Ausgaben. Das Ergebnis ist noch nicht die zu zahlende Steuer.</p>'],
@@ -372,9 +374,12 @@ function urlBase64ToUint8Array(value){const padding='='.repeat((4-value.length%4
 function reminderHint(){if('Notification' in window&&Notification.permission==='granted')return;try{const today=todayIso();if(localStorage.getItem('zuhause-reminder-hint')===today){toast('Gespeichert – Erinnerungen kommen, sobald Mitteilungen erlaubt sind');return}localStorage.setItem('zuhause-reminder-hint',today)}catch{}notificationHelp()} // höchstens einmal am Tag das Fenster
 function notificationHelp(){
   const installed=window.matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
-  const supported='serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window;
-  const status=!supported?'Dieses Gerät unterstützt App-Mitteilungen leider nicht.':Notification.permission==='granted'?'Mitteilungen sind auf diesem Gerät erlaubt.':installed?'Mitteilungen können jetzt eingeschaltet werden.':'Bitte fügt Zuhause zuerst zum Home-Bildschirm hinzu.';
-  openDetail('App-Mitteilungen',`<p>Zuhause kann euch persönlich an Kalendertermine und gemeinsam an die Müllabholung erinnern.</p><div class="notification-box"><span class="notification-status">${status}</span>${supported&&installed?'<button class="primary" type="button" data-enable-notifications>Mitteilungen einschalten</button>':'<button class="secondary" type="button" data-detail-install>Installationshilfe öffnen</button>'}</div><p>Diese Einstellung wird auf jedem iPhone einmal vorgenommen.</p>`);
+  const supported='serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window,granted=supported&&Notification.permission==='granted';
+  let confirmed='';try{confirmed=localStorage.getItem(pushOkKey())||''}catch{}
+  const when=confirmed?new Date(confirmed).toLocaleString('de-DE',{weekday:'short',day:'numeric',month:'numeric',hour:'2-digit',minute:'2-digit'}):'';
+  const status=!supported?'Dieses Gerät unterstützt App-Mitteilungen leider nicht.':granted?(confirmed?`An ✓ · dieses iPhone zuletzt beim Server bestätigt: ${when}`:'Erlaubt – aber noch nicht beim Server bestätigt. Bitte „Neu verbinden“ tippen.'):installed?'Aus – jetzt einschalten.':'Bitte Zuhause zuerst zum Home-Bildschirm hinzufügen.';
+  const buttons=!supported?'':!installed?'<button class="secondary" type="button" data-detail-install>Installationshilfe öffnen</button>':granted?'<button class="primary" type="button" data-test-notification>Probe in 20 Sekunden senden</button><button class="secondary" type="button" data-enable-notifications>Neu verbinden</button>':'<button class="primary" type="button" data-enable-notifications>Mitteilungen einschalten</button>';
+  openDetail('App-Mitteilungen',`<ul class="notification-kinds"><li>☀️ Morgen-Nachricht um 5:00 Uhr</li><li>📅 Erinnerungen an eure Termine</li><li>🗑 Müll am Vortag</li></ul><div class="notification-box"><span class="notification-status">${status}</span>${buttons}</div><p class="ws-muted">Nach „Probe senden“ das iPhone gleich sperren – so seht ihr, ob Mitteilungen auch auf dem Sperrbildschirm ankommen.</p><details class="notification-trouble"><summary>Kommt morgens nichts an?</summary><ul><li>Einstellungen → Mitteilungen → Zuhause: „Mitteilungen erlauben“ an, Zustellung „Sofort“ (nicht „Zusammenfassung“).</li><li>Einstellungen → Fokus → Schlafen (und „Nicht stören“) → Apps: „Zuhause“ hinzufügen.</li><li>Zuhause einmal öffnen – die App meldet sich dann neu beim Server.</li></ul></details>`,'Einstellungen');
 }
 async function enableNotifications(){
   if(!cloudReady||!currentHousehold||!currentUser){toast('Bitte zuerst anmelden');return false}
@@ -386,26 +391,42 @@ async function enableNotifications(){
     if(!subscription)subscription=await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC_KEY)});
     const data=subscription.toJSON();
     const {error}=await cloud.from('push_subscriptions').upsert({household_id:currentHousehold.id,user_id:currentUser.id,endpoint:data.endpoint,p256dh:data.keys?.p256dh,auth_key:data.keys?.auth,enabled:true,user_agent:navigator.userAgent,updated_at:new Date().toISOString()},{onConflict:'endpoint'});
-    if(error)throw error;toast('App-Mitteilungen sind eingeschaltet');$('#detailDialog').close();
+    if(error)throw error;try{localStorage.setItem(pushOkKey(),new Date().toISOString())}catch{}pushProblem(false);toast('App-Mitteilungen sind eingeschaltet');$('#detailDialog').close();
   }catch{toast('Mitteilungen konnten noch nicht eingeschaltet werden')}
 }
-// Bei jedem Start die Mitteilungs-Adresse dieses Handys beim Server auffrischen (iOS ändert sie z. B. nach Ab-/Anmelden oder Updates – sonst geht die Morgen-Nachricht ins Leere)
-async function refreshPushSubscription(){
+// Bei jedem Start (und beim Zurückkehren, höchstens alle 12 Stunden) die Mitteilungs-Adresse dieses Handys beim Server auffrischen
+// (iOS ändert sie z. B. nach Ab-/Anmelden oder Updates – sonst geht die Morgen-Nachricht ins Leere). Klappt es nicht: bleibender Hinweis auf „Heute“.
+const pushOkKey=()=>`zuhause-push-ok:${currentUser?.id||''}`;
+function updateNotificationCard(){const on='Notification' in window&&Notification.permission==='granted'&&!$('#pushProblem');let ok='';try{ok=localStorage.getItem(pushOkKey())||''}catch{}const t=$('#notificationCardTitle'),p=$('#notificationCardText');if(t)t.textContent=on&&ok?'Mitteilungen: an ✓':'Mitteilungen erlauben';if(p)p.textContent=on&&ok?'Probe senden, Hilfe wenn morgens nichts kommt':'Einmal je iPhone erlauben – die App erinnert automatisch.'}
+function pushProblem(show){const old=$('#pushProblem');setTimeout(updateNotificationCard);if(!show){old?.remove();return}if(old)return;$('#today .home-hero')?.insertAdjacentHTML('afterend','<button type="button" class="push-problem" id="pushProblem" data-notification-settings-inline>🔕 Mitteilungen auf diesem iPhone sind nicht verbunden – <strong>jetzt einschalten</strong></button>')}
+async function refreshPushSubscription(force=true){
+  if(!('serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window)||Notification.permission!=='granted'||VAPID_PUBLIC_KEY.startsWith('VAPID_')||!currentUser||!currentHousehold)return;
+  try{if(!force&&Date.now()-new Date(localStorage.getItem(pushOkKey())||0).getTime()<12*3600e3)return}catch{}
   try{
-    if(!('serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window)||Notification.permission!=='granted'||VAPID_PUBLIC_KEY.startsWith('VAPID_')||!currentUser||!currentHousehold)return;
     const registration=await navigator.serviceWorker.ready;let subscription=await registration.pushManager.getSubscription();
     if(!subscription){try{subscription=await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC_KEY)})}catch{}}
-    if(!subscription){toast('Mitteilungen bitte einmal neu einschalten: Mehr → Mitteilungen erlauben');return}
+    if(!subscription){pushProblem(true);return}
     const data=subscription.toJSON();
-    await cloud.from('push_subscriptions').upsert({household_id:currentHousehold.id,user_id:currentUser.id,endpoint:data.endpoint,p256dh:data.keys?.p256dh,auth_key:data.keys?.auth,enabled:true,user_agent:navigator.userAgent,updated_at:new Date().toISOString()},{onConflict:'endpoint'});
-  }catch{}
+    const {error}=await cloud.from('push_subscriptions').upsert({household_id:currentHousehold.id,user_id:currentUser.id,endpoint:data.endpoint,p256dh:data.keys?.p256dh,auth_key:data.keys?.auth,enabled:true,user_agent:navigator.userAgent,updated_at:new Date().toISOString()},{onConflict:'endpoint'});
+    if(error){if(navigator.onLine)pushProblem(true);return}
+    try{localStorage.setItem(pushOkKey(),new Date().toISOString())}catch{}pushProblem(false);
+  }catch{if(navigator.onLine)pushProblem(true)}
+}
+async function sendTestNotification(button){
+  try{
+    button.disabled=true;const registration=await navigator.serviceWorker.ready,subscription=await registration.pushManager.getSubscription();
+    if(!subscription){toast('Dieses iPhone ist nicht verbunden – bitte „Neu verbinden“');return}
+    const {data,error}=await cloud.functions.invoke('send-test-push',{body:{endpoint:subscription.endpoint,delay:20}});
+    if(error||!data?.ok){let message='';try{message=(await error?.context?.json?.())?.error||''}catch{}toast(message||'Probe konnte nicht gesendet werden');return}
+    toast('Probe kommt in 20 Sekunden – jetzt iPhone sperren');
+  }catch{toast('Probe konnte nicht gesendet werden')}finally{setTimeout(()=>{button.disabled=false},20000)}
 }
 async function disableCurrentPush(){
   if(!('serviceWorker' in navigator))return;
   try{const registration=await navigator.serviceWorker.ready,subscription=await registration.pushManager.getSubscription();if(!subscription)return;if(cloud&&currentUser)await cloud.from('push_subscriptions').update({enabled:false,updated_at:new Date().toISOString()}).eq('endpoint',subscription.endpoint).eq('user_id',currentUser.id);await subscription.unsubscribe()}catch{}
 }
 $$('[data-notification-settings]').forEach(button=>button.addEventListener('click',notificationHelp));
-document.addEventListener('click',event=>{if(event.target.closest('[data-enable-notifications]'))enableNotifications();if(event.target.closest('[data-detail-install]')){const d=details.install;openDetail(d[0],d[1])}});
+document.addEventListener('click',event=>{if(event.target.closest('[data-enable-notifications]'))enableNotifications();if(event.target.closest('[data-test-notification]'))sendTestNotification(event.target.closest('[data-test-notification]'));if(event.target.closest('[data-notification-settings-inline]'))notificationHelp();if(event.target.closest('[data-detail-install]')){const d=details.install;openDetail(d[0],d[1])}});
 $('#fakeUpload').addEventListener('click',()=>$('#fileInput').click());
 $('#scanDocument').addEventListener('click',()=>$('#cameraInput').click());
 $('#fileInput').addEventListener('change',e=>{if(e.target.files[0])uploadDocument(e.target.files[0]);e.target.value=''});
@@ -520,6 +541,6 @@ function renderAll(){
 window.ZuhauseCalendar?.bootstrap({legacyAppointments:state.appointments,automaticEvents,callbacks:{toast,go,detail:openDetail,remindersSelected:reminderHint}});
 setGreeting();bindOpenButtons();renderAll();renderInsurance();
 const localCalendarPreview=['127.0.0.1','localhost'].includes(location.hostname)&&new URLSearchParams(location.search).get('preview')==='calendar';
-if(localCalendarPreview){$('#authScreen').hidden=true;go('calendar')}else{startCloud();setInterval(refreshCloudState,5000);window.addEventListener('focus',refreshCloudState);document.addEventListener('visibilitychange',()=>{if(!document.hidden){refreshCloudState(true);if(localDirty)saveCloudState()}});window.addEventListener('pageshow',()=>refreshCloudState(true));window.addEventListener('online',()=>{if(!$('#authOffline').hidden){connectionAttempts=0;resumeSession();return}setSyncStatus('Verbindung wieder da','syncing');saveCloudState()})}
+if(localCalendarPreview){$('#authScreen').hidden=true;go('calendar')}else{startCloud();setInterval(refreshCloudState,5000);window.addEventListener('focus',refreshCloudState);document.addEventListener('visibilitychange',()=>{if(!document.hidden){refreshCloudState(true);refreshPushSubscription(false);if(localDirty)saveCloudState()}});window.addEventListener('pageshow',()=>refreshCloudState(true));window.addEventListener('online',()=>{if(!$('#authOffline').hidden){connectionAttempts=0;resumeSession();return}setSyncStatus('Verbindung wieder da','syncing');saveCloudState()})}
 if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 const requestParams=new URLSearchParams(location.search),requestedDate=requestParams.get('date'),requestedPage=requestParams.get('page');if(/^\d{4}-\d{2}-\d{2}$/.test(requestedDate||''))window.ZuhauseCalendar?.selectDate(requestedDate);if(requestedPage&&document.getElementById(requestedPage))go(requestedPage);

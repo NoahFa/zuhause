@@ -19,7 +19,7 @@
     ['EL', /^(el|essl(öffel)?\.?|esslöffel|tbsp|tablespoons?)$/i], ['TL', /^(tl|teel(öffel)?\.?|teelöffel|tsp|teaspoons?)$/i], ['Prise', /^prisen?$/i], ['Msp.', /^(msp\.?|messerspitzen?)$/i],
     ['Pck.', /^(pck\.?|pkg\.?|päckchen|packung(en)?)$/i], ['Dose', /^dosen?$/i], ['Bund', /^bunde?$/i], ['Zehe', /^zehen?$/i], ['Stück', /^(stück|stk\.?|st\.?)$/i],
     ['Scheibe', /^scheiben?$/i], ['Becher', /^becher$/i], ['Tasse', /^tassen?$/i], ['Glas', /^gl(as|äser)$/i], ['Handvoll', /^handvoll$/i], ['Blatt', /^bl(att|ätter)$/i],
-    ['Zweig', /^zweige?$/i], ['Stange', /^stangen?$/i], ['Box', /^box(en)?$/i], ['cup', /^cups?$/i], ['oz', /^(oz|ounces?)$/i], ['lb', /^(lbs?|pounds?)$/i], ['pint', /^pints?$/i], ['Kopf', /^k(opf|öpfe)$/i], ['Knolle', /^knollen?$/i], ['Würfel', /^würfel$/i], ['Tropfen', /^tropfen$/i], ['Schuss', /^schuss$/i],
+    ['Zweig', /^zweige?$/i], ['Stange', /^stangen?$/i], ['Box', /^box(en)?$/i], ['Flasche', /^flaschen?$/i], ['cup', /^cups?$/i], ['oz', /^(oz|ounces?)$/i], ['lb', /^(lbs?|pounds?)$/i], ['pint', /^pints?$/i], ['Kopf', /^k(opf|öpfe)$/i], ['Knolle', /^knollen?$/i], ['Würfel', /^würfel$/i], ['Tropfen', /^tropfen$/i], ['Schuss', /^schuss$/i],
   ];
   // Menge am Zeilenanfang: „1 ½“, „1½“, „½“, „1/2“, „1 1/2“, „1,5“, „1.000“ (Tausenderpunkt), „2-3“ / „2 bis 3“ (erste Zahl)
   const number = token => /^\d{1,3}(\.\d{3})+$/.test(token) ? Number(token.replace(/\./g, '')) : Number(token.replace(',', '.'));
@@ -40,8 +40,8 @@
   function parseIngredient(line) {
     // „100g Mehl“ → „100 g Mehl“ (Seiten schreiben Menge und Einheit oft zusammen)
     // „2 x 400 g Tomaten“ → 800 g Tomaten
-    const multi = String(line || '').replace(/^[-•*·]\s*/, '').trim().match(/^(\d+)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(\S.*)$/i);
-    const raw = (multi ? `${Number(multi[1]) * Number(multi[2].replace(',', '.'))} ${multi[3]}` : String(line || '').replace(/^[-•*·]\s*/, '').trim()).replace(/^(\d+(?:[.,]\d+)?|[½¼¾⅓⅔⅛])(?=[a-zA-ZäöüÄÖÜ])/, '$1 '); if (!raw) return null;
+    const multi = String(line || '').replace(/^[-•*·]\s*/, '').trim().match(/^(\d+)\s*[x×]\s*(\d{1,3}(?:\.\d{3})+|\d+(?:[.,]\d+)?)\s*(\S.*)$/i);
+    const raw = (multi ? `${Number(multi[1]) * number(multi[2])} ${multi[3]}` : String(line || '').replace(/^[-•*·]\s*/, '').trim()).replace(/^(\d+(?:[.,]\d+)?|[½¼¾⅓⅔⅛])(?=[a-zA-ZäöüÄÖÜ])/, '$1 '); if (!raw) return null;
     const amount = parseAmount(raw); let rest = amount ? amount.rest : raw, unit = '', note = '';
     // „1 (400 g) Dose Tomaten“: Zusatz in Klammern vor der Einheit ans Ende stellen
     const paren = rest.match(/^\(([^)]{1,40})\)\s*/); if (paren) { note = ` (${paren[1]})`; rest = rest.slice(paren[0].length); }
@@ -53,15 +53,15 @@
   function formatAmount(value, unit) {
     if (value === null || value === undefined || !Number.isFinite(value)) return '';
     let v = value, u = unit;
-    if (u === 'g' && v >= 1000) { v /= 1000; u = 'kg'; } else if (u === 'ml' && v >= 1000) { v /= 1000; u = 'l'; }
     if (['g', 'ml'].includes(u)) v = v >= 100 ? Math.round(v / 5) * 5 : v >= 1 ? Math.round(v) : Math.max(0.1, Math.round(v * 10) / 10); // unter 1 g mit Komma statt „0 g“
+    if (u === 'g' && v >= 1000) { v /= 1000; u = 'kg'; } else if (u === 'ml' && v >= 1000) { v /= 1000; u = 'l'; } // erst runden, dann umstellen (998 g → 1 kg, nicht „1.000 g“)
     let text;
     const whole = Math.floor(v + 1e-9), part = Math.round((v - whole) * 4) / 4;
     if (!['g', 'ml', 'kg', 'l'].includes(u) && Math.abs(v - (whole + part)) < 0.04 && (part in fractionText || part === 0)) text = `${whole || ''}${part ? fractionText[part] : ''}` || '0';
     else text = (Math.round(v * 100) / 100).toLocaleString('de-DE');
     return `${text}${u ? ` ${v > 1 ? PLURAL[u] || u : u}` : ''}`;
   }
-  const PLURAL = { Dose: 'Dosen', Zehe: 'Zehen', Prise: 'Prisen', Scheibe: 'Scheiben', Tasse: 'Tassen', Stange: 'Stangen', Knolle: 'Knollen', Zweig: 'Zweige', Kopf: 'Köpfe', Glas: 'Gläser', Blatt: 'Blätter', Box: 'Boxen', cup: 'cups' };
+  const PLURAL = { Dose: 'Dosen', Zehe: 'Zehen', Prise: 'Prisen', Scheibe: 'Scheiben', Tasse: 'Tassen', Stange: 'Stangen', Knolle: 'Knollen', Zweig: 'Zweige', Kopf: 'Köpfe', Glas: 'Gläser', Blatt: 'Blätter', Box: 'Boxen', Flasche: 'Flaschen', cup: 'cups' };
   const SPOON = ['EL', 'TL', 'Prise', 'Msp.', 'Tropfen', 'Schuss']; // kleine Mengen – meist im Haus, in der Vorschau erst einmal abgewählt
   const ingredientText = (ing, factor = 1) => `${ing.amount ? `${formatAmount(ing.amount * factor, ing.unit)} ` : ing.unit ? `${ing.unit} ` : ''}${ing.name}`;
 
@@ -378,7 +378,7 @@
   }
   // Menge eines Einkaufsartikels („2 ×“, „500 g“, „1,5 kg“) lesen
   function shoppingAmount(quantity) {
-    const q = String(quantity || '').trim(); if (!q) return { value: null, unit: '' };
+    const q = String(quantity || '').trim().replace(/^(\d+(?:[.,]\d+)?|[½¼¾⅓⅔⅛])(?=[a-zA-ZäöüÄÖÜ])(?!x\b)/, '$1 '); if (!q) return { value: null, unit: '' }; // „500g“ → „500 g“
     const amount = parseAmount(q.replace(/×/g, '').replace(/(\d|\s)x$/i, '$1').trim()); if (!amount) return { value: null, unit: q }; // „x“ nur als Mal-Zeichen, nicht in „Box“
     const rest = amount.rest.replace(/^×|^x\b/i, '').trim(), unit = UNITS.find(([, re]) => re.test(rest))?.[0] || rest;
     return { value: amount.value, unit: /×|x/i.test(q) && !rest ? '' : unit };
@@ -398,7 +398,7 @@
       if (have.value !== null && baseA === baseB) {
         // zusammenrechnen in der Grundeinheit, dann wieder lesbar (z. B. 1.200 g → 1,2 kg)
         const q = shoppingQuantity(have.value * fA + value * fB, baseA === 'stk' ? '' : baseA);
-        return { kind: 'merge', existing, quantity: q, text: `${q} ${existing.title}`, note: `${existing.quantity} stehen schon drauf → zusammen ${q}` };
+        return { kind: 'merge', existing, quantity: q, text: `＋${shoppingQuantity(value, unit)} ${ing.name}`, note: `mit den ${existing.quantity} auf der Liste: zusammen ${q}` }; // neue Menge vorne, Summe dahinter (Prüfung 20.11.)
       }
     }
     const q = shoppingQuantity(value, unit);

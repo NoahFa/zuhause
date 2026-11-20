@@ -93,7 +93,7 @@ Deno.serve(async request => {
         try {
           const tag = `event:${event.id}:${occurrenceDate}:${reminder.minutes_before}`
           const dateLabel = new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', weekday: 'short', day: '2-digit', month: '2-digit' }).format(new Date(`${occurrenceDate}T12:00:00Z`))
-          await webpush.sendNotification({ endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth_key } }, JSON.stringify({ title: event.title, body: event.all_day ? `${dateLabel} · ganztägig` : `${dateLabel} um ${String(event.start_time).slice(0, 5)} Uhr`, tag, url: `/?page=calendar&date=${occurrenceDate}` }), { urgency: 'high', TTL: 3600 })
+          await webpush.sendNotification({ endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth_key } }, JSON.stringify({ title: event.title, body: event.all_day ? `${dateLabel} · ganztägig` : `${dateLabel} um ${String(event.start_time).slice(0, 5)} Uhr`, tag, url: `./?page=calendar&date=${occurrenceDate}` }), { urgency: 'high', TTL: 3600 })
           await supabase.from('event_notification_deliveries').insert(delivery)
           sent += 1
         } catch (pushError: any) {

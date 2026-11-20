@@ -163,7 +163,7 @@
         ${thumb ? `<button type="button" class="doc-preview" data-doc-open="${h(doc.id)}"><img src="${h(thumb)}" alt="Vorschau"></button>` : ''}
         <div class="doc-detail-actions"><button type="button" class="primary" data-doc-open="${h(doc.id)}">Öffnen</button><button type="button" class="secondary" data-doc-share="${h(doc.id)}" ${navigator.canShare ? 'disabled' : ''}>${navigator.canShare ? 'Wird vorbereitet …' : 'Teilen / Drucken'}</button></div>
         <p class="ws-help">${new Date(doc.created_at).toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: 'numeric' })} · ${readableSize(doc.size_bytes)}${doc.ocr_text ? ' · Text durchsuchbar' : ''}</p>
-        <label class="ws-field"><span>Name</span><textarea name="name" rows="2" maxlength="120" required>${h(doc.file_name)}</textarea></label>
+        <label class="ws-field"><span>Name</span><textarea name="name" rows="3" maxlength="120" required>${h(doc.file_name)}</textarea></label>
         <div class="lou-interval"><label class="ws-field"><span>Ordner</span><select name="folder">${FOLDERS.map(f => `<option ${f === (doc.folder || 'Gemeinsam') ? 'selected' : ''}>${f}</option>`).join('')}</select></label>
         <label class="ws-field"><span>Kategorie</span><select name="category">${[...new Set([...categories, doc.category || 'Sonstige Dokumente'])].map(c => `<option ${c === doc.category ? 'selected' : ''}>${h(c)}</option>`).join('')}</select></label></div>
         ${doc.ocr_text ? `<details class="doc-ocr"><summary>Erkannten Text anzeigen</summary><pre>${h(doc.ocr_text)}</pre></details>` : ''}
