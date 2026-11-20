@@ -140,7 +140,7 @@ async function loadHouseholdOnce(){
   const scoped=readJson(scopedStorageKey()),dirty=localStorage.getItem(scopedStorageKey('dirty'))==='1',storedBase=readJson(scopedStorageKey('base'));
   lastSyncedState=mergedState(row.data);state=dirty&&scoped?mergeStates(row.data,scoped,storedBase||lastSyncedState):structuredClone(lastSyncedState);localDirty=dirty;localChangeVersion=dirty?1:0;storeScopedState();lastCloudUpdate=row.updated_at;cloudRevision=Number(row.revision||0);
   cloudReady=true;updateStorageExplanation();await loadAutomaticContent();
-  await window.ZuhauseCalendar?.connect({cloud,household,user:currentUser,members:members||[],legacyAppointments:state.appointments,automaticEvents,callbacks:{toast,go,detail:openDetail,remindersSelected:reminderHint}});
+  await window.ZuhauseCalendar?.connect({cloud,household,user:currentUser,members:members||[],legacyAppointments:state.appointments,automaticEvents,callbacks:{toast,go,detail:openDetail,remindersSelected:reminderHint}});refreshPushSubscription();
   renderAll();renderInsurance();window.ZuhauseRecipes?.sync?.();await loadDocuments();
   connectionAttempts=0;clearTimeout(connectionRetry);$('#authScreen').hidden=true;setSyncStatus('Sicher gespeichert','connected');
   if(dirty||!row.data||!Object.keys(row.data).length){setDirty(true);await saveCloudState()}
@@ -388,6 +388,17 @@ async function enableNotifications(){
     const {error}=await cloud.from('push_subscriptions').upsert({household_id:currentHousehold.id,user_id:currentUser.id,endpoint:data.endpoint,p256dh:data.keys?.p256dh,auth_key:data.keys?.auth,enabled:true,user_agent:navigator.userAgent,updated_at:new Date().toISOString()},{onConflict:'endpoint'});
     if(error)throw error;toast('App-Mitteilungen sind eingeschaltet');$('#detailDialog').close();
   }catch{toast('Mitteilungen konnten noch nicht eingeschaltet werden')}
+}
+// Bei jedem Start die Mitteilungs-Adresse dieses Handys beim Server auffrischen (iOS ändert sie z. B. nach Ab-/Anmelden oder Updates – sonst geht die Morgen-Nachricht ins Leere)
+async function refreshPushSubscription(){
+  try{
+    if(!('serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window)||Notification.permission!=='granted'||VAPID_PUBLIC_KEY.startsWith('VAPID_')||!currentUser||!currentHousehold)return;
+    const registration=await navigator.serviceWorker.ready;let subscription=await registration.pushManager.getSubscription();
+    if(!subscription){try{subscription=await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC_KEY)})}catch{}}
+    if(!subscription){toast('Mitteilungen bitte einmal neu einschalten: Mehr → Mitteilungen erlauben');return}
+    const data=subscription.toJSON();
+    await cloud.from('push_subscriptions').upsert({household_id:currentHousehold.id,user_id:currentUser.id,endpoint:data.endpoint,p256dh:data.keys?.p256dh,auth_key:data.keys?.auth,enabled:true,user_agent:navigator.userAgent,updated_at:new Date().toISOString()},{onConflict:'endpoint'});
+  }catch{}
 }
 async function disableCurrentPush(){
   if(!('serviceWorker' in navigator))return;

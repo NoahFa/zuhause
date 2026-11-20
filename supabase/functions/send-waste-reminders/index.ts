@@ -49,7 +49,7 @@ Deno.serve(async request => {
       const { data: prior } = await supabase.from('notification_deliveries').select('id').eq('subscription_id', subscription.id).eq('reminder_key', reminderKey).maybeSingle()
       if (prior) continue
       try {
-        await webpush.sendNotification({ endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth_key } }, JSON.stringify({ title: 'Müll rausstellen', body: `Morgen bitte ${naturalList(bins)} rausstellen.`, tag: reminderKey, url: `/?page=calendar&date=${tomorrow}` }))
+        await webpush.sendNotification({ endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth_key } }, JSON.stringify({ title: 'Müll rausstellen', body: `Morgen bitte ${naturalList(bins)} rausstellen.`, tag: reminderKey, url: `/?page=calendar&date=${tomorrow}` }), { urgency: 'high', TTL: 43200 })
         await supabase.from('notification_deliveries').insert({ household_id: householdId, subscription_id: subscription.id, reminder_key: reminderKey, event_date: tomorrow }); sent++
       } catch (pushError: any) {
         if ([404, 410].includes(pushError?.statusCode)) await supabase.from('push_subscriptions').update({ enabled: false, updated_at: new Date().toISOString() }).eq('id', subscription.id)

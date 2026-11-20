@@ -160,7 +160,7 @@ Deno.serve(async request => {
       const { data: prior } = await supabase.from('notification_deliveries').select('id').eq('subscription_id', subscription.id).eq('reminder_key', reminderKey).maybeSingle()
       if (prior) continue
       try {
-        await webpush.sendNotification({ endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth_key } }, JSON.stringify(message))
+        await webpush.sendNotification({ endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth_key } }, JSON.stringify(message), { urgency: 'high', TTL: 21600 })
         await supabase.from('notification_deliveries').insert({ household_id: member.household_id, subscription_id: subscription.id, reminder_key: reminderKey, event_date: today })
         sent += 1
       } catch (pushError: any) {
