@@ -511,7 +511,7 @@
     ]);
     if (calendarResult.error) throw calendarResult.error;
     Object.values(CALENDARS).forEach(item => { state.calendars[item.key] = { ...item }; });
-    calendarResult.data.forEach(row => { state.calendars[row.calendar_key] = { key: row.calendar_key, id: row.id, name: row.name, color: CALENDARS[row.calendar_key]?.color || row.color, soft: CALENDARS[row.calendar_key]?.soft || '#ecece7' }; });
+    calendarResult.data.forEach(row => { state.calendars[row.calendar_key] = { key: row.calendar_key, id: row.id, name: (row.calendar_key === 'person1' || row.calendar_key === 'person2') ? CALENDARS[row.calendar_key].name : row.name, color: CALENDARS[row.calendar_key]?.color || row.color, soft: CALENDARS[row.calendar_key]?.soft || '#ecece7' }; });
     state.recurrences.clear(); (recurrenceResult.data || []).forEach(row => state.recurrences.set(row.event_id, { frequency: row.frequency, interval: row.interval_count, weekdays: row.weekdays || [], monthDay: row.month_day, endsOn: row.ends_on, rrule: row.rrule }));
     state.participants.clear(); (participantResult.data || []).forEach(row => { if (!state.participants.has(row.event_id)) state.participants.set(row.event_id, []); const member = state.members.find(item => item.user_id === row.user_id), key = memberKey(member); if (key) state.participants.get(row.event_id).push(key); });
     state.reminders.clear(); (reminderResult.data || []).forEach(row => { if (!state.reminders.has(row.event_id)) state.reminders.set(row.event_id, []); state.reminders.get(row.event_id).push(Number(row.minutes_before)); });
