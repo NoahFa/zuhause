@@ -66,7 +66,7 @@
   const ingredientText = (ing, factor = 1) => `${ing.amount ? `${formatAmount(ing.amount * factor, ing.unit)} ` : ing.unit ? `${ing.unit} ` : ''}${ing.name}`;
 
   // Gleiche Zutat erkennen: Kleinschreibung, Zusätze nach Komma/Klammer weg, einfache Mehrzahl-Endungen kürzen
-  const stem = word => { const w = String(word || '').toLowerCase().replace(/\(.*?\)/g, '').split(',')[0].trim().replace(/\s+/g, ' '); const s = w.replace(/(en|er|n|e|s)$/, ''); return s.length >= 2 ? s : w; };
+  const stem = word => { const w = String(word || '').toLowerCase().replace(/\(.*?\)/g, '').split(',')[0].trim().replace(/\s+/g, ' '); const s = w.replace(/(en|er|n|e|s)$/, ''); return s.length >= 3 ? s : w; }; // mind. 3 Buchstaben übrig – sonst würden „Eis“ und „Eier“ beide zu „ei“
   // Einheiten, die sich ineinander umrechnen lassen (Grundeinheit, Faktor)
   const BASE = { g: ['g', 1], kg: ['g', 1000], mg: ['g', 0.001], ml: ['ml', 1], l: ['ml', 1000], cl: ['ml', 10], dl: ['ml', 100], '': ['stk', 1], 'Stück': ['stk', 1], '×': ['stk', 1] };
   const baseOf = unit => BASE[unit] || [unit, 1];
@@ -140,7 +140,8 @@
 
   // ---------- Einstellungen (im App-Datensatz) ----------
   function basics() { const b = state.settings?.recipeBasics; return Array.isArray(b) ? b : DEFAULT_BASICS; }
-  const isBasic = name => { const n = stem(name); return basics().some(b => { const s = stem(b); return s && (n === s || n.endsWith(s)); }); };
+  // Zusätze wie „zum Anbraten“, „aus der Mühle“, „extra vergine“ zählen nicht
+  const isBasic = name => { const n = stem(String(name || '').replace(/\s+(zum|zur|aus|nach|extra|für)\s.*$/i, '')); return basics().some(b => { const s = stem(b); return s && (n === s || n.endsWith(s)); }); };
 
   // ---------- Oberfläche: Reiter ----------
   function installTabs() {
@@ -448,7 +449,7 @@
     if ('recipeDelete' in ds) remove(ds.recipeDelete);
     if ('recipeShop' in ds) shopPreview(ds.recipeShop);
     if ('recipeBasics' in ds) editBasics();
-    if ('recipeFav' in ds) { const r = recipe(ds.recipeFav); if (r) change({ ...r, favorite: !r.favorite }); }
+    if ('recipeFav' in ds) { const r = recipe(ds.recipeFav); if (r) { change({ ...r, favorite: !r.favorite }); toast(r.favorite ? 'Aus den Favoriten entfernt' : 'Zu den Favoriten'); } }
     if ('recipeServings' in ds) { const id = b.closest('dialog')?.dataset.recipeId, r = recipe(id); if (r) { const base = Number(r.data?.servings) || 2; servingsFor[id] = Math.min(99, Math.max(1, (servingsFor[id] || base) + Number(ds.recipeServings))); show(id); } }
   });
 

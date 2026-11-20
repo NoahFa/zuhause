@@ -624,13 +624,16 @@
     if (`${end.date}T${end.time}` < `${start.date}T${start.time}`) end = { date: start.date, time: start.time };
     return { allDay: false, startDate: start.date, endDate: end.date, startTime: start.time, endTime: end.time };
   }
-  function icsRecurrence(rule, startDate, startTime = '') {
+  function icsRecurrence(rule, startDate, startTime = '', sourceDate = '') {
     if (!rule) return { recurrence: null, simplified: false };
     const r = Object.fromEntries(rule.split(';').map(part => part.split('=')).map(([key, value]) => [String(key).toUpperCase(), String(value || '').toUpperCase()]));
     const frequency = (r.FREQ || '').toLowerCase(); if (!['daily', 'weekly', 'monthly', 'yearly'].includes(frequency)) return { recurrence: null, simplified: true };
     if (r.BYSETPOS || r.BYWEEKNO || r.BYYEARDAY || r.BYHOUR || (r.BYMONTH && frequency !== 'yearly')) return { recurrence: null, simplified: true };
     const codes = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']; let weekdays = [], monthDay = null;
-    if (r.BYDAY) { const days = r.BYDAY.split(','); if (frequency !== 'weekly' || !days.every(day => codes.includes(day))) return { recurrence: null, simplified: true }; weekdays = days.map(day => codes.indexOf(day) + 1); }
+    if (r.BYDAY) { const days = r.BYDAY.split(','); if (frequency !== 'weekly' || !days.every(day => codes.includes(day))) return { recurrence: null, simplified: true }; weekdays = days.map(day => codes.indexOf(day) + 1);
+      // Termin aus anderer Zeitzone, der bei uns auf einen anderen Tag fällt (Mo 23 Uhr New York = Di 5 Uhr bei uns): Wochentage mitschieben
+      const shift = /^\d{4}-\d{2}-\d{2}$/.test(sourceDate) ? Math.round((dateFromIso(startDate) - dateFromIso(sourceDate)) / 864e5) : 0;
+      if (shift && Math.abs(shift) === 1) weekdays = weekdays.map(day => ((day - 1 + shift + 7) % 7) + 1); }
     if (frequency === 'weekly' && !weekdays.length) weekdays = [dateFromIso(startDate).getDay() || 7];
     if (frequency === 'monthly') { if (r.BYMONTHDAY && !/^\d+$/.test(r.BYMONTHDAY)) return { recurrence: null, simplified: true }; monthDay = r.BYMONTHDAY ? +r.BYMONTHDAY : dateFromIso(startDate).getDate(); }
     const recurrence = { frequency, interval: Math.min(999, Math.max(1, parseInt(r.INTERVAL || '1', 10) || 1)), weekdays, monthDay, endsOn: null };
@@ -665,7 +668,7 @@
       const times = icsTimes(entry); if (!times) { summary.invalid += 1; return; }
       const key = keyFor(entry), uid = text1(entry, 'UID');
       if (known.has(key)) { summary.duplicate += 1; if (uid) seriesByUid.set(uid, { id: known.get(key), existing: true }); return; }
-      const { recurrence, simplified } = icsRecurrence(entry.props.RRULE?.[0]?.value, times.startDate, times.allDay ? '' : times.startTime); if (simplified) summary.simplified += 1;
+      const { recurrence, simplified } = icsRecurrence(entry.props.RRULE?.[0]?.value, times.startDate, times.allDay ? '' : times.startTime, String(entry.props.DTSTART?.[0]?.value || '').replace(/^(\d{4})(\d{2})(\d{2}).*/, '$1-$2-$3')); if (simplified) summary.simplified += 1;
       const lastDay = recurrence ? (recurrence.endsOn || '9999-12-31') : times.endDate;
       if (!includePast && lastDay < today) { summary.past += 1; return; }
       const id = addRow(entry, times, key, recurrence);
@@ -701,7 +704,7 @@
     let dialog = qs('#calendarBirthdayDialog');
     if (!dialog) { dialog = document.createElement('dialog'); dialog.id = 'calendarBirthdayDialog'; dialog.className = 'calendar-event-dialog'; document.body.append(dialog); }
     const options = ['shared', 'person1', 'person2'].map(key => `<option value="${key}">${escapeHtml(state.calendars[key]?.name || CALENDARS[key].name)}</option>`).join('');
-    dialog.innerHTML = `<form><div class="dialog-head"><div><span class="kicker">Kalender</span><h2>Geburtstag eintragen</h2></div><button class="close" type="button" data-birthday-close aria-label="Schließen">×</button></div><div class="ws-dialog-fields"><p class="ws-help">Der Geburtstag erscheint jedes Jahr automatisch im Kalender.</p><label class="ws-field"><span>Wer hat Geburtstag?</span><input name="name" required maxlength="120" placeholder="z. B. Oma Hilde" autocomplete="off"></label><label class="ws-field"><span>Geburtsdatum</span><input name="date" type="date" required></label><label class="ws-check"><input type="checkbox" name="yearKnown" checked> <span>Das Jahr stimmt – Alter anzeigen</span></label><label class="ws-field"><span>In welchen Kalender?</span><select name="calendarKey">${options}</select></label><fieldset class="ws-check-group"><legend>Meine Erinnerung (um 9 Uhr)</legend><label class="ws-check"><input type="checkbox" name="reminder" value="0"> <span>Am Geburtstag</span></label><label class="ws-check"><input type="checkbox" name="reminder" value="1440" checked> <span>Einen Tag vorher</span></label><label class="ws-check"><input type="checkbox" name="reminder" value="10080"> <span>Eine Woche vorher</span></label></fieldset><p class="auth-message" data-birthday-message aria-live="polite"></p></div><div class="dialog-actions"><button class="secondary" type="button" data-birthday-close>Abbrechen</button><button class="primary" type="submit">Speichern</button></div></form>`;
+    dialog.innerHTML = `<form><div class="dialog-head"><div><span class="kicker">Kalender</span><h2>Geburtstag eintragen</h2></div><button class="close" type="button" data-birthday-close aria-label="Schließen">×</button></div><div class="ws-dialog-fields"><p class="ws-help">Der Geburtstag erscheint jedes Jahr automatisch im Kalender.</p><label class="ws-field"><span>Wer hat Geburtstag?</span><input name="name" required maxlength="120" placeholder="z. B. Oma Hilde" autocomplete="off"></label><label class="ws-field"><span>Geburtsdatum</span><input name="date" type="date" required></label><label class="ws-check"><input type="checkbox" name="yearKnown" checked> <span>Das Jahr stimmt – Alter anzeigen</span></label><p class="ws-help">Jahr unbekannt? Häkchen weg und beim Datum einfach irgendein Jahr wählen.</p><label class="ws-field"><span>In welchen Kalender?</span><select name="calendarKey">${options}</select></label><fieldset class="ws-check-group"><legend>Meine Erinnerung (um 9 Uhr)</legend><label class="ws-check"><input type="checkbox" name="reminder" value="0"> <span>Am Geburtstag</span></label><label class="ws-check"><input type="checkbox" name="reminder" value="1440" checked> <span>Einen Tag vorher</span></label><label class="ws-check"><input type="checkbox" name="reminder" value="10080"> <span>Eine Woche vorher</span></label></fieldset><p class="auth-message" data-birthday-message aria-live="polite"></p></div><div class="dialog-actions"><button class="secondary" type="button" data-birthday-close>Abbrechen</button><button class="primary" type="submit">Speichern</button></div></form>`;
     const form = qs('form', dialog), message = qs('[data-birthday-message]', dialog);
     qsa('[data-birthday-close]', dialog).forEach(button => { button.onclick = () => dialog.close(); });
     form.onsubmit = async event => {

@@ -94,11 +94,9 @@ Die Dateien sind derzeit klassische Skripte mit gemeinsamem globalem Zustand, ni
 
 ### Tests
 
-- `tests/features-static.cjs`: Struktur-/Einbindungsprüfung der aktuellen Dateien.
+- Entfernt am 20.11.2026 (veraltet, liefen nicht mehr): `features-static.cjs`, `calendar-ui.cjs`, `verify-live.cjs`. Aktuelle Prüfungen: `regression.cjs`, `ui-check.cjs`, `scanner-check.cjs`, `recipes-check.cjs`, `verify-anonymous-access.cjs`.
 - `tests/regression.cjs`: DOM-basierte Ablaufprüfungen einschließlich neuer persönlicher Bereiche und Montage.
 - `tests/static-server.cjs`: lokaler statischer Entwicklungsserver.
-- `tests/verify-live.cjs`: Live-Dateiprüfung; dieser ältere Helfer liest einen Sites-Service-Token über stdin. Nach Entfernung der vorgeschalteten Sperre sind gewöhnliche öffentliche HTTP-Prüfungen möglich. Token nicht in Dateien oder Argumenten speichern.
-- `tests/calendar-ui.cjs`: älterer Playwright-Prüfer. Dieser Helfer ist nicht der Testmechanismus, mit dem die letzten Browserprüfungen vorgenommen wurden, und kann überholte Erwartungen enthalten.
 - `tests/verify-anonymous-access.cjs`: ergänzter späterer Nur-Lese-Test für 15 Supabase-Datenbereiche ohne App-Anmeldung. Diese Datei liegt zusätzlich zum exakten Git-Archiv in der Übergabe.
 
 ### Historische Berichte im unveränderten Projekt
@@ -327,7 +325,6 @@ Für die DOM-Tests die Testabhängigkeiten installieren, zum Beispiel mit pnpm:
 
 ```text
 pnpm --dir tools/dom-test install --frozen-lockfile
-node tests/features-static.cjs
 node tests/regression.cjs
 ```
 

@@ -176,7 +176,7 @@
     if('wsEditTemplate'in d)editTemplate(d.wsEditTemplate);
     if('jobFromTemplate'in d)newJob(d.jobFromTemplate);
     if('equipmentTab'in d){equipmentTab=d.equipmentTab;render();}
-    if('vanToggle'in d){const item=state.montageMaterials.find(m=>m.id===d.vanToggle);if(item){item.refill=!item.refill;save();}}
+    if('vanToggle'in d){const item=state.montageMaterials.find(m=>m.id===d.vanToggle);if(item){item.refill=!item.refill;save();toast(item.refill?`${item.name}: wird knapp – steht auf der Nachfüll-Liste`:`${item.name}: wieder voll`);}}
     if('vanAllRefilled'in d){if(confirm('Alle Artikel als aufgefüllt markieren?')){state.montageMaterials.forEach(m=>{m.refill=false;});save();toast('Auto ist wieder voll');}}
     if('newEquipment'in d)editEquipment();
     if('editEquipment'in d)editEquipment(d.editEquipment);

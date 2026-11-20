@@ -173,7 +173,7 @@
       persist();
       renderTasksEnhanced();
       renderUpcoming();
-      toast(input.checked ? 'Aufgabe erledigt' : 'Aufgabe wieder geöffnet');
+      if (input.checked) toastUndo('Aufgabe erledigt', () => { task.done = false; task.completedAt = null; persist(); renderTasksEnhanced(); renderUpcoming(); }); else toast('Aufgabe wieder geöffnet');
     }));
     document.querySelectorAll('[data-delete-task]').forEach(button => button.addEventListener('click', async event => {
       event.preventDefault();
@@ -197,7 +197,7 @@
   function parseShoppingItem(rawValue) {
     const raw = String(rawValue || '').trim();
     const quantityMatch = raw.match(/^((?:\d+[\s.,/]*)+(?:x|×|Stück|Packung(?:en)?|Pck\.?|Flasche(?:n)?|Dose(?:n)?|Gl(?:as|äser)|Becher|Bund|kg|g|l|ml)?)\s+(.+)$/i);
-    const quantity = quantityMatch ? quantityMatch[1].replace(/\bx\b/i, '×').trim() : '';
+    const quantity = quantityMatch ? quantityMatch[1].replace(/\bx\b/i, '×').trim().replace(/^(\d+)$/, '$1 ×') : ''; // „3 Joghurt“ → „3 ד wie „2 × Milch“
     const title = (quantityMatch ? quantityMatch[2] : raw).trim();
     const value = title.toLowerCase();
     // Reihenfolge zählt: genauere Wörter zuerst (Saft vor Apfel, Tomatenmark vor Tomate, Reis vor „eis“, Holzkohle vor Kohl).
@@ -292,6 +292,9 @@
       if (quantity && duplicate.quantity) { duplicate.quantity = `${duplicate.quantity} + ${quantity}`; persist(); renderShoppingEnhanced(); toast(`${parsed.title}: jetzt ${duplicate.quantity}`); return true; }
       toast(`${parsed.title} steht schon auf der Liste`); return false;
     }
+    // schon eingekauft (abgehakt) auf der Liste? Dann diese Zeile wieder öffnen statt eine zweite anzulegen
+    const bought = state.shopping.find(item => item.done && String(item.title).toLowerCase() === parsed.title.toLowerCase());
+    if (bought) { state.shopping = [bought, ...state.shopping.filter(item => item !== bought)]; Object.assign(bought, { done: false, quantity: extra.quantity ?? parsed.quantity, category: extra.category || bought.category, createdAt: new Date().toISOString() }); persist(); renderShoppingEnhanced(); return true; }
     state.shopping.unshift({ id: crypto.randomUUID(), raw, title: parsed.title, quantity: extra.quantity ?? parsed.quantity, category: extra.category || parsed.category, done: false, createdAt: new Date().toISOString() });
     persist(); renderShoppingEnhanced(); return true;
   }
@@ -500,22 +503,22 @@
     // aktueller Stand bei abgeschlossenen Monaten: Original plus alle bisherigen Korrekturen (sonst würde jede Änderung vom Original aus neu gebucht)
     const corrections = () => state.expenses.filter(item => item.correctionOf === expense.id).reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
     const effective = () => roundMoney((Number(expense.amount) || 0) + (frozen ? corrections() : 0));
-    const cancelled = frozen && effective() === 0;
+    const cancelled = frozen && effective() === 0, isCorrection = !!expense.correctionOf, lock = frozen || isCorrection; // Korrekturbuchungen kann man nur löschen (Prüfung 20.11.)
     let dialog = document.querySelector('#expenseEditDialog');
     if (!dialog) { dialog = document.createElement('dialog'); dialog.id = 'expenseEditDialog'; dialog.className = 'calendar-event-dialog'; document.body.append(dialog); }
     dialog.innerHTML = `<form><div class="dialog-head"><div><span class="kicker">Ausgabe</span><h2>${escapeHtml(expense.store || expense.title || 'Ausgabe')}</h2></div><button class="close" type="button" data-close-expense aria-label="Schließen">×</button></div>
       <div class="ws-dialog-fields">
-        ${frozen ? `<p class="recipe-import-note">${cancelled ? 'Diese Ausgabe ist bereits storniert.' : `Dieser Monat ist schon abgeschlossen. Änderungen am Betrag werden als Korrektur im laufenden Monat verbucht – der alte Monat bleibt, wie er war.${corrections() ? ` Bisher korrigiert: ${money(corrections())}.` : ''}`}</p>` : ''}
-        <label class="ws-field"><span>Wofür</span><input name="title" required maxlength="120" value="${escapeHtml(expense.store || expense.title || '')}" ${frozen ? 'disabled' : ''}></label>
-        <div class="lou-interval"><label class="ws-field"><span>Betrag in €</span><input name="amount" inputmode="decimal" required value="${escapeHtml(String(effective()).replace('.', ','))}" ${cancelled ? 'disabled' : ''}></label>
-        <label class="ws-field"><span>Datum</span><input name="date" type="date" required value="${escapeHtml(expense.date || todayIso())}" ${frozen ? 'disabled' : ''}></label></div>
-        <label class="ws-field"><span>Bereich</span><select name="category" ${frozen ? 'disabled' : ''}>${categories.map(c => `<option ${c === (expense.category || 'Gemeinsamer Haushalt') ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
+        ${isCorrection ? '<p class="recipe-import-note">Das ist eine Korrekturbuchung zu einer Ausgabe aus einem abgeschlossenen Monat. Ändern geht nicht – nur löschen.</p>' : frozen ? `<p class="recipe-import-note">${cancelled ? 'Diese Ausgabe ist bereits storniert.' : `Dieser Monat ist schon abgeschlossen. Änderungen am Betrag werden als Korrektur im laufenden Monat verbucht – der alte Monat bleibt, wie er war.${corrections() ? ` Bisher korrigiert: ${money(corrections())}.` : ''}`}</p>` : ''}
+        <label class="ws-field"><span>Was?</span><input name="title" required maxlength="120" value="${escapeHtml(expense.store || expense.title || '')}" ${lock ? 'disabled' : ''}></label>
+        <div class="lou-interval"><label class="ws-field"><span>Wie viel?</span><input name="amount" inputmode="decimal" required value="${escapeHtml(String(effective()).replace('.', ','))}" ${cancelled || isCorrection ? 'disabled' : ''}></label>
+        <label class="ws-field"><span>Wann?</span><input name="date" type="date" required value="${escapeHtml(expense.date || todayIso())}" ${lock ? 'disabled' : ''}></label></div>
+        <label class="ws-field"><span>Bereich</span><select name="category" ${lock ? 'disabled' : ''}>${categories.map(c => `<option ${c === (expense.category || 'Gemeinsamer Haushalt') ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
         ${expense.receiptItems?.length ? `<details class="doc-ocr"><summary>${expense.receiptItems.length} erkannte Artikel</summary><ul class="detail-list">${expense.receiptItems.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul></details>` : ''}
         <p class="auth-message" data-expense-message></p>
       </div>
       <div class="calendar-dialog-actions">${cancelled ? '<span></span>' : `<button type="button" class="danger" data-delete-expense>${frozen ? 'Stornieren' : 'Löschen'}</button>`}<span></span><button type="button" class="secondary" data-close-expense>Abbrechen</button><button class="primary" type="submit">Speichern</button></div></form>`;
     dialog.querySelectorAll('[data-close-expense]').forEach(b => { b.onclick = () => dialog.close(); });
-    const correction = (difference, note) => state.expenses.unshift({ id: crypto.randomUUID(), title: `Korrektur: ${expense.store || expense.title}`, store: `Korrektur: ${expense.store || expense.title}`, date: todayIso(), amount: roundMoney(difference), person: expense.person || 'Gemeinsam', category: expense.category || 'Gemeinsamer Haushalt', receipt: false, correctionOf: expense.id, note, createdAt: new Date().toISOString(), icon: '€' });
+    const correction = (difference, note) => state.expenses.unshift({ id: `korrektur:${expense.id}:${state.expenses.filter(item => item.correctionOf === expense.id).length}:${roundMoney(effective() + difference)}`, title: `Korrektur: ${expense.store || expense.title}`, store: `Korrektur: ${expense.store || expense.title}`, date: todayIso(), amount: roundMoney(difference), person: expense.person || 'Gemeinsam', category: expense.category || 'Gemeinsamer Haushalt', receipt: false, correctionOf: expense.id, note, createdAt: new Date().toISOString(), icon: '€' });
     const deleteButton = dialog.querySelector('[data-delete-expense]');
     if (deleteButton) deleteButton.onclick = () => {
       if (frozen) { const now = effective(); if (!now) return; if (!confirm(`„${expense.store || expense.title}“ stornieren? ${money(now)} werden im laufenden Monat gutgeschrieben.`)) return; correction(-now, 'Storno'); persist(); renderAll(); dialog.close(); toast('Storniert – im laufenden Monat gutgeschrieben'); return; }
@@ -525,7 +528,7 @@
     };
     dialog.querySelector('form').onsubmit = event => {
       event.preventDefault(); const data = Object.fromEntries(new FormData(event.currentTarget)), message = dialog.querySelector('[data-expense-message]');
-      if (cancelled) { dialog.close(); return; }
+      if (cancelled || isCorrection) { dialog.close(); return; }
       // abgeschlossener Monat: 0 € ist erlaubt (= vollständig korrigiert), sonst muss der Betrag über 0 € liegen
       const amount = parseEuro(data.amount);
       if (!Number.isFinite(amount) || amount < 0 || (!frozen && amount === 0)) { message.textContent = 'Bitte einen Betrag über 0 € eingeben.'; return; }
@@ -577,7 +580,7 @@
     const stores = new Map(); state.expenses.forEach(expense => stores.set(expense.store || expense.title, (stores.get(expense.store || expense.title) || 0) + (Number(expense.amount) || 0)));
     const topStores = [...stores.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
     const current = months.at(-1)?.value || 0; const previous = months.at(-2)?.value || 0; const difference = current - previous;
-    const tip = difference < 0 ? `Ihr habt diesen Monat bisher ${money(Math.abs(difference))} weniger ausgegeben als im Vormonat.` : topStores.length ? `Der größte Ausgabenblock ist derzeit ${topStores[0][0]}. Prüft dort zuerst, ob sich etwas bündeln lässt.` : 'Sobald Ausgaben vorhanden sind, erscheint hier ein konkreter Spartipp.';
+    const tip = state.expenses.length < 5 ? 'Ab fünf Ausgaben gibt es hier einen Spartipp.' : difference < 0 ? `Ihr habt diesen Monat bisher ${money(Math.abs(difference))} weniger ausgegeben als im Vormonat.` : topStores.length ? `Der größte Ausgabenblock ist derzeit ${topStores[0][0]}. Prüft dort zuerst, ob sich etwas bündeln lässt.` : 'Sobald Ausgaben vorhanden sind, erscheint hier ein konkreter Spartipp.';
     target.innerHTML = `<div class="savings-chart">${months.map(item => `<span><i style="height:${Math.max(4, Math.round(item.value / max * 100))}%"></i><b>${item.label}</b><small>${money(item.value)}</small></span>`).join('')}</div><div class="savings-split"><div><h3>Nach Geschäften</h3>${topStores.map(([store, amount]) => `<div class="compact-row"><span>${escapeHtml(store)}</span><strong>${money(amount)}</strong></div>`).join('') || '<p>Noch keine Daten.</p>'}</div><div><h3>Spartipp</h3><p>${escapeHtml(tip)}</p>${state.budget.savingsGoal ? `<p><strong>Sparziel:</strong> ${money(state.budget.savingsGoal)}</p>` : ''}</div></div>`;
   }
 

@@ -131,9 +131,11 @@
     page.innerHTML = `${order ? '' : '<div class="section-back"><button data-ws-route="noah">← Noahs Übersicht</button></div>'}<div class="ws-montage-title"><div><p class="eyebrow">Noahs Bereich</p><h1>Nebenjobs.</h1><p>Aufträge, Stunden, Material und Abrechnung.</p></div></div>${order ? orderView(order) : listView()}`;
     clearInterval(tick); if (data().running) tick = setInterval(() => { const el = document.querySelector('[data-nj-elapsed]'), r = data().running; if (!el || !r) { clearInterval(tick); return; } el.textContent = hours(minutesBetween(r.start, nowTime())); }, 30000);
   }
+  // wie lange schon eingestempelt („1:20 h“)
+  function runningFor(start) { const [hh, mm] = String(start).split(':').map(Number), now = new Date(), minutes = Math.max(0, now.getHours() * 60 + now.getMinutes() - (hh * 60 + mm)); return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')} h`; }
   function summaryCard() {
     const d = data(), open = d.orders.filter(o => o.status !== 'paid'), running = d.running ? d.orders.find(o => o.id === d.running.orderId) : null;
-    return `<article class="ws-start-card nj-start"><span class="kicker">Nebenjobs</span><h2>${running ? `● Eingestempelt: ${h(running.title)}` : 'Aufträge & Stunden'}</h2><p>${open.length ? `${open.length} ${open.length === 1 ? 'Auftrag' : 'Aufträge'} offen · ${euro(open.reduce((s, o) => s + totals(o).total, 0))} noch nicht bezahlt` : 'Stempeluhr, Material mit Preisen und Abrechnung je Auftrag.'}</p>${running ? '<button class="primary ws-large" data-nj-quick-out>Ausstempeln</button><button class="secondary" data-ws-route="nebenjob">Nebenjobs öffnen</button>' : '<button class="primary ws-large" data-ws-route="nebenjob">Nebenjobs öffnen</button>'}</article>`;
+    return `<article class="ws-start-card nj-start"><span class="kicker">Nebenjobs</span><h2>${running ? `● Eingestempelt: ${h(running.title)}` : 'Aufträge & Stunden'}</h2>${running ? `<p class="nj-running-since">seit ${h(d.running.start)} Uhr${d.running.date === todayIso() ? ` · ${runningFor(d.running.start)}` : ` (${h(String(d.running.date).split('-').reverse().join('.'))})`}</p>` : ''}<p>${open.length ? `${open.length} ${open.length === 1 ? 'Auftrag' : 'Aufträge'} offen · ${euro(open.reduce((s, o) => s + totals(o).total, 0))} noch nicht bezahlt` : 'Stempeluhr, Material mit Preisen und Abrechnung je Auftrag.'}</p>${running ? '<button class="primary ws-large" data-nj-quick-out>Ausstempeln</button><button class="secondary" data-ws-route="nebenjob">Nebenjobs öffnen</button>' : '<button class="primary ws-large" data-ws-route="nebenjob">Nebenjobs öffnen</button>'}</article>`;
   }
 
   // Ausstempeln direkt von Noahs Startseite
@@ -148,7 +150,7 @@
     if ('njOpen' in d) { openOrderId = d.njOpen; render(); scrollTo({ top: 0 }); }
     if ('njBack' in d) { openOrderId = null; render(); }
     if ('njEdit' in d) editOrder(d.njEdit);
-    if ('njClockIn' in d) { const o = data().orders.find(x => x.id === d.njClockIn); if (!rateOf(o)) { editRate(); return; } data().running = { orderId: o.id, start: nowTime(), date: todayIso() }; save(`Eingestempelt um ${data().running.start} Uhr`); }
+    if ('njClockIn' in d) { const o = data().orders.find(x => x.id === d.njClockIn); if (!o) { toast('Dieser Auftrag wurde inzwischen gelöscht'); render(); return; } if (!rateOf(o)) { editRate(); return; } data().running = { orderId: o.id, start: nowTime(), date: todayIso() }; save(`Eingestempelt um ${data().running.start} Uhr`); }
     if ('njClockOut' in d) { const r = data().running; if (r) { openOrderId = r.orderId; editTime(r.orderId, null, { date: r.date, start: r.start, end: nowTime(), pause: 0, note: '' }); } }
     if ('njTimeNew' in d) editTime(d.njTimeNew);
     if ('njTimeEdit' in d) { const [o, t] = d.njTimeEdit.split(':'); editTime(o, t); }

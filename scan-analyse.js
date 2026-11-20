@@ -121,7 +121,7 @@
       if (!notice && /kündigungsfrist/i.test(all)) { notice = ['', '3', 'Monat']; assumed = true; }
       if (end) { let last = end; if (notice) last = notice[2].toLowerCase().startsWith('monat') ? addMonths(end, -notice[1]) : addDays(end, -(notice[1] * (notice[2].toLowerCase().startsWith('woche') ? 7 : 1))); reminder = addDays(last, -14); reminderNote = `Vertragsende ${german(end)}${notice ? `, Kündigungsfrist ${notice[1]} ${notice[2]}${+notice[1] > 1 ? (notice[2].toLowerCase().startsWith('monat') ? 'e' : 'n') : ''}${assumed ? ' (angenommen – Frist bitte im Vertrag prüfen)' : ''}` : ''}`; }
       // Frist schon vorbei? Dann verlängert sich der Vertrag meist um ein Jahr → nächste Frist erinnern (statt „heute + 11 Monate“)
-      let guard = 0; while (reminder && reminder < today() && guard++ < 10) reminder = addMonths(reminder, 12);
+      if (reminder && reminder < today()) { const years = Math.ceil((Number(today().slice(0, 4)) - Number(reminder.slice(0, 4))) || 1); reminder = addMonths(reminder, 12 * years); if (reminder < today()) reminder = addMonths(reminder, 12); } // direkt gerechnet statt höchstens 10 Schritte
       if (!reminder) { reminder = addMonths(today(), 11); reminderNote ||= 'Vertrag prüfen (Laufzeit/Kündigung)'; }
     }
     // Ordner: zuerst gelernte Regel, dann Stichworte

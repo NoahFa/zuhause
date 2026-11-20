@@ -325,7 +325,7 @@
   function renderSave(d) {
     const categories = state.customCategories?.documents || ['Sonstige Dokumente'];
     const folderOptions = ['Gemeinsam', 'Noah', 'Charleen', 'Lou'].map(f => `<option ${f === context.folder ? 'selected' : ''}>${f}</option>`).join('');
-    d.innerHTML = `<div class="scanner-head"><button class="scanner-text" data-sc-back>← Seiten</button><strong>Speichern</strong><span>${pages.length} ${pages.length === 1 ? 'Seite' : 'Seiten'}</span></div>
+    d.innerHTML = `<div class="scanner-head"><span></span><strong>Speichern</strong><span>${pages.length} ${pages.length === 1 ? 'Seite' : 'Seiten'}</span></div>
       <div class="scanner-save"><div class="scanner-save-thumbs">${pages.slice(0, 4).map(p => `<img src="${p.thumb}" alt="">`).join('')}</div>
         <p class="scanner-progress" aria-live="polite"></p>
         <label class="ws-field"><span>Name</span><textarea name="name" rows="2" maxlength="120" placeholder="z. B. Rechnung Tierarzt November">${h(context.name || '')}</textarea></label>
@@ -523,7 +523,7 @@
     const page = pages[editIndex];
     if (!page || view !== 'edit') return;
     if ('scRetake' in ds) { pickFiles(false, editIndex); }
-    // eine einzelne Seite: gleich weiter zum Speichern (spart bei jedem Kassenbon einen Tipp; „← Seiten“ führt zurück)
+    // eine einzelne Seite: gleich weiter zum Speichern (spart bei jedem Kassenbon einen Tipp; „Zurück“ führt zu den Seiten)
     if ('scAccept' in ds || 'scAcceptNext' in ds) { processPage(page); resetAnalysis(); view = 'scAccept' in ds && pages.length === 1 ? 'save' : 'pages'; render(); if ('scAcceptNext' in ds) pickFiles(false); }
     if ('scMode' in ds) { page.mode = ds.scMode; renderEdit(dialog(), page); }
     if ('scRotate' in ds) { page.rotation = (page.rotation + 1) % 4; renderEdit(dialog(), page); }

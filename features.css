@@ -360,3 +360,6 @@ button:focus-visible,.close:focus-visible,a:focus-visible,summary:focus-visible{
 .sync-pill.error #syncText{display:inline;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media(max-width:760px){#finances .card-head:has(#expenseSearchFeature){flex-wrap:wrap}#finances .card-head:has(#expenseSearchFeature) .search{width:100%;flex-basis:100%}}
 #budgetForm input,#fixedCostForm input,#fixedCostForm select{min-height:52px;font-size:16px;font-weight:400}#budgetForm input::placeholder{font-weight:400;font-size:16px}
+/* Charleen: der laufende Monat ist die wichtigere Zahl, das Konto kleiner darüber (Prüfung 20.11.) */
+.ch-overtime .ch-module-head h2{font-size:22px}.ch-overtime-now{font-size:16px}.ch-overtime-now b{font-size:26px;font-family:Georgia,serif;font-weight:500}
+.nj-running-since{margin:2px 0 6px;color:var(--sage-dark);font-weight:600}

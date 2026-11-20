@@ -54,6 +54,10 @@ server.listen(0, '127.0.0.1', async () => {
     return [R.mergeQuantities('500g', '200g'), R.mergeQuantities('2 Flaschen', '1 Flasche'), `${x.amount}|${x.unit}`, R.formatAmount(998, 'g'),
       ...['Schweinefilet', 'Schweinebauch', 'Würstchen', 'Eigelb', 'Maisstärke', 'Zitronensaft', 'Erdnussbutter', 'Pizzateig', '1 Dose Mais'].map(n => F.parseShoppingItem(n).category), F.parseShoppingItem('1 Dose Mais').title]; });
   check(v54.join(' / ') === '700 g / 3 Flaschen / 2000|g / 1 kg / Kühlprodukte / Kühlprodukte / Kühlprodukte / Kühlprodukte / Trockenwaren / Trockenwaren / Trockenwaren / Kühlprodukte / Trockenwaren / Mais', '„500g“+„200g“, Flaschen, 2 x 1.000 g, 1 kg, Schwein/Würstchen/Stärke richtig einsortiert', v54.join(' / '));
+  const v55 = await page.evaluate(() => { const R = window.ZuhauseRecipes, before = state.shopping; state.shopping = [{ id: 'eis', title: 'Eis', quantity: '', category: 'Tiefkühlprodukte', done: false }];
+    R.addToShopping([R.parseIngredient('2 Eier')], 1, 'Test'); const rows = state.shopping.map(i => i.title).sort().join(','); state.shopping = before;
+    return [rows, ...['Öl zum Anbraten', 'Pfeffer aus der Mühle', 'Olivenöl extra vergine', 'Salzbrezel'].map(n => R.isBasic(n))]; });
+  check(v55.join(' / ') === 'Eier,Eis / true / true / true / false', '„Eis“ schluckt keine „Eier“, Basics mit Zusatz erkannt', v55.join(' / '));
   const small = await page.evaluate(() => [window.ZuhauseRecipes.formatAmount(0.25, 'g'), window.ZuhauseRecipes.formatAmount(3, 'Dose'), window.ZuhauseRecipes.formatAmount(1, 'Dose')]);
   check(small.join(' / ') === '0,3 g / 3 Dosen / 1 Dose', 'Unter 1 g mit Komma, Mehrzahl „Dosen“', small.join(' / '));
   const formatted = await page.evaluate(() => { const R = window.ZuhauseRecipes; return [R.formatAmount(250 * 4 / 2, 'g'), R.formatAmount(1.5 * 2, 'l'), R.formatAmount(0.5 * 3, ''), R.formatAmount(0.75, 'TL'), R.formatAmount(1200, 'ml'), R.formatAmount(333.33, 'g')]; });
