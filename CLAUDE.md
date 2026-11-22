@@ -9,6 +9,7 @@ Familien-App für Noah, Charleen (genau so geschrieben) und Hündin Lou. Version
 - Rezepte liegen in der eigenen Tabelle `recipes` (nicht im App-Datensatz), Abgleich in `recipes.js`.
 - `supabase/`: Datenbankschema, Cron-Jobs und Edge Functions (Müll-/Termin-Erinnerungen, Inhalte-Sync). Secrets liegen im Supabase-Vault, nie im Code.
 - `tests/`: `regression.cjs` (Abläufe, braucht einmalig `cd tools/dom-test && npm install`), `ui-check.cjs` (alle Seiten auf Handy/Tablet/Desktop mit Fotos), `verify-anonymous-access.cjs` (Datenbank ohne Anmeldung gesperrt), `scanner-check.cjs` (Dokumentenscanner mit schwierigen Testfotos, Vorschlägen, Folgeaktionen und Offline-Warteschlange), `recipes-check.cjs` (Rezepte: Zutaten lesen, Portionen, Basics, Übertragen und Zusammenrechnen auf der Einkaufsliste).
+- `cad/`: eigenes Programm „Origin CAD“ (Zeichenprogramm für die Shaper Origin), unabhängig von der Zuhause-App, live unter https://noahfa.github.io/zuhause/cad/. Stand und Regeln in `cad/PROJEKT.md`, Prüfung mit `node cad/tests/check.cjs`.
 - `.claude/agents/`: vier Prüf-Agenten (Sicherheit, Oberfläche, Fehler, Bedienbarkeit); alle zusammen starten mit `/pruefen`.
 
 ## Vor jeder Änderung lesen
