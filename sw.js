@@ -1,6 +1,6 @@
-const CACHE='zuhause-v57';
-const WORKSPACE_ASSETS=['./workspaces.css?v=57','./workspaces.js?v=57','./lou.js?v=57','./charleen.js?v=57','./noah-jobs.js?v=57','./scan-analyse.js?v=57','./scanner.js?v=57','./documents-view.js?v=57','./recipes.js?v=57'];
-const ASSETS=['./','./index.html','./styles.css?v=57','./features.css?v=57','./calendar.js?v=57','./app.js?v=57','./features.js?v=57','./vendor/supabase.min.js?v=2.118.0','./manifest.webmanifest?v=57','./icon.svg?v=57','./apple-touch-icon.png?v=57','./icon-192.png?v=57','./icon-512.png?v=57','./icon-maskable-512.png?v=57'];
+const CACHE='zuhause-v58';
+const WORKSPACE_ASSETS=['./workspaces.css?v=58','./workspaces.js?v=58','./lou.js?v=58','./charleen.js?v=58','./noah-jobs.js?v=58','./scan-analyse.js?v=58','./scanner.js?v=58','./documents-view.js?v=58','./recipes.js?v=58'];
+const ASSETS=['./','./index.html','./styles.css?v=58','./features.css?v=58','./calendar.js?v=58','./app.js?v=58','./features.js?v=58','./vendor/supabase.min.js?v=2.118.0','./manifest.webmanifest?v=58','./icon.svg?v=58','./apple-touch-icon.png?v=58','./icon-192.png?v=58','./icon-512.png?v=58','./icon-maskable-512.png?v=58'];
 // Werkzeuge für Scanner (PDF, Texterkennung) liegen in einem eigenen Zwischenspeicher, der bei App-Updates erhalten bleibt –
 // so klappt Scannen ohne Internet auch direkt nach einem Update. Beim Austausch einer Datei unter vendor/ VENDOR_CACHE hochzählen.
 const VENDOR_CACHE='zuhause-vendor-2';
@@ -16,7 +16,7 @@ self.addEventListener('install',event=>event.waitUntil(Promise.all([
 ]).then(()=>self.skipWaiting())));
 // Die App bittet ein paar Sekunden nach dem Start darum (blockiert so weder Installation noch Aktivierung).
 self.addEventListener('message',event=>{if(event.data?.type==='precache-ocr')event.waitUntil(caches.open(VENDOR_CACHE).then(cache=>Promise.allSettled((event.data.simd===false?VENDOR_LATER_OLD:VENDOR_LATER).map(async asset=>{if(!await cache.match(asset))await cache.add(asset)}))))});
-self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE&&key!==VENDOR_CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
+self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('zuhause-')&&key!==CACHE&&key!==VENDOR_CACHE)/* nur eigene Speicher löschen – Origin CAD liegt unter derselben Adresse */.map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{
   if(event.request.method!=='GET'||new URL(event.request.url).origin!==self.location.origin)return;
   const url=new URL(event.request.url);
@@ -27,7 +27,7 @@ self.addEventListener('fetch',event=>{
 self.addEventListener('push',event=>{
   let data={};try{data=event.data?.json()||{}}catch{data={body:event.data?.text()}}
   const title=data.title||'Zuhause';
-  event.waitUntil(self.registration.showNotification(title,{body:data.body||'Es gibt eine neue Erinnerung.',icon:'./icon-192.png?v=57',badge:'./icon-192.png?v=57',tag:data.tag||'zuhause-erinnerung',data:{url:data.url||'./?page=calendar'},renotify:false}));
+  event.waitUntil(self.registration.showNotification(title,{body:data.body||'Es gibt eine neue Erinnerung.',icon:'./icon-192.png?v=58',badge:'./icon-192.png?v=58',tag:data.tag||'zuhause-erinnerung',data:{url:data.url||'./?page=calendar'},renotify:false}));
 });
 self.addEventListener('notificationclick',event=>{
   event.notification.close();const target=new URL(String(event.notification.data?.url||'./?page=calendar').replace(/^\//,'./'),self.registration.scope).href;
